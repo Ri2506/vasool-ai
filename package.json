@@ -1,0 +1,48 @@
+{
+  "name": "vasool-ai",
+  "version": "0.1.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~55.0.9",
+    "@expo/vector-icons": "^15.1.1",
+    "@react-native-community/netinfo": "~11.5.2",
+    "@react-navigation/bottom-tabs": "^7.0.0",
+    "@react-navigation/native": "^7.0.0",
+    "@react-navigation/native-stack": "^7.0.0",
+    "@supabase/supabase-js": "^2.46.0",
+    "@tanstack/react-query": "^5.59.0",
+    "@types/sql.js": "^1.4.11",
+    "expo": "~55.0.11",
+    "expo-localization": "~55.0.11",
+    "expo-location": "~55.1.6",
+    "expo-secure-store": "~55.0.11",
+    "expo-sqlite": "~55.0.13",
+    "expo-status-bar": "~55.0.5",
+    "i18next": "^23.16.0",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-i18next": "^15.1.0",
+    "react-native": "0.83.4",
+    "react-native-gesture-handler": "~2.30.0",
+    "react-native-reanimated": "~4.2.1",
+    "react-native-safe-area-context": "~5.6.2",
+    "react-native-screens": "~4.23.0",
+    "react-native-url-polyfill": "^2.0.0",
+    "react-native-web": "~0.21.0",
+    "sql.js": "^1.14.1",
+    "zustand": "^5.0.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@types/react": "~19.1.0",
+    "typescript": "~5.7.0"
+  },
+  "private": true
+}
