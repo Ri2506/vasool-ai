@@ -40,8 +40,9 @@ export function NewLoanScreen({ route, navigation }: Props) {
   const [emiTouched, setEmiTouched] = useState(false);
   const [installments, setInstallments] = useState('');
   const [lineId, setLineId] = useState<string | null>(null);
-  const [startDate] = useState(new Date()); // PRD v2.1: configurable start date
-  const [gracePeriod, setGracePeriod] = useState('0');
+  const [startDate, setStartDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [gracePeriod, setGracePeriod] = useState(0);
   const [productDesc, setProductDesc] = useState('');
   const [penaltyType, setPenaltyType] = useState<'none' | 'flat' | 'percentage'>('none');
   const [penaltyAmount, setPenaltyAmount] = useState('');
@@ -105,7 +106,7 @@ export function NewLoanScreen({ route, navigation }: Props) {
         totalInstallments: Number(installments),
         lineType,
         startDate,
-        gracePeriodDays: Number(gracePeriod) || 0,
+        gracePeriodDays: gracePeriod,
         productDescription: productDesc.trim() || undefined,
         penaltyType: penaltyType === 'none' ? undefined : penaltyType,
         penaltyAmount: Number(penaltyAmount) || 0,
@@ -126,6 +127,39 @@ export function NewLoanScreen({ route, navigation }: Props) {
           <Text style={styles.title}>{t('loan.title')}</Text>
           {borrower ? <Text style={styles.sub}>{borrower.name}</Text> : null}
 
+          {/* Start date picker */}
+          <Text style={styles.fieldLabel}>{t('loan.start_date')}</Text>
+          <Pressable
+            style={styles.dateBtn}
+            onPress={() => setShowDatePicker(!showDatePicker)}
+          >
+            <Text style={styles.dateBtnText}>
+              {startDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </Text>
+            <Text style={styles.dateBtnIcon}>📅</Text>
+          </Pressable>
+          {showDatePicker ? (
+            <View style={styles.dateGrid}>
+              {[0, 1, 2, 3, 7, 14].map((offset) => {
+                const d = new Date();
+                d.setDate(d.getDate() + offset);
+                const label = offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : `+${offset}d`;
+                const isSelected = startDate.toDateString() === d.toDateString();
+                return (
+                  <Pressable
+                    key={offset}
+                    style={[styles.lineChip, isSelected && styles.lineChipActive]}
+                    onPress={() => { setStartDate(d); setShowDatePicker(false); }}
+                  >
+                    <Text style={[styles.lineChipLabel, isSelected && styles.lineChipLabelActive]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
           <Field
             label={t('loan.principal')}
             value={principal}
@@ -144,12 +178,21 @@ export function NewLoanScreen({ route, navigation }: Props) {
             prefix="₹"
           />
 
-          {/* Grace period */}
-          <Field
-            label={t('loan.grace_period')}
-            value={gracePeriod}
-            onChangeText={(v) => setGracePeriod(v.replace(/\D/g, '').slice(0, 1))}
-          />
+          {/* Grace period — tappable chips */}
+          <Text style={styles.fieldLabel}>{t('loan.grace_period')}</Text>
+          <View style={styles.dateGrid}>
+            {[0, 1, 2, 3].map((days) => (
+              <Pressable
+                key={days}
+                style={[styles.lineChip, gracePeriod === days && styles.lineChipActive]}
+                onPress={() => setGracePeriod(days)}
+              >
+                <Text style={[styles.lineChipLabel, gracePeriod === days && styles.lineChipLabelActive]}>
+                  {days === 0 ? 'None' : `${days} day${days > 1 ? 's' : ''}`}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
           <Text style={styles.hint}>{t('loan.grace_hint')}</Text>
 
           {/* Penalty */}
@@ -350,4 +393,19 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   interestBannerText: { ...Typography.caption, color: Colors.info, fontWeight: '600' },
+  dateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.white,
+    borderRadius: Radius.button,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingHorizontal: Spacing.md,
+    minHeight: TouchTarget.min,
+    marginBottom: Spacing.md,
+  },
+  dateBtnText: { ...Typography.title, color: Colors.text },
+  dateBtnIcon: { fontSize: 18 },
+  dateGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: Spacing.md },
 });

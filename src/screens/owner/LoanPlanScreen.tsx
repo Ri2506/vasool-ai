@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Alert,
   FlatList,
   SafeAreaView,
   StyleSheet,
@@ -10,11 +11,13 @@ import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Badge, type BadgeVariant } from '@/components/common/Badge';
+import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { Colors } from '@/constants/colors';
 import { Spacing, Typography } from '@/constants/typography';
-import { usePlanEntries } from '@/hooks/useLoans';
+import { usePlanEntries, useUpdateLoanStatus } from '@/hooks/useLoans';
 import { formatDateShort, formatRupees } from '@/utils/format';
+import { generatePlanHtml, sharePdf } from '@/utils/pdfExport';
 import type { PlanEntryRow, PlanEntryStatus } from '@/db/types';
 import type { OwnerStackParamList } from '@/navigation/types';
 
@@ -47,10 +50,33 @@ export function LoanPlanScreen({ route }: Props) {
     </View>
   );
 
+  const updateStatus = useUpdateLoanStatus();
+
+  const handleSharePlan = async () => {
+    if (!plan || plan.length === 0) return;
+    const html = generatePlanHtml('Borrower', 0, plan[0]?.expected_amount ?? 0,
+      plan.map((p) => ({ number: p.installment_number, date: p.due_date, amount: p.expected_amount, status: p.status })));
+    await sharePdf(html, 'VasoolAI-Repayment-Plan');
+  };
+
+  const handleCloseLoan = () => {
+    Alert.alert(t('loan.close_loan'), 'Close this loan? Remaining balance will be waived.', [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('loan.close_loan'), style: 'destructive', onPress: () => {
+        updateStatus.mutate({ id: loanId, status: 'closed' });
+        Alert.alert('🎉 Loan closed!', 'This loan has been marked as complete.');
+      }},
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('loan.plan_title')}</Text>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: Spacing.sm }}>
+          <Button title={t('common.share_pdf')} variant="secondary" onPress={handleSharePlan} />
+          <Button title={t('loan.close_loan')} variant="danger" onPress={handleCloseLoan} />
+        </View>
       </View>
 
       <Card style={styles.tableCard}>

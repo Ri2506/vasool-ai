@@ -25,8 +25,10 @@ import {
   type LineSummaryRow,
   type OutstandingRow,
 } from '@/db/repos/reports';
+import { Button } from '@/components/common/Button';
 import { useAuthStore } from '@/store/authStore';
 import { formatDateShort, formatRupees } from '@/utils/format';
+import { generateReportHtml, sharePdf } from '@/utils/pdfExport';
 
 type Tab = 'daily' | 'lines' | 'outstanding';
 
@@ -51,10 +53,28 @@ export function ReportsScreen() {
     queryFn: () => getOutstandingReport(orgId!),
   });
 
+  const handleSharePdf = async () => {
+    let html = '';
+    if (tab === 'daily' && daily) {
+      html = generateReportHtml('Daily Summary', ['Date', 'Collected', 'Expenses', 'Net'],
+        daily.map((r) => [formatDateShort(new Date(r.date)), formatRupees(r.total_collected), formatRupees(r.total_expenses), formatRupees(r.total_collected - r.total_expenses)]));
+    } else if (tab === 'lines' && lines) {
+      html = generateReportHtml('Line Summary', ['Line', 'Borrowers', 'Due', 'Collected'],
+        lines.map((r) => [r.line_name, String(r.borrower_count), formatRupees(r.total_due), formatRupees(r.total_collected)]));
+    } else if (tab === 'outstanding' && outstanding) {
+      html = generateReportHtml('Outstanding Report', ['Borrower', 'Principal', 'Paid', 'Status'],
+        outstanding.map((r) => [r.borrower_name, formatRupees(r.principal), formatRupees(r.total_paid), r.status]));
+    }
+    if (html) await sharePdf(html, `VasoolAI-${tab}-report`);
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t('nav.reports')}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.title}>{t('nav.reports')}</Text>
+          <Button title={t('common.share_pdf')} variant="secondary" onPress={handleSharePdf} />
+        </View>
       </View>
 
       {/* Tab selector */}

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FlatList,
+  Modal,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -34,6 +35,7 @@ export function HomeScreen() {
   const { data: summary } = useTodaySummary();
   const { data: dueItems = [] } = useDueToday();
   const { data: smart } = useSmartCards();
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   const total = dueItems.length + (summary?.collectionCount ?? 0);
   const done = summary?.collectionCount ?? 0;
@@ -86,10 +88,13 @@ export function HomeScreen() {
                     {formatRupees(smart.monthProfit)}
                   </Text>
                 </Card>
-                <Card style={styles.smartCard}>
-                  <Text style={styles.smartLabel}>Available to lend</Text>
-                  <Text style={styles.smartValue}>{formatRupees(smart.availableToLend)}</Text>
-                </Card>
+                <Pressable onPress={() => setShowBreakdown(true)}>
+                  <Card style={styles.smartCard}>
+                    <Text style={styles.smartLabel}>Available to lend</Text>
+                    <Text style={styles.smartValue}>{formatRupees(smart.availableToLend)}</Text>
+                    <Text style={styles.tapHint}>Tap for breakdown</Text>
+                  </Card>
+                </Pressable>
               </View>
             ) : null}
             {smart && smart.nextWeekForecast > 0 ? (
@@ -161,7 +166,42 @@ export function HomeScreen() {
           </>
         }
       />
+
+      {/* Available-to-lend breakdown modal */}
+      <Modal visible={showBreakdown} transparent animationType="slide" onRequestClose={() => setShowBreakdown(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShowBreakdown(false)}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Available to lend</Text>
+            {smart ? (
+              <>
+                <BreakdownRow label="Collections received" value={formatRupees(smart.monthCollected)} plus />
+                <BreakdownRow label="Investments" value={formatRupees(smart.totalInvested)} plus />
+                <View style={styles.divider} />
+                <BreakdownRow label="Loans given out" value={formatRupees(smart.monthLent)} />
+                <BreakdownRow label="Expenses" value={formatRupees(smart.monthExpenses)} />
+                <View style={styles.divider} />
+                <View style={styles.breakdownTotal}>
+                  <Text style={styles.breakdownTotalLabel}>Available to lend</Text>
+                  <Text style={styles.breakdownTotalValue}>{formatRupees(smart.availableToLend)}</Text>
+                </View>
+              </>
+            ) : null}
+            <Button title="Close" variant="secondary" onPress={() => setShowBreakdown(false)} style={{ marginTop: Spacing.lg }} />
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
+  );
+}
+
+function BreakdownRow({ label, value, plus }: { label: string; value: string; plus?: boolean }) {
+  return (
+    <View style={styles.breakdownRow}>
+      <Text style={styles.breakdownLabel}>{label}</Text>
+      <Text style={[styles.breakdownValue, { color: plus ? Colors.primary : Colors.danger }]}>
+        {plus ? '+ ' : '- '}{value}
+      </Text>
+    </View>
   );
 }
 
@@ -222,4 +262,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
   },
+  tapHint: { ...Typography.caption, color: Colors.textMuted, marginTop: 2 },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: Colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl, paddingBottom: Spacing.xxl },
+  modalTitle: { ...Typography.display, color: Colors.text, marginBottom: Spacing.lg },
+  divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.md },
+  breakdownTotal: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.sm },
+  breakdownTotalLabel: { ...Typography.title, color: Colors.text },
+  breakdownTotalValue: { ...Typography.display, color: Colors.primary },
+  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.sm },
+  breakdownLabel: { ...Typography.body, color: Colors.textSec },
+  breakdownValue: { ...Typography.body, fontWeight: '600' },
 });

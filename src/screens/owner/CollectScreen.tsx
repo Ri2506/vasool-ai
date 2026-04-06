@@ -46,7 +46,9 @@ export function CollectScreen({ route, navigation }: Props) {
   }, [voice.lastResult]);
   const [collected, setCollected] = useState(false);
 
-  const handleCollect = async () => {
+  const isInterestOnlyLoan = item.line_type === 'daily_interest' || item.line_type === 'weekly_interest' || item.line_type === 'monthly_interest';
+
+  const doRecord = async (isPrincipalReturn = false) => {
     const numAmount = Number(amount);
     if (numAmount <= 0) return;
     try {
@@ -61,7 +63,36 @@ export function CollectScreen({ route, navigation }: Props) {
         gpsLat: gps?.lat,
         gpsLng: gps?.lng,
       });
+      // If principal return on interest-only loan, record it separately
+      if (isPrincipalReturn) {
+        const { recordPrincipalReturn } = await import('@/db/repos/principalReturns');
+        const orgId = item.loan_id; // will be corrected by the repo from loan's org_id
+        await recordPrincipalReturn(orgId, item.loan_id, numAmount - item.expected_amount, 'Principal return from collection');
+      }
       setCollected(true);
+    } catch (e: any) {
+      Alert.alert(t('common.error_generic'), e?.message ?? '');
+    }
+  };
+
+  const handleCollect = async () => {
+    const numAmount = Number(amount);
+    if (numAmount <= 0) return;
+    // For interest-only loans: if amount > expected interest, ask if it's principal return
+    if (isInterestOnlyLoan && numAmount > item.expected_amount) {
+      const excess = numAmount - item.expected_amount;
+      Alert.alert(
+        t('loan.return_principal'),
+        `₹${excess.toLocaleString('en-IN')} is more than the interest. Is this a principal return?`,
+        [
+          { text: 'No, just payment', onPress: () => doRecord(false) },
+          { text: `Yes, ₹${excess.toLocaleString('en-IN')} principal`, onPress: () => doRecord(true) },
+        ]
+      );
+      return;
+    }
+    try {
+      await doRecord(false);
     } catch (e: any) {
       Alert.alert(t('common.error_generic'), e?.message ?? '');
     }

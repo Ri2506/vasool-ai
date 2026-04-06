@@ -3,6 +3,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,8 +12,10 @@ import {
   View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+import { Avatar } from '@/components/common/Avatar';
 import { Button } from '@/components/common/Button';
 import { Colors } from '@/constants/colors';
 import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
@@ -40,6 +43,31 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+
+  const handleTakePhoto = async () => {
+    try {
+      const ImagePicker = await import('expo-image-picker');
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') { Alert.alert('Camera permission needed'); return; }
+      const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.5 });
+      if (!result.canceled && result.assets[0]) setPhotoUri(result.assets[0].uri);
+    } catch { Alert.alert('Camera not available'); }
+  };
+
+  const handlePickContact = async () => {
+    try {
+      const Contacts = await import('expo-contacts');
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') { Alert.alert('Contacts permission needed'); return; }
+      const { data } = await Contacts.getContactsAsync({ fields: [Contacts.Fields.PhoneNumbers], pageSize: 1 });
+      if (data.length > 0) {
+        const c = data[0];
+        setName([c.firstName, c.lastName].filter(Boolean).join(' '));
+        if (c.phoneNumbers?.[0]?.number) setPhone(c.phoneNumbers[0].number.replace(/\D/g, '').slice(-10));
+      }
+    } catch { Alert.alert('Contacts not available'); }
+  };
 
   useEffect(() => {
     if (existing) {
@@ -94,7 +122,25 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
             {isEditing ? t('borrowers.edit') : t('borrowers.add')}
           </Text>
 
-          <Field label={t('borrowers.name')} value={name} onChangeText={setName} />
+          {/* Photo + Camera */}
+          <View style={styles.photoRow}>
+            <Avatar name={name || '?'} size={64} photoUri={photoUri} />
+            <Pressable style={styles.photoBtn} onPress={handleTakePhoto}>
+              <MaterialCommunityIcons name="camera" size={20} color={Colors.primary} />
+              <Text style={styles.photoBtnText}>{t('common.take_photo')}</Text>
+            </Pressable>
+          </View>
+
+          {/* Name + Contacts import */}
+          <View style={styles.nameRow}>
+            <View style={{ flex: 1 }}>
+              <Field label={t('borrowers.name')} value={name} onChangeText={setName} />
+            </View>
+            <Pressable style={styles.contactsBtn} onPress={handlePickContact}>
+              <MaterialCommunityIcons name="contacts" size={24} color={Colors.primary} />
+            </Pressable>
+          </View>
+
           <Field
             label={t('borrowers.phone')}
             value={phone}
@@ -185,4 +231,38 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   multiline: { minHeight: 80, paddingTop: Spacing.md, textAlignVertical: 'top' },
+  photoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  photoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    minHeight: TouchTarget.min,
+  },
+  photoBtnText: {
+    ...Typography.caption,
+    color: Colors.primary,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  contactsBtn: {
+    width: TouchTarget.min,
+    height: TouchTarget.min,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
 });

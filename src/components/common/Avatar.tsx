@@ -1,21 +1,16 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/colors';
 
 interface Props {
   name: string;
   size?: number;
+  photoUri?: string | null;
 }
 
-// Muted palette — avatars sit next to names, not as accents.
 const PALETTE = [
-  '#4f7960',
-  '#5e6b80',
-  '#806c5e',
-  '#7a5e80',
-  '#4f687a',
-  '#7a4f55',
+  '#4f7960', '#5e6b80', '#806c5e', '#7a5e80', '#4f687a', '#7a4f55',
 ];
 
 function hashColor(name: string): string {
@@ -33,7 +28,20 @@ function initials(name: string): string {
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 }
 
-export function Avatar({ name, size = 44 }: Props) {
+export function Avatar({ name, size = 44, photoUri }: Props) {
+  if (photoUri) {
+    return (
+      <Image
+        source={{ uri: photoUri }}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+        }}
+      />
+    );
+  }
+
   return (
     <View
       style={[
