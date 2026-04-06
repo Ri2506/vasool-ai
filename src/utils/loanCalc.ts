@@ -1,20 +1,16 @@
-// Loan calculations + repayment plan generation.
-// Supports 7 line types per PRD v2.1.
+// Loan calculations — ALL days count (no skipping Sundays).
+// Tenure and interest are fully dynamic per owner's input.
 //
-// Interest-only types (daily_interest, weekly_interest):
-//   Borrower pays interest daily/weekly. Principal NOT included in payments.
-//   Principal is returned separately. Loan stays open until principal returned.
-//   totalInstallments = number of interest payments to generate in the plan.
-//   totalRepayment = interest only (principal tracked separately).
+// 7 line types:
+//   daily           — fixed EMI every day for N days
+//   weekly          — fixed EMI every week for N weeks
+//   monthly_emi     — fixed EMI every month for N months
+//   monthly_interest — interest-only monthly, principal returned separately
+//   enterprise      — flexible monthly with optional product description
+//   daily_interest  — interest-only daily, principal returned separately
+//   weekly_interest — interest-only weekly, principal returned separately
 
 import type { LineType, PlanEntryStatus } from '@/db/types';
-import {
-  DEFAULT_WORKING_DAYS,
-  generateMonthlyDates,
-  generateWeeklyDates,
-  generateWorkingDates,
-  type DayKey,
-} from './workingDays';
 
 export interface LoanInput {
   principal: number;
@@ -22,7 +18,6 @@ export interface LoanInput {
   totalInstallments: number;
   lineType: LineType;
   startDate: Date | number;
-  workingDays?: DayKey[];
 }
 
 export interface PlanInstallment {
@@ -41,110 +36,124 @@ export interface LoanSummary {
 }
 
 /**
- * Build the full repayment schedule for a loan.
- *
- * 7 line types:
- * - daily: fixed EMI every working day, principal included
- * - weekly: fixed EMI every week, principal included
- * - monthly_emi: fixed monthly EMI, principal included
- * - monthly_interest: interest-only monthly, principal returned at end
- * - enterprise: flexible monthly, optional product_description
- * - daily_interest: interest-only daily. Principal NOT in payments.
- * - weekly_interest: interest-only weekly. Principal NOT in payments.
+ * Generate due dates. ALL calendar days count — no Sundays skipped.
+ *   daily/daily_interest: every single day
+ *   weekly/weekly_interest: every 7 days
+ *   monthly_emi/monthly_interest/enterprise: every month (same day-of-month)
  */
-export function computeLoan(input: LoanInput): LoanSummary {
-  const {
-    principal,
-    emiAmount,
-    totalInstallments,
-    lineType,
-    startDate,
-    workingDays = DEFAULT_WORKING_DAYS,
-  } = input;
+function generateDates(startDate: Date | number, count: number, lineType: LineType): number[] {
+  if (count <= 0) return [];
+  const base = new Date(typeof startDate === 'number' ? startDate : startDate.getTime());
+  base.setHours(0, 0, 0, 0);
+  const out: number[] = [];
 
-  const isInterestOnly = lineType === 'daily_interest' || lineType === 'weekly_interest' || lineType === 'monthly_interest';
-
-  let dates: number[];
   switch (lineType) {
     case 'daily':
     case 'daily_interest':
-      dates = generateWorkingDates(startDate, totalInstallments, workingDays);
+      for (let i = 0; i < count; i++) {
+        const d = new Date(base.getTime());
+        d.setDate(base.getDate() + i);
+        d.setHours(0, 0, 0, 0);
+        out.push(d.getTime());
+      }
       break;
+
     case 'weekly':
     case 'weekly_interest':
-      dates = generateWeeklyDates(startDate, totalInstallments);
+      for (let i = 0; i < count; i++) {
+        const d = new Date(base.getTime());
+        d.setDate(base.getDate() + i * 7);
+        d.setHours(0, 0, 0, 0);
+        out.push(d.getTime());
+      }
       break;
+
     case 'monthly_emi':
     case 'monthly_interest':
-    case 'enterprise':
-      dates = generateMonthlyDates(startDate, totalInstallments);
+    case 'enterprise': {
+      const day = base.getDate();
+      for (let i = 0; i < count; i++) {
+        const d = new Date(base.getFullYear(), base.getMonth() + i, 1);
+        const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        d.setDate(Math.min(day, lastDay));
+        d.setHours(0, 0, 0, 0);
+        out.push(d.getTime());
+      }
       break;
+    }
   }
+  return out;
+}
+
+/**
+ * Build the full repayment schedule.
+ * Interest and tenure are 100% dynamic — whatever the owner enters.
+ */
+export function computeLoan(input: LoanInput): LoanSummary {
+  const { principal, emiAmount, totalInstallments, lineType, startDate } = input;
+
+  // Validate
+  if (principal <= 0 || emiAmount <= 0 || totalInstallments <= 0) {
+    return { totalRepayment: 0, interest: 0, expectedEndDate: 0, plan: [], isInterestOnly: false };
+  }
+
+  const isInterestOnly = lineType === 'daily_interest' || lineType === 'weekly_interest' || lineType === 'monthly_interest';
+  const dates = generateDates(startDate, totalInstallments, lineType);
 
   const plan: PlanInstallment[] = dates.map((dueDate, i) => ({
     installmentNumber: i + 1,
     dueDate,
     expectedAmount: emiAmount,
-    status: 'pending',
+    status: 'pending' as PlanEntryStatus,
   }));
 
-  const totalInterestPayments = emiAmount * totalInstallments;
-
-  // For interest-only: totalRepayment = interest payments only.
-  // Principal is returned separately and tracked via principal_returns table.
-  // For regular: totalRepayment = EMI × installments (includes principal + interest).
-  const totalRepayment = isInterestOnly ? totalInterestPayments : totalInterestPayments;
-  const interest = isInterestOnly ? totalInterestPayments : Math.max(0, totalRepayment - principal);
-  const expectedEndDate = dates[dates.length - 1] ?? Number(startDate);
+  const totalRepayment = emiAmount * totalInstallments;
+  // Interest-only: all payments are interest. Regular: interest = total - principal.
+  const interest = isInterestOnly
+    ? totalRepayment
+    : Math.max(0, totalRepayment - principal);
+  const expectedEndDate = dates[dates.length - 1] ?? 0;
 
   return { totalRepayment, interest, expectedEndDate, plan, isInterestOnly };
 }
 
 /**
- * Suggest a round EMI for a given principal + installment count.
- * For regular loans: 20% markup → EMI.
- * For interest-only: suggest daily/weekly interest rate (e.g. 0.3% daily).
+ * Suggest EMI. Owner can always override — this is just a starting point.
+ * For small loans (< ₹150 principal), rounds to nearest ₹1 not ₹10.
  */
 export function suggestEmi(principal: number, installments: number, lineType?: LineType): number {
-  if (installments <= 0) return 0;
+  if (installments <= 0 || principal <= 0) return 0;
 
   if (lineType === 'daily_interest') {
-    // Typical: ₹300/day per ₹1,00,000 = 0.3% daily
-    const daily = Math.round(principal * 0.003);
-    return Math.max(10, Math.round(daily / 10) * 10);
+    // Typical: 0.3% daily → ₹300/day per ₹1,00,000
+    return Math.max(1, Math.round(principal * 0.003));
   }
   if (lineType === 'weekly_interest') {
-    // Typical: ₹2,000/week per ₹1,00,000 = 2% weekly
-    const weekly = Math.round(principal * 0.02);
-    return Math.max(10, Math.round(weekly / 10) * 10);
+    // Typical: 2% weekly → ₹2,000/week per ₹1,00,000
+    return Math.max(1, Math.round(principal * 0.02));
   }
 
+  // Regular: 20% flat markup divided by installments
   const total = Math.round(principal * 1.2);
   const raw = total / installments;
-  return Math.max(1, Math.round(raw / 10) * 10);
+  if (raw < 10) return Math.max(1, Math.round(raw));
+  return Math.max(10, Math.round(raw / 10) * 10);
 }
 
 /**
- * Check if a borrower is Nadapu (on schedule) or Nippu (overdue).
- * Takes grace period into account.
+ * Check if a borrower is Nippu (overdue beyond grace).
+ * daysOverdue = all calendar days since first missed payment.
  */
-export function isNippu(
-  missedDays: number,
-  gracePeriodDays: number
-): boolean {
-  return missedDays > gracePeriodDays;
+export function isNippu(daysOverdue: number, gracePeriodDays: number): boolean {
+  return daysOverdue > gracePeriodDays;
 }
 
 /**
- * Calculate payment rating (1-5 stars) from payment history.
- * 90%+ on-time = 5 stars, 75-89% = 4, 60-74% = 3, 40-59% = 2, <40% = 1
+ * Payment rating (1-5 stars). 0 = no data.
  */
-export function calculatePaymentRating(
-  onTimePayments: number,
-  totalExpectedPayments: number
-): number {
-  if (totalExpectedPayments === 0) return 0;
-  const pct = (onTimePayments / totalExpectedPayments) * 100;
+export function calculatePaymentRating(onTime: number, total: number): number {
+  if (total === 0) return 0;
+  const pct = (onTime / total) * 100;
   if (pct >= 90) return 5;
   if (pct >= 75) return 4;
   if (pct >= 60) return 3;
@@ -153,7 +162,7 @@ export function calculatePaymentRating(
 }
 
 /**
- * Calculate penalty for a late payment.
+ * Penalty calculation. All calendar days count.
  */
 export function calculatePenalty(
   emiAmount: number,
@@ -162,7 +171,6 @@ export function calculatePenalty(
   penaltyAmount: number
 ): number {
   if (!penaltyType || penaltyAmount <= 0 || daysLate <= 0) return 0;
-  if (penaltyType === 'flat') return penaltyAmount * daysLate;
-  // percentage: e.g. 5% per day
+  if (penaltyType === 'flat') return Math.round(penaltyAmount * daysLate);
   return Math.round((emiAmount * penaltyAmount * daysLate) / 100);
 }

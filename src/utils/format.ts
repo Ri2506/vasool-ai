@@ -5,7 +5,7 @@
  * Always prefixes ₹. No decimals (rupee amounts only per PRD §5.2).
  */
 export function formatRupees(amount: number | null | undefined): string {
-  if (amount == null || Number.isNaN(amount)) return '₹0';
+  if (amount == null || Number.isNaN(amount) || !Number.isFinite(amount)) return '₹0';
   const n = Math.round(amount);
   const sign = n < 0 ? '-' : '';
   const abs = Math.abs(n).toString();

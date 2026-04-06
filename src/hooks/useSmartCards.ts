@@ -80,19 +80,44 @@ async function computeSmartCards(orgId: string): Promise<SmartCardData> {
     [orgId]
   );
 
-  // Available = invested + deposits + all collections - all loans - all expenses - deposit interest paid
-  const availableToLend =
-    totalInvested + (totalDeposits?.total ?? 0) + (allCollections?.total ?? 0)
-    - (allLoans?.total ?? 0) - (allExpenses?.total ?? 0) - (depositInterestPaid?.total ?? 0);
-
-  // Next week forecast: count active daily/weekly EMIs × working days
-  const activeEmiSum = await db.getFirstAsync<{ total: number }>(
-    `SELECT COALESCE(SUM(emi_amount), 0) AS total FROM loans
-     WHERE org_id = ? AND status = 'active'`,
+  // Principal returns (money that came back from borrowers on interest-only loans)
+  const principalReturns = await db.getFirstAsync<{ total: number }>(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM principal_returns WHERE org_id = ? AND amount > 0`,
     [orgId]
   );
-  // Rough estimate: 6 working days next week × active EMI sum
-  const nextWeekForecast = (activeEmiSum?.total ?? 0) * 6;
+
+  // Available = invested + deposits + collections + principal_returns - loans - expenses - deposit_interest
+  const availableToLend =
+    totalInvested + (totalDeposits?.total ?? 0) + (allCollections?.total ?? 0)
+    + (principalReturns?.total ?? 0)
+    - (allLoans?.total ?? 0) - (allExpenses?.total ?? 0) - (depositInterestPaid?.total ?? 0);
+
+  // Next week forecast — per loan type (7 days for daily, 1 for weekly, ~0.25 for monthly)
+  const dailyEmi = await db.getFirstAsync<{ total: number }>(
+    `SELECT COALESCE(SUM(l.emi_amount), 0) AS total FROM loans l
+     LEFT JOIN lines ln ON ln.id = l.line_id
+     WHERE l.org_id = ? AND l.status = 'active'
+       AND (ln.type IN ('daily', 'daily_interest') OR ln.type IS NULL)`,
+    [orgId]
+  );
+  const weeklyEmi = await db.getFirstAsync<{ total: number }>(
+    `SELECT COALESCE(SUM(l.emi_amount), 0) AS total FROM loans l
+     LEFT JOIN lines ln ON ln.id = l.line_id
+     WHERE l.org_id = ? AND l.status = 'active'
+       AND ln.type IN ('weekly', 'weekly_interest')`,
+    [orgId]
+  );
+  const monthlyEmi = await db.getFirstAsync<{ total: number }>(
+    `SELECT COALESCE(SUM(l.emi_amount), 0) AS total FROM loans l
+     LEFT JOIN lines ln ON ln.id = l.line_id
+     WHERE l.org_id = ? AND l.status = 'active'
+       AND ln.type IN ('monthly_emi', 'monthly_interest', 'enterprise')`,
+    [orgId]
+  );
+  // 7 days × daily + 1 × weekly + ~0.25 × monthly
+  const nextWeekForecast = Math.round(
+    (dailyEmi?.total ?? 0) * 7 + (weeklyEmi?.total ?? 0) * 1 + (monthlyEmi?.total ?? 0) * 0.25
+  );
 
   return {
     monthProfit,

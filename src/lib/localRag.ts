@@ -53,15 +53,19 @@ const INTENTS: Intent[] = [
     query: (orgId) => ({
       sql: `SELECT
         (SELECT COALESCE(SUM(amount),0) FROM investments WHERE org_id=?) AS invested,
+        (SELECT COALESCE(SUM(amount),0) FROM deposits WHERE org_id=? AND status='active') AS deposits,
         (SELECT COALESCE(SUM(amount),0) FROM collections WHERE org_id=?) AS all_collected,
+        (SELECT COALESCE(SUM(amount),0) FROM principal_returns WHERE org_id=? AND amount>0) AS principal_returned,
         (SELECT COALESCE(SUM(principal),0) FROM loans WHERE org_id=?) AS all_lent,
-        (SELECT COALESCE(SUM(amount),0) FROM expenses WHERE org_id=?) AS all_expenses`,
-      params: [orgId, orgId, orgId, orgId],
+        (SELECT COALESCE(SUM(amount),0) FROM expenses WHERE org_id=?) AS all_expenses,
+        (SELECT COALESCE(SUM(interest_paid),0) FROM deposits WHERE org_id=?) AS deposit_interest`,
+      params: [orgId, orgId, orgId, orgId, orgId, orgId, orgId],
     }),
     format: (rows) => {
       const r = rows[0] ?? {};
-      const available = Number(r.invested) + Number(r.all_collected) - Number(r.all_lent) - Number(r.all_expenses);
-      return `**Available to lend: ${formatRupees(available)}**\n\nCapital invested: ${formatRupees(Number(r.invested))}\nTotal collected: ${formatRupees(Number(r.all_collected))}\nTotal lent: ${formatRupees(Number(r.all_lent))}\nTotal expenses: ${formatRupees(Number(r.all_expenses))}`;
+      const available = Number(r.invested) + Number(r.deposits) + Number(r.all_collected) + Number(r.principal_returned)
+        - Number(r.all_lent) - Number(r.all_expenses) - Number(r.deposit_interest);
+      return `**Available to lend: ${formatRupees(available)}**\n\nCapital invested: ${formatRupees(Number(r.invested))}\nDeposits: ${formatRupees(Number(r.deposits))}\nCollections: ${formatRupees(Number(r.all_collected))}\nPrincipal returned: ${formatRupees(Number(r.principal_returned))}\n\nLoans given: ${formatRupees(Number(r.all_lent))}\nExpenses: ${formatRupees(Number(r.all_expenses))}\nDeposit interest: ${formatRupees(Number(r.deposit_interest))}`;
     },
   },
 
@@ -181,13 +185,22 @@ const INTENTS: Intent[] = [
   {
     patterns: [/forecast/i, /next week/i, /expect/i, /predict/i, /upcoming/i],
     query: (orgId) => ({
-      sql: `SELECT COALESCE(SUM(emi_amount),0) AS weekly_emi FROM loans WHERE org_id=? AND status='active'`,
-      params: [orgId],
+      sql: `SELECT
+        (SELECT COALESCE(SUM(l.emi_amount),0) FROM loans l LEFT JOIN lines ln ON ln.id=l.line_id
+         WHERE l.org_id=? AND l.status='active' AND (ln.type IN ('daily','daily_interest') OR ln.type IS NULL)) AS daily_total,
+        (SELECT COALESCE(SUM(l.emi_amount),0) FROM loans l LEFT JOIN lines ln ON ln.id=l.line_id
+         WHERE l.org_id=? AND l.status='active' AND ln.type IN ('weekly','weekly_interest')) AS weekly_total,
+        (SELECT COALESCE(SUM(l.emi_amount),0) FROM loans l LEFT JOIN lines ln ON ln.id=l.line_id
+         WHERE l.org_id=? AND l.status='active' AND ln.type IN ('monthly_emi','monthly_interest','enterprise')) AS monthly_total`,
+      params: [orgId, orgId, orgId],
     }),
     format: (rows) => {
-      const emi = Number(rows[0]?.weekly_emi ?? 0);
-      const forecast = emi * 6; // 6 working days
-      return `**Next week forecast: ${formatRupees(forecast)}**\n\nBased on ${formatRupees(emi)} daily active EMIs × 6 working days.`;
+      const r = rows[0] ?? {};
+      const daily = Number(r.daily_total ?? 0);
+      const weekly = Number(r.weekly_total ?? 0);
+      const monthly = Number(r.monthly_total ?? 0);
+      const forecast = Math.round(daily * 7 + weekly * 1 + monthly * 0.25);
+      return `**Next week forecast: ${formatRupees(forecast)}**\n\nDaily EMIs: ${formatRupees(daily)} × 7 days = ${formatRupees(daily * 7)}\nWeekly EMIs: ${formatRupees(weekly)} × 1 = ${formatRupees(weekly)}\nMonthly EMIs: ${formatRupees(monthly)} × 0.25 = ${formatRupees(Math.round(monthly * 0.25))}`;
     },
   },
 

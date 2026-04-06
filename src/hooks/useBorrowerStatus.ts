@@ -15,23 +15,28 @@ export interface BorrowerStatus {
  */
 async function getAllBorrowerStatuses(orgId: string): Promise<Record<string, BorrowerStatus>> {
   const db = await openDb();
-  const nowMs = Date.now();
+  // Midnight for consistent all-calendar-day counting
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nowMs = today.getTime();
 
-  // Get overdue info per borrower (considering grace period)
+  // Per-LOAN overdue check (not MAX across loans — each loan has its own grace).
+  // A borrower is Nippu if ANY of their loans is overdue beyond its grace period.
   const overdueRows = await db.getAllAsync<{
     borrower_id: string;
     days: number;
     grace: number;
   }>(
     `SELECT l.borrower_id,
-       MAX(CAST((${nowMs} - pe.due_date) / 86400000 AS INTEGER)) AS days,
-       MAX(COALESCE(l.grace_period_days, 0)) AS grace
+       CAST((${nowMs} - MIN(pe.due_date)) / 86400000 AS INTEGER) AS days,
+       COALESCE(l.grace_period_days, 0) AS grace
      FROM plan_entries pe
      JOIN loans l ON l.id = pe.loan_id
      WHERE l.org_id = ? AND l.status = 'active'
        AND pe.status IN ('pending', 'partial')
        AND pe.due_date < ${nowMs}
-     GROUP BY l.borrower_id`,
+     GROUP BY l.id
+     HAVING CAST((${nowMs} - MIN(pe.due_date)) / 86400000 AS INTEGER) > COALESCE(l.grace_period_days, 0)`,
     [orgId]
   );
 
