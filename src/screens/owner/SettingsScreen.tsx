@@ -58,6 +58,17 @@ export function SettingsScreen() {
           </View>
         </Card>
 
+        {/* Referral */}
+        <Card style={[styles.card, { backgroundColor: Colors.primaryLight, borderColor: Colors.primary }]}>
+          <Text style={styles.sectionTitle}>Refer & Earn</Text>
+          <Text style={styles.sub}>Share your code — you both get 1 month free</Text>
+          <Button
+            title="Get referral code"
+            onPress={() => navigation.navigate('Referral')}
+            style={{ marginTop: Spacing.md }}
+          />
+        </Card>
+
         {/* Agent management */}
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Agents</Text>

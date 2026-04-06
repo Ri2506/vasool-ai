@@ -22,6 +22,7 @@ import { AgentManagementScreen } from '@/screens/owner/AgentManagementScreen';
 import { SubscriptionScreen } from '@/screens/owner/SubscriptionScreen';
 import { AIChatScreen } from '@/screens/owner/AIChatScreen';
 import { ImportScreen } from '@/screens/owner/ImportScreen';
+import { ReferralScreen } from '@/screens/owner/ReferralScreen';
 import { Colors } from '@/constants/colors';
 import { TabIcon } from '@/components/common/TabIcon';
 import type { OwnerStackParamList, OwnerTabParamList } from './types';
@@ -81,6 +82,7 @@ export function OwnerNavigator() {
       <Stack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: 'Plans' }} />
       <Stack.Screen name="AIChat" component={AIChatScreen} options={{ title: 'AI Assistant' }} />
       <Stack.Screen name="Import" component={ImportScreen} options={{ title: 'Import' }} />
+      <Stack.Screen name="Referral" component={ReferralScreen} options={{ title: 'Refer & Earn' }} />
     </Stack.Navigator>
   );
 }

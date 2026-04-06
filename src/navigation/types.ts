@@ -26,6 +26,7 @@ export type OwnerStackParamList = {
   AIChat: undefined;
   Import: undefined;
   Documents: { borrowerId: string };
+  Referral: undefined;
 };
 
 export type OwnerTabParamList = {

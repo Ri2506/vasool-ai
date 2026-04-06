@@ -158,6 +158,20 @@ export const DDL = [
   )`,
   `CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id, is_read)`,
 
+  `CREATE TABLE IF NOT EXISTS referrals (
+    id TEXT PRIMARY KEY,
+    server_id TEXT,
+    org_id TEXT NOT NULL,
+    referral_code TEXT NOT NULL,
+    referred_org_id TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    dirty INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS referrals_org_idx ON referrals(org_id)`,
+  `CREATE INDEX IF NOT EXISTS referrals_code_idx ON referrals(referral_code)`,
+
   // Tiny meta table for schema versioning. Used by migrate() in db/index.ts.
   `CREATE TABLE IF NOT EXISTS _meta (
     key TEXT PRIMARY KEY,
