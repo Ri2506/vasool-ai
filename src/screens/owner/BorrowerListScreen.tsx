@@ -15,6 +15,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
 import { SkeletonRow } from '@/components/common/Skeleton';
+import { StarRating } from '@/components/common/StarRating';
+import { StatusBadge, type BorrowerStatusType } from '@/components/common/StatusBadge';
 import { VoiceButton } from '@/components/common/VoiceButton';
 import { useVoice } from '@/hooks/useVoice';
 import { Button } from '@/components/common/Button';
@@ -59,28 +61,19 @@ export function BorrowerListScreen() {
 
   const renderItem = ({ item }: { item: BorrowerRow }) => {
     const st = statuses?.[item.id];
-    const stars = st?.rating ? '★'.repeat(st.rating) + '☆'.repeat(5 - st.rating) : '';
+    const borrowerStatus: BorrowerStatusType = st?.is_nippu ? 'nippu' : st?.rating ? 'nadapu' : 'none';
     return (
       <Pressable
         onPress={() => navigation.navigate('BorrowerDetail', { id: item.id })}
         style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
       >
-        <Avatar name={item.name} />
+        <Avatar name={item.name} photoUri={item.photo_url} />
         <View style={styles.rowText}>
-          <View style={styles.nameRow}>
-            <Text style={styles.rowName}>{item.name}</Text>
-            {st?.is_nippu !== undefined ? (
-              <View style={[styles.statusDot, { backgroundColor: st.is_nippu ? Colors.danger : Colors.primary }]} />
-            ) : null}
-          </View>
+          <Text style={styles.rowName}>{item.name}</Text>
           {item.phone ? <Text style={styles.rowSub}>{item.phone}</Text> : null}
-          {stars ? <Text style={styles.stars}>{stars}</Text> : null}
+          {st?.rating ? <StarRating rating={st.rating} size={11} /> : null}
         </View>
-        {st?.is_nippu ? (
-          <Text style={styles.nippuLabel}>{t('borrowers.overdue')}</Text>
-        ) : st?.rating ? (
-          <Text style={styles.nadapuLabel}>{t('borrowers.on_schedule')}</Text>
-        ) : null}
+        <StatusBadge status={borrowerStatus} />
       </Pressable>
     );
   };
