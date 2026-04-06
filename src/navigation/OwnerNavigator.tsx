@@ -18,6 +18,10 @@ import { CollectScreen } from '@/screens/owner/CollectScreen';
 import { BatchCollectScreen } from '@/screens/owner/BatchCollectScreen';
 import { MonthlySummaryScreen } from '@/screens/owner/MonthlySummaryScreen';
 import { OverdueScreen } from '@/screens/owner/OverdueScreen';
+import { AgentManagementScreen } from '@/screens/owner/AgentManagementScreen';
+import { SubscriptionScreen } from '@/screens/owner/SubscriptionScreen';
+import { AIChatScreen } from '@/screens/owner/AIChatScreen';
+import { ImportScreen } from '@/screens/owner/ImportScreen';
 import { Colors } from '@/constants/colors';
 import { TabIcon } from '@/components/common/TabIcon';
 import type { OwnerStackParamList, OwnerTabParamList } from './types';
@@ -73,6 +77,10 @@ export function OwnerNavigator() {
       <Stack.Screen name="Investments" component={InvestmentScreen} options={{ title: '' }} />
       <Stack.Screen name="MonthlySummary" component={MonthlySummaryScreen} options={{ title: 'Monthly Summary' }} />
       <Stack.Screen name="Overdue" component={OverdueScreen} options={{ title: 'Overdue' }} />
+      <Stack.Screen name="AgentManagement" component={AgentManagementScreen} options={{ title: 'Agents' }} />
+      <Stack.Screen name="Subscription" component={SubscriptionScreen} options={{ title: 'Plans' }} />
+      <Stack.Screen name="AIChat" component={AIChatScreen} options={{ title: 'AI Assistant' }} />
+      <Stack.Screen name="Import" component={ImportScreen} options={{ title: 'Import' }} />
     </Stack.Navigator>
   );
 }

@@ -132,12 +132,20 @@ export function HomeScreen() {
                 style={{ flex: 1, marginLeft: dueItems.length > 0 ? Spacing.sm : 0 }}
               />
             </View>
-            <Button
-              title="Monthly summary"
-              variant="secondary"
-              onPress={() => navigation.navigate('MonthlySummary')}
-              style={{ marginHorizontal: Spacing.xl, marginBottom: Spacing.lg }}
-            />
+            <View style={styles.actionRow}>
+              <Button
+                title="Monthly summary"
+                variant="secondary"
+                onPress={() => navigation.navigate('MonthlySummary')}
+                style={{ flex: 1, marginRight: Spacing.sm }}
+              />
+              <Button
+                title="AI Assistant"
+                variant="secondary"
+                onPress={() => navigation.navigate('AIChat')}
+                style={{ flex: 1, marginLeft: Spacing.sm }}
+              />
+            </View>
 
             {/* Due list heading */}
             {dueItems.length > 0 ? (

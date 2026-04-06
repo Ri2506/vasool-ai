@@ -21,6 +21,11 @@ export type OwnerStackParamList = {
   Investments: undefined;
   MonthlySummary: undefined;
   Overdue: undefined;
+  AgentManagement: undefined;
+  Subscription: undefined;
+  AIChat: undefined;
+  Import: undefined;
+  Documents: { borrowerId: string };
 };
 
 export type OwnerTabParamList = {

@@ -1,11 +1,11 @@
 import React from 'react';
-import { StyleSheet, View, ViewStyle, ViewProps } from 'react-native';
+import { StyleSheet, StyleProp, View, ViewStyle, ViewProps } from 'react-native';
 
 import { Colors } from '@/constants/colors';
 import { Radius, Spacing } from '@/constants/typography';
 
 interface Props extends ViewProps {
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function Card({ style, children, ...rest }: Props) {

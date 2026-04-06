@@ -58,6 +58,42 @@ export function SettingsScreen() {
           </View>
         </Card>
 
+        {/* Agent management */}
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Agents</Text>
+          <Text style={styles.sub}>Create and manage collection agents</Text>
+          <Button
+            title="Manage agents"
+            variant="secondary"
+            onPress={() => navigation.navigate('AgentManagement')}
+            style={{ marginTop: Spacing.md }}
+          />
+        </Card>
+
+        {/* Subscription */}
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Subscription</Text>
+          <Text style={styles.sub}>Free plan — upgrade for more features</Text>
+          <Button
+            title="View plans"
+            variant="secondary"
+            onPress={() => navigation.navigate('Subscription')}
+            style={{ marginTop: Spacing.md }}
+          />
+        </Card>
+
+        {/* Import */}
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Import borrowers</Text>
+          <Text style={styles.sub}>Bulk import from paper or another app</Text>
+          <Button
+            title="Import"
+            variant="secondary"
+            onPress={() => navigation.navigate('Import')}
+            style={{ marginTop: Spacing.md }}
+          />
+        </Card>
+
         {/* Working days */}
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Working days</Text>
