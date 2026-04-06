@@ -15,14 +15,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Card } from '@/components/common/Card';
 import { Colors } from '@/constants/colors';
 import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
-import { useSmartCards } from '@/hooks/useSmartCards';
 import { useAuthStore } from '@/store/authStore';
-import { formatRupees } from '@/utils/format';
-
-// The AI assistant uses Claude Sonnet via a Supabase Edge Function.
-// For now, it handles common questions locally (rule-based) as a fast
-// fallback. The Claude API integration requires ANTHROPIC_API_KEY
-// in the Edge Function env — wired up when the key is available.
+import { askLocalRag } from '@/lib/localRag';
 
 interface Message {
   id: string;
@@ -32,12 +26,12 @@ interface Message {
 
 export function AIChatScreen() {
   const user = useAuthStore((s) => s.user);
-  const { data: smart } = useSmartCards();
+  const orgId = user?.orgId ?? '';
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '0',
       role: 'assistant',
-      text: `Hello ${user?.name ?? ''}! I'm your VasoolAI assistant. Ask me anything about your business.\n\nTry:\n• "What's my profit this month?"\n• "How much can I lend?"\n• "Who is overdue?"\n• "What's my collection forecast?"`,
+      text: `Hello ${user?.name ?? ''}! I'm your VasoolAI assistant. Ask me anything about your business.\n\nTry:\n• "What's my profit this month?"\n• "How much can I lend?"\n• "Who is overdue?"\n• "About Murugan" (borrower lookup)\n• "Expenses this month"`,
     },
   ]);
   const [input, setInput] = useState('');
@@ -52,20 +46,18 @@ export function AIChatScreen() {
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
-    // Rule-based local answers (instant, no API call, zero cost)
-    const answer = answerLocally(q, smart);
+    // Local RAG: turns question into SQL, queries local SQLite, formats answer
+    const result = await askLocalRag(q, orgId);
 
     const botMsg: Message = {
       id: String(Date.now() + 1),
       role: 'assistant',
-      text: answer,
+      text: result.text,
     };
 
-    // Simulate a brief "thinking" delay for natural feel
-    await new Promise((r) => setTimeout(r, 500));
     setMessages((prev) => [...prev, botMsg]);
     setLoading(false);
-  }, [input, loading, smart]);
+  }, [input, loading, orgId]);
 
   const renderMessage = ({ item }: { item: Message }) => (
     <View
@@ -102,7 +94,7 @@ export function AIChatScreen() {
       />
 
       {loading ? (
-        <Text style={styles.thinking}>Thinking...</Text>
+        <Text style={styles.thinking}>Querying your data...</Text>
       ) : null}
 
       <KeyboardAvoidingView
@@ -128,54 +120,6 @@ export function AIChatScreen() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-}
-
-/**
- * Rule-based local answering. Handles common business questions instantly
- * using data from useSmartCards. No API call, no latency, no cost.
- * Falls through to a "sorry" response for unrecognized queries —
- * these would be sent to Claude Sonnet API in the Business tier.
- */
-function answerLocally(
-  query: string,
-  smart: ReturnType<typeof useSmartCards>['data']
-): string {
-  const q = query.toLowerCase();
-
-  if (q.includes('profit')) {
-    const p = smart?.monthProfit ?? 0;
-    return `Your profit this month is ${formatRupees(p)}.\n\nBreakdown:\n• Collected: ${formatRupees(smart?.monthCollected ?? 0)}\n• Lent: ${formatRupees(smart?.monthLent ?? 0)}\n• Expenses: ${formatRupees(smart?.monthExpenses ?? 0)}`;
-  }
-
-  if (q.includes('lend') || q.includes('available') || q.includes('cash')) {
-    return `You can lend up to ${formatRupees(smart?.availableToLend ?? 0)} today.\n\nThis is calculated from your total capital invested plus all collections minus loans disbursed and expenses.`;
-  }
-
-  if (q.includes('forecast') || q.includes('next week') || q.includes('expected')) {
-    return `Next week expected collections: ${formatRupees(smart?.nextWeekForecast ?? 0)}.\n\nBased on active EMIs × 6 working days.`;
-  }
-
-  if (q.includes('overdue') || q.includes('default') || q.includes('miss')) {
-    return `Check the Overdue dashboard on the Home screen — it shows all borrowers with missed payments sorted by days overdue.\n\nTap the red "Overdue" button on the home screen.`;
-  }
-
-  if (q.includes('invest') || q.includes('capital')) {
-    return `Total capital invested: ${formatRupees(smart?.totalInvested ?? 0)}.\n\nYou can add investments from Settings → Capital invested → View investments.`;
-  }
-
-  if (q.includes('collect') || q.includes('today')) {
-    return `Check the Home screen for today's collection list. Use Batch collect for rapid-fire collection of all due borrowers.`;
-  }
-
-  if (q.includes('expense')) {
-    return `This month's expenses: ${formatRupees(smart?.monthExpenses ?? 0)}.\n\nAdd expenses from the Expenses tab or view the breakdown in Reports.`;
-  }
-
-  if (q.includes('hello') || q.includes('hi') || q.includes('hey')) {
-    return `Hello! How can I help you with your business today?`;
-  }
-
-  return `I can help with questions about:\n• Profit & loss\n• Available cash to lend\n• Collection forecasts\n• Overdue borrowers\n• Investments & expenses\n\nTry asking "What's my profit this month?" or "How much can I lend?"`;
 }
 
 const styles = StyleSheet.create({
