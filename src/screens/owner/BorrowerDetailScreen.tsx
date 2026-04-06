@@ -9,16 +9,28 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+import { useQuery } from '@tanstack/react-query';
+
 import { Avatar } from '@/components/common/Avatar';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { Colors } from '@/constants/colors';
-import { Spacing, Typography } from '@/constants/typography';
+import { Radius, Spacing, Typography } from '@/constants/typography';
+import { openDb } from '@/db';
 import { useBorrower } from '@/hooks/useBorrowers';
 import { useLoansForBorrower } from '@/hooks/useLoans';
+import { generateBorrowerTip, type TipVariant } from '@/utils/aiTips';
 import { formatDateShort, formatRupees } from '@/utils/format';
+import type { CollectionRow, PlanEntryRow } from '@/db/types';
 import type { OwnerStackParamList } from '@/navigation/types';
+
+const TIP_BG: Record<TipVariant, string> = {
+  danger: Colors.dangerLight,
+  warn: Colors.warnLight,
+  success: Colors.primaryLight,
+  info: Colors.infoLight,
+};
 
 type Props = NativeStackScreenProps<OwnerStackParamList, 'BorrowerDetail'>;
 
@@ -27,6 +39,29 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const { data: borrower } = useBorrower(id);
   const { data: loans } = useLoansForBorrower(id);
+
+  // Fetch plan entries + collections for AI tip
+  const { data: tipData } = useQuery({
+    queryKey: ['borrower-tip-data', id],
+    enabled: !!loans && loans.length > 0,
+    queryFn: async () => {
+      const db = await openDb();
+      const loanIds = (loans ?? []).map((l) => l.id);
+      if (loanIds.length === 0) return { planEntries: [] as PlanEntryRow[], collections: [] as CollectionRow[] };
+      const placeholders = loanIds.map(() => '?').join(',');
+      const planEntries = await db.getAllAsync<PlanEntryRow>(
+        `SELECT * FROM plan_entries WHERE loan_id IN (${placeholders})`, loanIds
+      );
+      const collections = await db.getAllAsync<CollectionRow>(
+        `SELECT * FROM collections WHERE loan_id IN (${placeholders})`, loanIds
+      );
+      return { planEntries, collections };
+    },
+  });
+
+  const tip = loans && tipData
+    ? generateBorrowerTip({ loans, planEntries: tipData.planEntries, collections: tipData.collections })
+    : null;
 
   if (!borrower) {
     return (
@@ -41,6 +76,13 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
+        {/* AI contextual tip — PRD §6.4 */}
+        {tip ? (
+          <View style={[styles.tipBar, { backgroundColor: TIP_BG[tip.variant] }]}>
+            <Text style={styles.tipText}>{tip.text}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.profile}>
           <Avatar name={borrower.name} size={64} />
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
@@ -140,4 +182,11 @@ const styles = StyleSheet.create({
   loanPrincipal: { ...Typography.title, color: Colors.text },
   loanSub: { ...Typography.caption, color: Colors.textSec, marginTop: 4 },
   emptyLoans: { ...Typography.body, color: Colors.textSec },
+  tipBar: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.button,
+    marginBottom: Spacing.md,
+  },
+  tipText: { ...Typography.body, fontWeight: '600' },
 });

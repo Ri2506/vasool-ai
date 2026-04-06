@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -15,6 +15,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
 import { SkeletonRow } from '@/components/common/Skeleton';
+import { VoiceButton } from '@/components/common/VoiceButton';
+import { useVoice } from '@/hooks/useVoice';
 import { Button } from '@/components/common/Button';
 import { Card } from '@/components/common/Card';
 import { Colors } from '@/constants/colors';
@@ -30,9 +32,17 @@ type Nav = NativeStackNavigationProp<OwnerStackParamList>;
 
 export function BorrowerListScreen() {
   const navigation = useNavigation<Nav>();
+  const voice = useVoice();
   const { t } = useTranslation();
   const { data: borrowers, isLoading, refetch, isRefetching } = useBorrowers();
   const [query, setQuery] = useState('');
+
+  // When voice recognizes text, use it as search query
+  useEffect(() => {
+    if (voice.lastResult?.text) {
+      setQuery(voice.lastResult.text);
+    }
+  }, [voice.lastResult]);
 
   const filtered = useMemo(() => {
     if (!borrowers) return [];
@@ -64,13 +74,20 @@ export function BorrowerListScreen() {
         <Text style={styles.title}>{t('borrowers.title')}</Text>
       </View>
       <View style={styles.searchWrap}>
-        <TextInput
-          style={styles.search}
-          placeholder={t('borrowers.search_placeholder') ?? ''}
-          placeholderTextColor={Colors.textMuted}
-          value={query}
-          onChangeText={setQuery}
-        />
+        <View style={styles.searchRow}>
+          <TextInput
+            style={[styles.search, { flex: 1 }]}
+            placeholder={t('borrowers.search_placeholder') ?? ''}
+            placeholderTextColor={Colors.textMuted}
+            value={query}
+            onChangeText={setQuery}
+          />
+          <VoiceButton
+            isListening={voice.isListening}
+            onPress={voice.isListening ? voice.stopListening : voice.startListening}
+            lastText={null}
+          />
+        </View>
       </View>
 
       {isLoading ? (
@@ -123,6 +140,10 @@ const styles = StyleSheet.create({
   searchWrap: {
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.md,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   search: {
     backgroundColor: Colors.white,

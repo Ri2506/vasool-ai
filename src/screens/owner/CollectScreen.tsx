@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   SafeAreaView,
@@ -15,10 +15,12 @@ import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { NumberPad } from '@/components/common/NumberPad';
 import { QuickAmountChips } from '@/components/common/QuickAmountChips';
+import { VoiceButton } from '@/components/common/VoiceButton';
 import { Colors } from '@/constants/colors';
 import { Spacing, Typography } from '@/constants/typography';
 import { useRecordCollection } from '@/hooks/useCollections';
 import { useGps } from '@/hooks/useGps';
+import { useVoice } from '@/hooks/useVoice';
 import { formatRupees } from '@/utils/format';
 import type { OwnerStackParamList } from '@/navigation/types';
 
@@ -30,9 +32,18 @@ export function CollectScreen({ route, navigation }: Props) {
   const recordMut = useRecordCollection();
   const { getLocation } = useGps();
 
+  const voice = useVoice();
+
   const [amount, setAmount] = useState(String(item.expected_amount));
   const [showAdvance, setShowAdvance] = useState(false);
   const [advancePeriods, setAdvancePeriods] = useState(0);
+
+  // When voice recognizes an amount, fill it in
+  useEffect(() => {
+    if (voice.lastResult?.amount) {
+      setAmount(String(voice.lastResult.amount));
+    }
+  }, [voice.lastResult]);
   const [collected, setCollected] = useState(false);
 
   const handleCollect = async () => {
@@ -99,6 +110,13 @@ export function CollectScreen({ route, navigation }: Props) {
           emiAmount={item.expected_amount}
           selected={Number(amount)}
           onSelect={(v) => setAmount(String(v))}
+        />
+
+        {/* Voice input — Layer 3 */}
+        <VoiceButton
+          isListening={voice.isListening}
+          onPress={voice.isListening ? voice.stopListening : voice.startListening}
+          lastText={voice.lastResult?.text}
         />
 
         {/* Number pad — Layer 2 */}
