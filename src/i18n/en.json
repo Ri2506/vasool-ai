@@ -8,7 +8,11 @@
     "loading": "Loading…",
     "offline": "You're offline. Changes will sync when connection returns.",
     "error_generic": "Something went wrong. Please try again.",
-    "hello_name": "Hello, {{name}}"
+    "hello_name": "Hello, {{name}}",
+    "share_pdf": "Share as PDF",
+    "share_excel": "Share as Excel",
+    "from_contacts": "From Contacts",
+    "take_photo": "Take photo"
   },
   "auth": {
     "choose_language": "Choose your language",
@@ -62,7 +66,10 @@
     "delete_confirm": "Delete this borrower? This cannot be undone.",
     "loans": "Loans",
     "no_loans": "No loans yet",
-    "new_loan": "New loan"
+    "new_loan": "New loan",
+    "on_schedule": "On Schedule",
+    "overdue": "Overdue",
+    "rating": "Rating"
   },
   "lines": {
     "title": "Lines",
@@ -76,18 +83,30 @@
     "type_monthly_emi": "Monthly EMI",
     "type_monthly_interest": "Monthly Interest",
     "type_enterprise": "Enterprise",
+    "type_daily_interest": "Daily Interest",
+    "type_weekly_interest": "Weekly Interest",
     "create": "Create line"
   },
   "loan": {
     "title": "New loan",
     "principal": "Principal (amount lent)",
     "emi": "EMI amount (per installment)",
+    "interest_amount": "Interest amount (per payment)",
     "installments": "Number of installments",
     "line": "Line",
     "start_date": "Start date",
+    "grace_period": "Grace period (days)",
+    "grace_hint": "0-3 days before marking as overdue",
+    "product_desc": "Product description (optional)",
+    "penalty_type": "Late penalty",
+    "penalty_none": "None",
+    "penalty_flat": "Flat ₹/day",
+    "penalty_pct": "% of EMI/day",
+    "penalty_amount": "Penalty amount",
     "summary": "Loan summary",
     "total_repay": "Total repayment",
     "interest": "Interest",
+    "interest_only": "Interest-only (principal returned separately)",
     "ends_on": "Ends on",
     "view_plan": "View repayment plan",
     "plan_title": "Repayment plan",
@@ -100,6 +119,33 @@
     "status_partial": "Partial",
     "status_missed": "Missed",
     "status_advance": "Advance",
-    "create": "Create loan"
+    "create": "Create loan",
+    "close_loan": "Close loan",
+    "top_up": "Top-up loan",
+    "return_principal": "Return principal",
+    "guarantor": "Guarantor",
+    "add_guarantor": "Add guarantor"
+  },
+  "deposits": {
+    "title": "Deposits",
+    "add": "Add deposit",
+    "depositor_name": "Depositor name",
+    "depositor_phone": "Phone",
+    "amount": "Amount",
+    "interest_rate": "Interest rate (%)",
+    "start_date": "Start date",
+    "maturity_date": "Maturity date",
+    "pay_interest": "Pay interest",
+    "total_deposits": "Total deposits",
+    "interest_paid": "Interest paid"
+  },
+  "overdue": {
+    "title": "Overdue",
+    "bucket_1_3": "1-3 days",
+    "bucket_4_7": "4-7 days",
+    "bucket_8_14": "8-14 days",
+    "bucket_15_30": "15-30 days",
+    "bucket_30_plus": "30+ days",
+    "total": "Total overdue"
   }
 }

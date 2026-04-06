@@ -70,9 +70,20 @@ async function computeSmartCards(orgId: string): Promise<SmartCardData> {
   // Profit = collected - lent - expenses
   const monthProfit = monthCollected - monthLent - monthExpenses;
 
-  // Available = invested + all collections - all loans - all expenses
+  // Deposits from investors (PRD v2.1)
+  const totalDeposits = await db.getFirstAsync<{ total: number }>(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM deposits WHERE org_id = ? AND status = 'active'`,
+    [orgId]
+  );
+  const depositInterestPaid = await db.getFirstAsync<{ total: number }>(
+    `SELECT COALESCE(SUM(interest_paid), 0) AS total FROM deposits WHERE org_id = ?`,
+    [orgId]
+  );
+
+  // Available = invested + deposits + all collections - all loans - all expenses - deposit interest paid
   const availableToLend =
-    totalInvested + (allCollections?.total ?? 0) - (allLoans?.total ?? 0) - (allExpenses?.total ?? 0);
+    totalInvested + (totalDeposits?.total ?? 0) + (allCollections?.total ?? 0)
+    - (allLoans?.total ?? 0) - (allExpenses?.total ?? 0) - (depositInterestPaid?.total ?? 0);
 
   // Next week forecast: count active daily/weekly EMIs × working days
   const activeEmiSum = await db.getFirstAsync<{ total: number }>(

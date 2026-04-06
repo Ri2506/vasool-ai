@@ -1,0 +1,104 @@
+import { useQuery } from '@tanstack/react-query';
+import { openDb } from '@/db';
+import { useAuthStore } from '@/store/authStore';
+
+export interface BorrowerStatus {
+  borrower_id: string;
+  is_nippu: boolean;
+  days_overdue: number;
+  rating: number; // 0-5
+}
+
+/**
+ * Batch fetch Nadapu/Nippu status + payment rating for all borrowers in org.
+ * Single query, efficient for list rendering.
+ */
+async function getAllBorrowerStatuses(orgId: string): Promise<Record<string, BorrowerStatus>> {
+  const db = await openDb();
+  const nowMs = Date.now();
+
+  // Get overdue info per borrower (considering grace period)
+  const overdueRows = await db.getAllAsync<{
+    borrower_id: string;
+    days: number;
+    grace: number;
+  }>(
+    `SELECT l.borrower_id,
+       MAX(CAST((${nowMs} - pe.due_date) / 86400000 AS INTEGER)) AS days,
+       MAX(COALESCE(l.grace_period_days, 0)) AS grace
+     FROM plan_entries pe
+     JOIN loans l ON l.id = pe.loan_id
+     WHERE l.org_id = ? AND l.status = 'active'
+       AND pe.status IN ('pending', 'partial')
+       AND pe.due_date < ${nowMs}
+     GROUP BY l.borrower_id`,
+    [orgId]
+  );
+
+  // Get payment stats per borrower
+  const ratingRows = await db.getAllAsync<{
+    borrower_id: string;
+    on_time: number;
+    total: number;
+  }>(
+    `SELECT l.borrower_id,
+       SUM(CASE WHEN pe.status IN ('paid', 'advance_covered') THEN 1 ELSE 0 END) AS on_time,
+       COUNT(*) AS total
+     FROM plan_entries pe
+     JOIN loans l ON l.id = pe.loan_id
+     WHERE l.org_id = ? AND pe.due_date < ${nowMs}
+     GROUP BY l.borrower_id`,
+    [orgId]
+  );
+
+  const result: Record<string, BorrowerStatus> = {};
+
+  // Process overdue
+  for (const row of overdueRows) {
+    const days = Number(row.days);
+    const grace = Number(row.grace);
+    result[row.borrower_id] = {
+      borrower_id: row.borrower_id,
+      is_nippu: days > grace,
+      days_overdue: days,
+      rating: 0,
+    };
+  }
+
+  // Process ratings
+  for (const row of ratingRows) {
+    const onTime = Number(row.on_time);
+    const total = Number(row.total);
+    let rating = 0;
+    if (total > 0) {
+      const pct = (onTime / total) * 100;
+      if (pct >= 90) rating = 5;
+      else if (pct >= 75) rating = 4;
+      else if (pct >= 60) rating = 3;
+      else if (pct >= 40) rating = 2;
+      else rating = 1;
+    }
+    if (!result[row.borrower_id]) {
+      result[row.borrower_id] = {
+        borrower_id: row.borrower_id,
+        is_nippu: false,
+        days_overdue: 0,
+        rating,
+      };
+    } else {
+      result[row.borrower_id].rating = rating;
+    }
+  }
+
+  return result;
+}
+
+export function useBorrowerStatuses() {
+  const orgId = useAuthStore((s) => s.user?.orgId ?? null);
+  return useQuery({
+    queryKey: ['borrower-statuses', orgId],
+    enabled: !!orgId,
+    queryFn: () => getAllBorrowerStatuses(orgId!),
+    refetchInterval: 60_000,
+  });
+}

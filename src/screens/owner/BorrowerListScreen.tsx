@@ -22,6 +22,7 @@ import { Card } from '@/components/common/Card';
 import { Colors } from '@/constants/colors';
 import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
 import { useBorrowers } from '@/hooks/useBorrowers';
+import { useBorrowerStatuses } from '@/hooks/useBorrowerStatus';
 import type { BorrowerRow } from '@/db/types';
 import type { OwnerStackParamList } from '@/navigation/types';
 
@@ -35,6 +36,7 @@ export function BorrowerListScreen() {
   const voice = useVoice();
   const { t } = useTranslation();
   const { data: borrowers, isLoading, refetch, isRefetching } = useBorrowers();
+  const { data: statuses } = useBorrowerStatuses();
   const [query, setQuery] = useState('');
 
   // When voice recognizes text, use it as search query
@@ -55,18 +57,33 @@ export function BorrowerListScreen() {
     );
   }, [borrowers, query]);
 
-  const renderItem = ({ item }: { item: BorrowerRow }) => (
-    <Pressable
-      onPress={() => navigation.navigate('BorrowerDetail', { id: item.id })}
-      style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
-    >
-      <Avatar name={item.name} />
-      <View style={styles.rowText}>
-        <Text style={styles.rowName}>{item.name}</Text>
-        {item.phone ? <Text style={styles.rowSub}>{item.phone}</Text> : null}
-      </View>
-    </Pressable>
-  );
+  const renderItem = ({ item }: { item: BorrowerRow }) => {
+    const st = statuses?.[item.id];
+    const stars = st?.rating ? '★'.repeat(st.rating) + '☆'.repeat(5 - st.rating) : '';
+    return (
+      <Pressable
+        onPress={() => navigation.navigate('BorrowerDetail', { id: item.id })}
+        style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
+      >
+        <Avatar name={item.name} />
+        <View style={styles.rowText}>
+          <View style={styles.nameRow}>
+            <Text style={styles.rowName}>{item.name}</Text>
+            {st?.is_nippu !== undefined ? (
+              <View style={[styles.statusDot, { backgroundColor: st.is_nippu ? Colors.danger : Colors.primary }]} />
+            ) : null}
+          </View>
+          {item.phone ? <Text style={styles.rowSub}>{item.phone}</Text> : null}
+          {stars ? <Text style={styles.stars}>{stars}</Text> : null}
+        </View>
+        {st?.is_nippu ? (
+          <Text style={styles.nippuLabel}>{t('borrowers.overdue')}</Text>
+        ) : st?.rating ? (
+          <Text style={styles.nadapuLabel}>{t('borrowers.on_schedule')}</Text>
+        ) : null}
+      </Pressable>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -175,4 +192,9 @@ const styles = StyleSheet.create({
     right: Spacing.xl,
     bottom: Spacing.xl,
   },
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 6 },
+  stars: { ...Typography.caption, color: Colors.warn, marginTop: 2, letterSpacing: 1 },
+  nippuLabel: { ...Typography.caption, color: Colors.danger, fontWeight: '700' },
+  nadapuLabel: { ...Typography.caption, color: Colors.primary, fontWeight: '600' },
 });

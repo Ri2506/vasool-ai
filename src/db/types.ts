@@ -8,10 +8,12 @@
 export type Role = 'owner' | 'agent';
 export type Plan = 'free' | 'starter' | 'pro' | 'business';
 export type Language = 'en' | 'ta';
-export type LineType = 'daily' | 'weekly' | 'monthly_emi' | 'monthly_interest' | 'enterprise';
+export type LineType = 'daily' | 'weekly' | 'monthly_emi' | 'monthly_interest' | 'enterprise' | 'daily_interest' | 'weekly_interest';
 export type LoanStatus = 'active' | 'overdue' | 'closed' | 'defaulted';
 export type PlanEntryStatus = 'pending' | 'paid' | 'partial' | 'missed' | 'advance_covered';
 export type ExpenseCategory = 'petrol' | 'food' | 'travel' | 'phone' | 'other';
+export type PenaltyType = 'flat' | 'percentage';
+export type DepositStatus = 'active' | 'matured' | 'closed';
 
 export interface BaseRow {
   id: string;          // local UUID (generated client-side)
@@ -62,10 +64,14 @@ export interface LoanRow extends BaseRow {
   emi_amount: number;
   total_installments: number;
   total_repayment: number;
-  start_date: number;        // epoch ms (00:00 local)
-  expected_end_date: number; // epoch ms
+  start_date: number;
+  expected_end_date: number;
   status: LoanStatus;
   renewed_from_id: string | null;
+  grace_period_days: number;
+  product_description: string | null;
+  penalty_type: PenaltyType | null;
+  penalty_amount: number;
 }
 
 export interface PlanEntryRow {
@@ -118,4 +124,34 @@ export interface NotificationRow extends BaseRow {
   type: string;
   message: string;
   is_read: 0 | 1;
+}
+
+export interface GuarantorRow extends BaseRow {
+  org_id: string;
+  loan_id: string;
+  name: string;
+  phone: string | null;
+  address: string | null;
+  relationship: string | null;
+  photo_url: string | null;
+}
+
+export interface DepositRow extends BaseRow {
+  org_id: string;
+  depositor_name: string;
+  depositor_phone: string | null;
+  amount: number;
+  interest_rate: number;
+  start_date: number;
+  maturity_date: number | null;
+  interest_paid: number;
+  status: DepositStatus;
+}
+
+export interface PrincipalReturnRow extends BaseRow {
+  loan_id: string;
+  org_id: string;
+  amount: number;
+  date: number;
+  notes: string | null;
 }

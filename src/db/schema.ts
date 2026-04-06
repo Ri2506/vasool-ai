@@ -4,7 +4,7 @@
 // (nullable — populated after first successful push) and `dirty` (1 if the
 // row has local changes not yet pushed to Supabase).
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const DDL = [
   `CREATE TABLE IF NOT EXISTS organizations (
@@ -75,6 +75,10 @@ export const DDL = [
     expected_end_date INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     renewed_from_id TEXT,
+    grace_period_days INTEGER NOT NULL DEFAULT 0,
+    product_description TEXT,
+    penalty_type TEXT,
+    penalty_amount REAL NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     dirty INTEGER NOT NULL DEFAULT 0
   )`,
@@ -171,6 +175,51 @@ export const DDL = [
   )`,
   `CREATE INDEX IF NOT EXISTS referrals_org_idx ON referrals(org_id)`,
   `CREATE INDEX IF NOT EXISTS referrals_code_idx ON referrals(referral_code)`,
+
+  `CREATE TABLE IF NOT EXISTS guarantors (
+    id TEXT PRIMARY KEY,
+    server_id TEXT,
+    org_id TEXT NOT NULL,
+    loan_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    phone TEXT,
+    address TEXT,
+    relationship TEXT,
+    photo_url TEXT,
+    created_at INTEGER NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS guarantors_loan_idx ON guarantors(loan_id)`,
+
+  `CREATE TABLE IF NOT EXISTS deposits (
+    id TEXT PRIMARY KEY,
+    server_id TEXT,
+    org_id TEXT NOT NULL,
+    depositor_name TEXT NOT NULL,
+    depositor_phone TEXT,
+    amount REAL NOT NULL,
+    interest_rate REAL NOT NULL DEFAULT 0,
+    start_date INTEGER NOT NULL,
+    maturity_date INTEGER,
+    interest_paid REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at INTEGER NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS deposits_org_idx ON deposits(org_id)`,
+
+  `CREATE TABLE IF NOT EXISTS principal_returns (
+    id TEXT PRIMARY KEY,
+    server_id TEXT,
+    loan_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    amount REAL NOT NULL,
+    date INTEGER NOT NULL,
+    notes TEXT,
+    created_at INTEGER NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS principal_returns_loan_idx ON principal_returns(loan_id)`,
 
   // Tiny meta table for schema versioning. Used by migrate() in db/index.ts.
   `CREATE TABLE IF NOT EXISTS _meta (

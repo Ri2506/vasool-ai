@@ -95,14 +95,39 @@ export function OverdueScreen() {
         <Text style={styles.sub}>Borrowers with missed payments</Text>
       </View>
 
+      {/* Aging buckets summary */}
       {items && items.length > 0 ? (
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.loan_id}
-          renderItem={renderItem}
-          ItemSeparatorComponent={() => <View style={styles.sep} />}
-          contentContainerStyle={{ paddingBottom: 40 }}
-        />
+        <>
+          <Card style={{ marginHorizontal: Spacing.xl, marginBottom: Spacing.md }}>
+            {[
+              { label: '1-3 days', min: 1, max: 3 },
+              { label: '4-7 days', min: 4, max: 7 },
+              { label: '8-14 days', min: 8, max: 14 },
+              { label: '15-30 days', min: 15, max: 30 },
+              { label: '30+ days', min: 31, max: 9999 },
+            ].map((bucket) => {
+              const inBucket = items.filter(
+                (i) => i.days_overdue >= bucket.min && i.days_overdue <= bucket.max
+              );
+              if (inBucket.length === 0) return null;
+              const total = inBucket.reduce((s, i) => s + Number(i.amount_owed), 0);
+              return (
+                <View key={bucket.label} style={styles.bucketRow}>
+                  <Text style={styles.bucketLabel}>{bucket.label}</Text>
+                  <Text style={styles.bucketCount}>{inBucket.length}</Text>
+                  <Text style={styles.bucketAmount}>{formatRupees(total)}</Text>
+                </View>
+              );
+            })}
+          </Card>
+          <FlatList
+            data={items}
+            keyExtractor={(item) => item.loan_id}
+            renderItem={renderItem}
+            ItemSeparatorComponent={() => <View style={styles.sep} />}
+            contentContainerStyle={{ paddingBottom: 40 }}
+          />
+        </>
       ) : (
         <Card style={{ margin: Spacing.xl }}>
           <Text style={styles.emptyText}>No overdue borrowers</Text>
@@ -130,4 +155,8 @@ const styles = StyleSheet.create({
   rowSub: { ...Typography.caption, color: Colors.textSec, marginTop: 2 },
   sep: { height: 1, backgroundColor: Colors.border, marginLeft: 72 },
   emptyText: { ...Typography.body, color: Colors.textSec },
+  bucketRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm },
+  bucketLabel: { ...Typography.body, color: Colors.textSec, flex: 1 },
+  bucketCount: { ...Typography.body, color: Colors.text, fontWeight: '600', width: 40, textAlign: 'center' },
+  bucketAmount: { ...Typography.body, color: Colors.danger, fontWeight: '700', width: 100, textAlign: 'right' },
 });

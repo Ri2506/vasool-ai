@@ -8,7 +8,11 @@
     "loading": "ஏற்றுகிறது…",
     "offline": "நீங்கள் ஆஃப்லைனில் இருக்கிறீர்கள். இணைப்பு வந்தவுடன் ஒத்திசைக்கப்படும்.",
     "error_generic": "ஏதோ தவறு நடந்துள்ளது. மீண்டும் முயற்சிக்கவும்.",
-    "hello_name": "வணக்கம், {{name}}"
+    "hello_name": "வணக்கம், {{name}}",
+    "share_pdf": "PDF-ல் பகிர்",
+    "share_excel": "Excel-ல் பகிர்",
+    "from_contacts": "தொடர்புகளிலிருந்து",
+    "take_photo": "புகைப்படம் எடு"
   },
   "auth": {
     "choose_language": "உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்",
@@ -62,7 +66,10 @@
     "delete_confirm": "இந்த கடனாளியை நீக்கவா? இதை மீட்டெடுக்க முடியாது.",
     "loans": "கடன்கள்",
     "no_loans": "இன்னும் கடன்கள் இல்லை",
-    "new_loan": "புதிய கடன்"
+    "new_loan": "புதிய கடன்",
+    "on_schedule": "நடப்பு",
+    "overdue": "நிப்பு",
+    "rating": "மதிப்பீடு"
   },
   "lines": {
     "title": "வரிசைகள்",
@@ -76,21 +83,33 @@
     "type_monthly_emi": "மாத EMI",
     "type_monthly_interest": "மாத வட்டி",
     "type_enterprise": "நிறுவன",
+    "type_daily_interest": "தினசரி வட்டி",
+    "type_weekly_interest": "வாராந்திர வட்டி",
     "create": "வரிசையை உருவாக்கு"
   },
   "loan": {
     "title": "புதிய கடன்",
     "principal": "முதல்தொகை (கொடுத்த தொகை)",
     "emi": "EMI தொகை (ஒரு தவணை)",
+    "interest_amount": "வட்டி தொகை (ஒரு பணம்)",
     "installments": "தவணைகளின் எண்ணிக்கை",
     "line": "வரிசை",
     "start_date": "தொடக்க தேதி",
+    "grace_period": "கிரேஸ் காலம் (நாட்கள்)",
+    "grace_hint": "நிப்பு ஆவதற்கு முன் 0-3 நாட்கள்",
+    "product_desc": "பொருள் விவரம் (விருப்பம்)",
+    "penalty_type": "தாமத அபராதம்",
+    "penalty_none": "இல்லை",
+    "penalty_flat": "நிலையான ₹/நாள்",
+    "penalty_pct": "EMI-ன் %/நாள்",
+    "penalty_amount": "அபராத தொகை",
     "summary": "கடன் சுருக்கம்",
     "total_repay": "மொத்த திரும்ப செலுத்தல்",
     "interest": "வட்டி",
+    "interest_only": "வட்டி மட்டும் (முதல் தனியாக திரும்பும்)",
     "ends_on": "முடிவு தேதி",
-    "view_plan": "திரும்ப செலுத்தும் அட்டவணையைப் பார்",
-    "plan_title": "திரும்ப செலுத்தும் அட்டவணை",
+    "view_plan": "திட்டத்தைப் பார்",
+    "plan_title": "திரும்ப செலுத்தும் திட்டம்",
     "inst_number": "#",
     "due_date": "தேதி",
     "amount": "தொகை",
@@ -100,6 +119,33 @@
     "status_partial": "பகுதி",
     "status_missed": "தவறவிட்டது",
     "status_advance": "முன்பணம்",
-    "create": "கடனை உருவாக்கு"
+    "create": "கடனை உருவாக்கு",
+    "close_loan": "கடனை மூடு",
+    "top_up": "டாப்-அப்",
+    "return_principal": "முதல் திரும்பு",
+    "guarantor": "ஜாமீன்",
+    "add_guarantor": "ஜாமீன் சேர்"
+  },
+  "deposits": {
+    "title": "வைப்புகள்",
+    "add": "வைப்பு சேர்",
+    "depositor_name": "வைப்பாளர் பெயர்",
+    "depositor_phone": "தொலைபேசி",
+    "amount": "தொகை",
+    "interest_rate": "வட்டி விகிதம் (%)",
+    "start_date": "தொடக்க தேதி",
+    "maturity_date": "முதிர்வு தேதி",
+    "pay_interest": "வட்டி செலுத்து",
+    "total_deposits": "மொத்த வைப்புகள்",
+    "interest_paid": "செலுத்திய வட்டி"
+  },
+  "overdue": {
+    "title": "நிப்பு",
+    "bucket_1_3": "1-3 நாட்கள்",
+    "bucket_4_7": "4-7 நாட்கள்",
+    "bucket_8_14": "8-14 நாட்கள்",
+    "bucket_15_30": "15-30 நாட்கள்",
+    "bucket_30_plus": "30+ நாட்கள்",
+    "total": "மொத்த நிப்பு"
   }
 }

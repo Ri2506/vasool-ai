@@ -151,9 +151,76 @@ export async function recordCollection(
         );
       }
     }
+
+    // Auto loan closure: check if all plan entries are paid/advance_covered
+    const remaining = await db.getFirstAsync<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM plan_entries
+       WHERE loan_id = ? AND status IN ('pending', 'partial')`,
+      [input.loanId]
+    );
+    if (remaining && remaining.cnt === 0) {
+      await db.runAsync(
+        `UPDATE loans SET status = 'closed', dirty = 1 WHERE id = ?`,
+        [input.loanId]
+      );
+    }
   });
 
   return collection;
+}
+
+/**
+ * Get Nadapu/Nippu status for a borrower's active loans.
+ * Nippu = overdue beyond grace period. Nadapu = on schedule.
+ */
+export async function getBorrowerPaymentStatus(
+  borrowerId: string
+): Promise<{ isNippu: boolean; daysOverdue: number; rating: number }> {
+  const db = await openDb();
+  const todayMs = Date.now();
+
+  // Check for overdue entries considering grace period
+  const overdue = await db.getFirstAsync<{ days: number; grace: number }>(
+    `SELECT
+       CAST((${todayMs} - MIN(pe.due_date)) / 86400000 AS INTEGER) AS days,
+       COALESCE(l.grace_period_days, 0) AS grace
+     FROM plan_entries pe
+     JOIN loans l ON l.id = pe.loan_id
+     WHERE l.borrower_id = ? AND l.status = 'active'
+       AND pe.status IN ('pending', 'partial')
+       AND pe.due_date < ${todayMs}
+     GROUP BY l.id
+     ORDER BY days DESC LIMIT 1`,
+    [borrowerId]
+  );
+
+  const daysOverdue = Number(overdue?.days ?? 0);
+  const grace = Number(overdue?.grace ?? 0);
+  const isNippu = daysOverdue > grace;
+
+  // Payment rating: on-time / total
+  const stats = await db.getFirstAsync<{ on_time: number; total: number }>(
+    `SELECT
+       SUM(CASE WHEN pe.status IN ('paid', 'advance_covered') THEN 1 ELSE 0 END) AS on_time,
+       COUNT(*) AS total
+     FROM plan_entries pe
+     JOIN loans l ON l.id = pe.loan_id
+     WHERE l.borrower_id = ? AND pe.due_date < ${todayMs}`,
+    [borrowerId]
+  );
+  const onTime = Number(stats?.on_time ?? 0);
+  const total = Number(stats?.total ?? 0);
+  let rating = 0;
+  if (total > 0) {
+    const pct = (onTime / total) * 100;
+    if (pct >= 90) rating = 5;
+    else if (pct >= 75) rating = 4;
+    else if (pct >= 60) rating = 3;
+    else if (pct >= 40) rating = 2;
+    else rating = 1;
+  }
+
+  return { isNippu, daysOverdue, rating };
 }
 
 /**

@@ -37,14 +37,19 @@ export function NewLoanScreen({ route, navigation }: Props) {
 
   const [principal, setPrincipal] = useState('');
   const [emiAmount, setEmiAmount] = useState('');
-  const [emiTouched, setEmiTouched] = useState(false); // true once user manually edits EMI
+  const [emiTouched, setEmiTouched] = useState(false);
   const [installments, setInstallments] = useState('');
   const [lineId, setLineId] = useState<string | null>(null);
+  const [startDate] = useState(new Date()); // PRD v2.1: configurable start date
+  const [gracePeriod, setGracePeriod] = useState('0');
+  const [productDesc, setProductDesc] = useState('');
+  const [penaltyType, setPenaltyType] = useState<'none' | 'flat' | 'percentage'>('none');
+  const [penaltyAmount, setPenaltyAmount] = useState('');
 
   const selectedLine = lines?.find((l) => l.id === lineId);
   const lineType: LineType = selectedLine?.type ?? 'daily';
+  const isInterestOnly = lineType === 'daily_interest' || lineType === 'weekly_interest' || lineType === 'monthly_interest';
 
-  // Live summary whenever the user has all three numbers
   const summary = useMemo(() => {
     const p = Number(principal);
     const e = Number(emiAmount);
@@ -55,19 +60,17 @@ export function NewLoanScreen({ route, navigation }: Props) {
         emiAmount: e,
         totalInstallments: n,
         lineType,
-        startDate: new Date(),
+        startDate,
       });
     }
     return null;
-  }, [principal, emiAmount, installments, lineType]);
+  }, [principal, emiAmount, installments, lineType, startDate]);
 
-  // Auto-suggest EMI whenever principal or installments change,
-  // UNLESS the user has manually edited the EMI field.
   const handlePrincipalChange = (v: string) => {
     const clean = v.replace(/\D/g, '');
     setPrincipal(clean);
     if (clean && installments && !emiTouched) {
-      setEmiAmount(String(suggestEmi(Number(clean), Number(installments))));
+      setEmiAmount(String(suggestEmi(Number(clean), Number(installments), lineType)));
     }
   };
 
@@ -75,7 +78,7 @@ export function NewLoanScreen({ route, navigation }: Props) {
     const clean = v.replace(/\D/g, '');
     setInstallments(clean);
     if (principal && clean && !emiTouched) {
-      setEmiAmount(String(suggestEmi(Number(principal), Number(clean))));
+      setEmiAmount(String(suggestEmi(Number(principal), Number(clean), lineType)));
     }
   };
 
@@ -86,11 +89,11 @@ export function NewLoanScreen({ route, navigation }: Props) {
 
   const handleCreate = async () => {
     if (!summary) {
-      Alert.alert(t('common.error_generic'), 'Please fill principal, EMI, and installments');
+      Alert.alert(t('common.error_generic'), 'Fill principal, EMI, and installments');
       return;
     }
     if (!lineId) {
-      Alert.alert(t('common.error_generic'), 'Please pick a line');
+      Alert.alert(t('common.error_generic'), 'Pick a line');
       return;
     }
     try {
@@ -101,7 +104,11 @@ export function NewLoanScreen({ route, navigation }: Props) {
         emiAmount: Number(emiAmount),
         totalInstallments: Number(installments),
         lineType,
-        startDate: new Date(),
+        startDate,
+        gracePeriodDays: Number(gracePeriod) || 0,
+        productDescription: productDesc.trim() || undefined,
+        penaltyType: penaltyType === 'none' ? undefined : penaltyType,
+        penaltyAmount: Number(penaltyAmount) || 0,
       });
       navigation.replace('LoanPlan', { loanId: result.loan.id });
     } catch (e: any) {
@@ -131,11 +138,62 @@ export function NewLoanScreen({ route, navigation }: Props) {
             onChangeText={handleInstallmentsChange}
           />
           <Field
-            label={t('loan.emi')}
+            label={isInterestOnly ? t('loan.interest_amount') : t('loan.emi')}
             value={emiAmount}
             onChangeText={handleEmiChange}
             prefix="₹"
           />
+
+          {/* Grace period */}
+          <Field
+            label={t('loan.grace_period')}
+            value={gracePeriod}
+            onChangeText={(v) => setGracePeriod(v.replace(/\D/g, '').slice(0, 1))}
+          />
+          <Text style={styles.hint}>{t('loan.grace_hint')}</Text>
+
+          {/* Penalty */}
+          <Text style={styles.fieldLabel}>{t('loan.penalty_type')}</Text>
+          <View style={styles.lineGrid}>
+            {[
+              { val: 'none' as const, label: t('loan.penalty_none') },
+              { val: 'flat' as const, label: t('loan.penalty_flat') },
+              { val: 'percentage' as const, label: t('loan.penalty_pct') },
+            ].map((opt) => (
+              <Pressable
+                key={opt.val}
+                onPress={() => setPenaltyType(opt.val)}
+                style={[styles.lineChip, penaltyType === opt.val && styles.lineChipActive]}
+              >
+                <Text style={[styles.lineChipLabel, penaltyType === opt.val && styles.lineChipLabelActive]}>
+                  {opt.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {penaltyType !== 'none' ? (
+            <Field
+              label={t('loan.penalty_amount')}
+              value={penaltyAmount}
+              onChangeText={(v) => setPenaltyAmount(v.replace(/\D/g, ''))}
+              prefix={penaltyType === 'flat' ? '₹' : '%'}
+            />
+          ) : null}
+
+          {/* Product description (enterprise only) */}
+          {lineType === 'enterprise' ? (
+            <Field
+              label={t('loan.product_desc')}
+              value={productDesc}
+              onChangeText={setProductDesc}
+            />
+          ) : null}
+
+          {isInterestOnly ? (
+            <View style={styles.interestBanner}>
+              <Text style={styles.interestBannerText}>{t('loan.interest_only')}</Text>
+            </View>
+          ) : null}
 
           <Text style={styles.fieldLabel}>{t('loan.line')}</Text>
           <View style={styles.lineGrid}>
@@ -285,4 +343,11 @@ const styles = StyleSheet.create({
   },
   rowLabel: { ...Typography.body, color: Colors.textSec },
   rowValue: { ...Typography.body, color: Colors.text, fontWeight: '700' },
+  interestBanner: {
+    backgroundColor: Colors.infoLight,
+    borderRadius: Radius.button,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  interestBannerText: { ...Typography.caption, color: Colors.info, fontWeight: '600' },
 });

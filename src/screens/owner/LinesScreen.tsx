@@ -25,6 +25,8 @@ const LINE_TYPES: { value: LineType; labelKey: string }[] = [
   { value: 'weekly', labelKey: 'lines.type_weekly' },
   { value: 'monthly_emi', labelKey: 'lines.type_monthly_emi' },
   { value: 'monthly_interest', labelKey: 'lines.type_monthly_interest' },
+  { value: 'daily_interest', labelKey: 'lines.type_daily_interest' },
+  { value: 'weekly_interest', labelKey: 'lines.type_weekly_interest' },
   { value: 'enterprise', labelKey: 'lines.type_enterprise' },
 ];
 

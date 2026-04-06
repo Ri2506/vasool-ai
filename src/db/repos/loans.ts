@@ -11,6 +11,10 @@ export interface CreateLoanInput extends LoanInput {
   orgId: string;
   borrowerId: string;
   lineId?: string | null;
+  gracePeriodDays?: number;
+  productDescription?: string;
+  penaltyType?: 'flat' | 'percentage';
+  penaltyAmount?: number;
 }
 
 export interface CreatedLoan {
@@ -40,6 +44,10 @@ export async function createLoanWithPlan(
     expected_end_date: summary.expectedEndDate,
     status: 'active',
     renewed_from_id: null,
+    grace_period_days: input.gracePeriodDays ?? 0,
+    product_description: input.productDescription ?? null,
+    penalty_type: input.penaltyType ?? null,
+    penalty_amount: input.penaltyAmount ?? 0,
     created_at: now(),
     dirty: 1,
   };
@@ -60,22 +68,15 @@ export async function createLoanWithPlan(
     await db.runAsync(
       `INSERT INTO loans (id, server_id, org_id, borrower_id, line_id,
          principal, emi_amount, total_installments, total_repayment,
-         start_date, expected_end_date, status, renewed_from_id, created_at, dirty)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+         start_date, expected_end_date, status, renewed_from_id,
+         grace_period_days, product_description, penalty_type, penalty_amount,
+         created_at, dirty)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [
-        loan.id,
-        loan.server_id,
-        loan.org_id,
-        loan.borrower_id,
-        loan.line_id,
-        loan.principal,
-        loan.emi_amount,
-        loan.total_installments,
-        loan.total_repayment,
-        loan.start_date,
-        loan.expected_end_date,
-        loan.status,
-        loan.renewed_from_id,
+        loan.id, loan.server_id, loan.org_id, loan.borrower_id, loan.line_id,
+        loan.principal, loan.emi_amount, loan.total_installments, loan.total_repayment,
+        loan.start_date, loan.expected_end_date, loan.status, loan.renewed_from_id,
+        loan.grace_period_days, loan.product_description, loan.penalty_type, loan.penalty_amount,
         loan.created_at,
       ]
     );
