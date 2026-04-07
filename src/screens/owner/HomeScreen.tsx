@@ -1,25 +1,22 @@
 import React, { useState } from 'react';
 import {
-  FlatList,
-  Modal,
-  Pressable,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  View,
+  FlatList, Modal, Pressable, SafeAreaView, StyleSheet, Text, View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
-import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
+import { ELCard } from '@/components/common/ELCard';
+import { GradientButton } from '@/components/common/GradientButton';
 import { ProgressBar } from '@/components/common/ProgressBar';
-import { Colors } from '@/constants/colors';
-import { Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { StatusBadge } from '@/components/common/StatusBadge';
+import { StarRating } from '@/components/common/StarRating';
+import { EL, Common, Glass, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { useDueToday, useTodaySummary } from '@/hooks/useCollections';
 import { useSmartCards } from '@/hooks/useSmartCards';
+import { useBorrowerStatuses } from '@/hooks/useBorrowerStatus';
 import { useAuthStore } from '@/store/authStore';
 import { formatRupees } from '@/utils/format';
 import type { DueTodayItem } from '@/db/repos/collections';
@@ -35,158 +32,142 @@ export function HomeScreen() {
   const { data: summary } = useTodaySummary();
   const { data: dueItems = [] } = useDueToday();
   const { data: smart } = useSmartCards();
+  const { data: statuses } = useBorrowerStatuses();
   const [showBreakdown, setShowBreakdown] = useState(false);
 
   const total = dueItems.length + (summary?.collectionCount ?? 0);
   const done = summary?.collectionCount ?? 0;
-  const progress = total > 0 ? done / total : 0;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  const renderDueItem = ({ item }: { item: DueTodayItem }) => (
-    <Pressable
-      style={styles.dueRow}
-      onPress={() => navigation.navigate('Collect', { item })}
-    >
-      <Avatar name={item.borrower_name} />
-      <View style={styles.dueBody}>
-        <Text style={styles.dueName}>{item.borrower_name}</Text>
-        <Text style={styles.dueSub}>
-          EMI {formatRupees(item.expected_amount)} • #{item.installment_number}
-        </Text>
-      </View>
-      <View style={styles.dueBtnWrap}>
-        <Text style={styles.dueBtnLabel}>{formatRupees(item.expected_amount)}</Text>
-      </View>
-    </Pressable>
-  );
+  const renderDueItem = ({ item }: { item: DueTodayItem }) => {
+    const st = statuses?.[item.borrower_id];
+    return (
+      <Pressable
+        style={styles.dueRow}
+        onPress={() => navigation.navigate('Collect', { item })}
+      >
+        <Avatar name={item.borrower_name} size={44} />
+        <View style={styles.dueBody}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.dueName}>{item.borrower_name}</Text>
+            {st?.is_nippu !== undefined ? (
+              <StatusBadge status={st.is_nippu ? 'nippu' : 'nadapu'} />
+            ) : null}
+          </View>
+          <Text style={styles.dueSub}>
+            {formatRupees(item.expected_amount)}/day • {item.line_name ?? 'Daily'}
+          </Text>
+          {st?.rating ? <StarRating rating={st.rating} size={10} /> : null}
+        </View>
+        {/* Green collect button */}
+        <Pressable style={styles.collectBtn}>
+          <Text style={styles.collectBtnText}>{formatRupees(item.expected_amount)}</Text>
+        </Pressable>
+      </Pressable>
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <FlatList
         data={dueItems}
         keyExtractor={(item) => item.plan_entry_id}
         renderItem={renderDueItem}
-        ItemSeparatorComponent={() => <View style={styles.sep} />}
         contentContainerStyle={{ paddingBottom: 100 }}
         ListHeaderComponent={
           <>
-            {/* Greeting */}
-            <View style={styles.greet}>
-              <Text style={styles.greeting}>
-                {t('common.hello_name', { name: user?.name ?? '' })}
-              </Text>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.appName}>VasoolAI</Text>
               <Pressable onPress={signOut}>
-                <Text style={styles.signOut}>{t('auth.sign_out')}</Text>
+                <MaterialCommunityIcons name="logout" size={22} color={EL.onSurfaceMuted} />
               </Pressable>
             </View>
 
-            {/* Smart cards — P&L + Available to lend */}
+            {/* Smart cards row */}
             {smart ? (
               <View style={styles.smartRow}>
-                <Card style={styles.smartCard}>
+                <ELCard style={styles.smartCard}>
                   <Text style={styles.smartLabel}>This month profit</Text>
-                  <Text style={[styles.smartValue, { color: smart.monthProfit >= 0 ? Colors.primary : Colors.danger }]}>
+                  <Text style={[styles.smartValue, { color: smart.monthProfit >= 0 ? EL.primary : EL.nippu }]}>
                     {formatRupees(smart.monthProfit)}
                   </Text>
-                </Card>
-                <Pressable onPress={() => setShowBreakdown(true)}>
-                  <Card style={styles.smartCard}>
+                  <Text style={styles.smartHint}>↑ vs last month</Text>
+                </ELCard>
+                <Pressable onPress={() => setShowBreakdown(true)} style={{ flex: 1 }}>
+                  <ELCard style={[styles.smartCard, { flex: undefined }]}>
                     <Text style={styles.smartLabel}>Available to lend</Text>
                     <Text style={styles.smartValue}>{formatRupees(smart.availableToLend)}</Text>
-                    <Text style={styles.tapHint}>Tap for breakdown</Text>
-                  </Card>
+                    <Text style={styles.smartHint}>Ready to disburse →</Text>
+                  </ELCard>
                 </Pressable>
               </View>
             ) : null}
-            {smart && smart.nextWeekForecast > 0 ? (
-              <Card style={styles.card}>
-                <Text style={styles.forecastLabel}>
-                  Next week expected: {formatRupees(smart.nextWeekForecast)} from collections
-                </Text>
-              </Card>
-            ) : null}
 
-            {/* Today's progress card */}
-            <Card style={styles.card}>
-              <Text style={styles.cardTitle}>
-                Today: {total} people, {formatRupees((summary?.totalExpected ?? 0) + (summary?.totalCollected ?? 0))} to collect
+            {/* Today's progress */}
+            <ELCard style={styles.progressCard}>
+              <View style={styles.progressHeader}>
+                <Text style={Type.titleMd}>Today's progress</Text>
+                <Text style={[Type.displaySm, { color: EL.primary }]}>{pct}%</Text>
+              </View>
+              <Text style={styles.progressSub}>
+                {done}/{total} collected  •  {formatRupees(summary?.totalCollected ?? 0)} / {formatRupees((summary?.totalCollected ?? 0) + (summary?.totalExpected ?? 0))}
               </Text>
-              <ProgressBar
-                progress={progress}
-                label={`${done}/${total} (${Math.round(progress * 100)}%)`}
-              />
-              {summary && summary.totalCollected > 0 ? (
-                <Text style={styles.cardSub}>
-                  Collected: {formatRupees(summary.totalCollected)}
-                </Text>
-              ) : null}
-            </Card>
+              <ProgressBar progress={total > 0 ? done / total : 0} />
+            </ELCard>
 
-            {/* Quick action buttons */}
-            <View style={styles.actionRow}>
-              {dueItems.length > 0 ? (
-                <Button
-                  title={`Batch collect (${dueItems.length})`}
-                  onPress={() => navigation.navigate('BatchCollect')}
-                  style={{ flex: 1, marginRight: Spacing.sm }}
-                />
-              ) : null}
-              <Button
-                title="Overdue"
-                variant="danger"
-                onPress={() => navigation.navigate('Overdue')}
-                style={{ flex: 1, marginLeft: dueItems.length > 0 ? Spacing.sm : 0 }}
-              />
-            </View>
-            <View style={styles.actionRow}>
-              <Button
-                title="Monthly summary"
-                variant="secondary"
-                onPress={() => navigation.navigate('MonthlySummary')}
-                style={{ flex: 1, marginRight: Spacing.sm }}
-              />
-              <Button
-                title="AI Assistant"
-                variant="secondary"
-                onPress={() => navigation.navigate('AIChat')}
-                style={{ flex: 1, marginLeft: Spacing.sm }}
-              />
-            </View>
-
-            {/* Due list heading */}
+            {/* Pending collections header */}
             {dueItems.length > 0 ? (
-              <Text style={styles.sectionTitle}>Due today</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={Type.titleMd}>Pending Collections</Text>
+                <Pressable onPress={() => navigation.navigate('BatchCollect')}>
+                  <Text style={styles.viewAll}>View all</Text>
+                </Pressable>
+              </View>
             ) : (
-              <Card style={styles.card}>
-                <Text style={styles.emptyTitle}>No collections due</Text>
-                <Text style={styles.emptySub}>
+              <ELCard style={{ marginHorizontal: Space.xl, marginBottom: Space.lg }}>
+                <Text style={Type.titleMd}>No collections due</Text>
+                <Text style={[Type.bodySm, { marginTop: Space.xs }]}>
                   Create borrowers and loans to see today's collection list here.
                 </Text>
-              </Card>
+              </ELCard>
             )}
           </>
         }
       />
 
-      {/* Available-to-lend breakdown modal */}
+      {/* FAB — new loan */}
+      <Pressable
+        style={Common.fab}
+        onPress={() => navigation.navigate('BatchCollect')}
+      >
+        <MaterialCommunityIcons name="plus" size={28} color={EL.white} />
+      </Pressable>
+
+      {/* Cash Position Breakdown Modal */}
       <Modal visible={showBreakdown} transparent animationType="slide" onRequestClose={() => setShowBreakdown(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setShowBreakdown(false)}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Available to lend</Text>
+        <Pressable style={[Glass.dark, { flex: 1, justifyContent: 'flex-end' }]} onPress={() => setShowBreakdown(false)}>
+          <View style={[Glass.container, styles.sheet]}>
+            <Text style={Type.displaySm}>Cash Position</Text>
             {smart ? (
               <>
-                <BreakdownRow label="Collections received" value={formatRupees(smart.monthCollected)} plus />
-                <BreakdownRow label="Investments" value={formatRupees(smart.totalInvested)} plus />
+                <BRow label="Collections received" value={formatRupees(smart.monthCollected)} plus />
+                <BRow label="Investments added" value={formatRupees(smart.totalInvested)} plus />
                 <View style={styles.divider} />
-                <BreakdownRow label="Loans given out" value={formatRupees(smart.monthLent)} />
-                <BreakdownRow label="Expenses" value={formatRupees(smart.monthExpenses)} />
+                <BRow label="Total in" value={formatRupees(smart.monthCollected + smart.totalInvested)} bold plus />
+                <View style={{ height: Space.lg }} />
+                <BRow label="Loans given out" value={formatRupees(smart.monthLent)} />
+                <BRow label="Expenses" value={formatRupees(smart.monthExpenses)} />
                 <View style={styles.divider} />
-                <View style={styles.breakdownTotal}>
-                  <Text style={styles.breakdownTotalLabel}>Available to lend</Text>
-                  <Text style={styles.breakdownTotalValue}>{formatRupees(smart.availableToLend)}</Text>
+                <BRow label="Total out" value={formatRupees(smart.monthLent + smart.monthExpenses)} bold />
+                <View style={styles.divider} />
+                <View style={styles.totalRow}>
+                  <Text style={Type.titleLg}>Available to lend</Text>
+                  <Text style={[Type.displayMd, { color: EL.primary }]}>{formatRupees(smart.availableToLend)}</Text>
                 </View>
               </>
             ) : null}
-            <Button title="Close" variant="secondary" onPress={() => setShowBreakdown(false)} style={{ marginTop: Spacing.lg }} />
+            <GradientButton title="Close" variant="secondary" onPress={() => setShowBreakdown(false)} style={{ marginTop: Space.xl }} />
           </View>
         </Pressable>
       </Modal>
@@ -194,83 +175,55 @@ export function HomeScreen() {
   );
 }
 
-function BreakdownRow({ label, value, plus }: { label: string; value: string; plus?: boolean }) {
+function BRow({ label, value, plus, bold }: { label: string; value: string; plus?: boolean; bold?: boolean }) {
   return (
-    <View style={styles.breakdownRow}>
-      <Text style={styles.breakdownLabel}>{label}</Text>
-      <Text style={[styles.breakdownValue, { color: plus ? Colors.primary : Colors.danger }]}>
-        {plus ? '+ ' : '- '}{value}
+    <View style={styles.bRow}>
+      <Text style={[Type.bodyMd, bold && { fontWeight: '700' }]}>{label}</Text>
+      <Text style={[Type.bodyMd, { color: plus ? EL.primary : EL.nippu, fontWeight: bold ? '700' : '500' }]}>
+        {value}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  greet: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: Spacing.xl,
-    paddingBottom: Spacing.sm,
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: Space.xl, paddingTop: Space.lg, paddingBottom: Space.md,
   },
-  greeting: { ...Typography.display, color: Colors.text },
-  signOut: { ...Typography.caption, color: Colors.textSec },
-  card: { marginHorizontal: Spacing.xl, marginBottom: Spacing.lg },
-  cardTitle: { ...Typography.title, color: Colors.text, marginBottom: Spacing.md },
-  cardSub: { ...Typography.caption, color: Colors.primary, marginTop: Spacing.sm, fontWeight: '600' },
-  sectionTitle: {
-    ...Typography.title,
-    color: Colors.textSec,
-    paddingHorizontal: Spacing.xl,
-    marginBottom: Spacing.sm,
-  },
-  dueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.white,
-    minHeight: TouchTarget.min + 20,
-  },
-  dueBody: { flex: 1, marginLeft: Spacing.md },
-  dueName: { ...Typography.title, color: Colors.text },
-  dueSub: { ...Typography.caption, color: Colors.textSec, marginTop: 2 },
-  dueBtnWrap: {
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: Spacing.lg,
-    minHeight: TouchTarget.min,
-    justifyContent: 'center',
-  },
-  dueBtnLabel: { ...Typography.title, color: Colors.white },
-  sep: { height: 1, backgroundColor: Colors.border, marginLeft: 72 },
-  emptyTitle: { ...Typography.title, color: Colors.text },
-  emptySub: { ...Typography.body, color: Colors.textSec, marginTop: 4 },
+  appName: { ...Type.displayMd, color: EL.primary },
   smartRow: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.xl,
-    marginBottom: Spacing.lg,
-    gap: Spacing.md,
+    flexDirection: 'row', paddingHorizontal: Space.xl, marginBottom: Space.lg, gap: Space.md,
   },
-  smartCard: { flex: 1, marginHorizontal: 0 },
-  smartLabel: { ...Typography.caption, color: Colors.textSec },
-  smartValue: { ...Typography.display, color: Colors.text, marginTop: 4 },
-  forecastLabel: { ...Typography.body, color: Colors.info },
-  actionRow: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.xl,
-    marginBottom: Spacing.md,
+  smartCard: { flex: 1 },
+  smartLabel: { ...Type.labelSm },
+  smartValue: { ...Type.displaySm, color: EL.onSurface, marginTop: Space.xs },
+  smartHint: { ...Type.labelSm, color: EL.onSurfaceMuted, marginTop: Space.xs },
+  progressCard: { marginHorizontal: Space.xl, marginBottom: Space.lg },
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressSub: { ...Type.bodySm, marginTop: Space.xs, marginBottom: Space.md },
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: Space.xl, marginBottom: Space.md,
   },
-  tapHint: { ...Typography.caption, color: Colors.textMuted, marginTop: 2 },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: Colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl, paddingBottom: Spacing.xxl },
-  modalTitle: { ...Typography.display, color: Colors.text, marginBottom: Spacing.lg },
-  divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.md },
-  breakdownTotal: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.sm },
-  breakdownTotalLabel: { ...Typography.title, color: Colors.text },
-  breakdownTotalValue: { ...Typography.display, color: Colors.primary },
-  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.sm },
-  breakdownLabel: { ...Typography.body, color: Colors.textSec },
-  breakdownValue: { ...Typography.body, fontWeight: '600' },
+  viewAll: { ...Type.labelMd, color: EL.primary },
+  dueRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: Space.xl, paddingVertical: Space.lg,
+    // No border separator — use whitespace per Emerald Ledger
+  },
+  dueBody: { flex: 1, marginLeft: Space.md },
+  dueName: { ...Type.titleMd, color: EL.onSurface },
+  dueSub: { ...Type.bodySm, marginTop: 2 },
+  collectBtn: {
+    backgroundColor: EL.primary, borderRadius: Radii.md,
+    paddingHorizontal: Space.lg, minHeight: Touch.min,
+    alignItems: 'center', justifyContent: 'center',
+    ...Shadows.card,
+  },
+  collectBtnText: { ...Type.labelLg, color: EL.white },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Space.xl, paddingBottom: Space.xxxl },
+  divider: { height: 1, backgroundColor: EL.surfaceLow, marginVertical: Space.md },
+  bRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Space.sm },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Space.md },
 });
