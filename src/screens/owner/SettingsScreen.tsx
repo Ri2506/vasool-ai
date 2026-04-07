@@ -1,15 +1,15 @@
 import React from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { OwnerStackParamList } from '@/navigation/types';
 
 import { Badge } from '@/components/common/Badge';
-import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
-import { Colors } from '@/constants/colors';
-import { Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { ELCard } from '@/components/common/ELCard';
+import { GradientButton } from '@/components/common/GradientButton';
+import { EL, Common, Radii, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { setLanguage, type Language } from '@/i18n';
 import { useAuthStore } from '@/store/authStore';
 import { exportBorrowers, exportCollections, exportExpenses, shareCsv } from '@/utils/exportData';
@@ -37,126 +37,123 @@ export function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <SafeAreaView style={Common.screen}>
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>{t('nav.settings')}</Text>
 
         {/* Language */}
-        <Card style={styles.card}>
+        <ELCard style={styles.card}>
           <Text style={styles.sectionTitle}>{t('auth.choose_language')}</Text>
           <View style={styles.langRow}>
-            <LangButton
-              label="English"
-              active={currentLng === 'en'}
-              onPress={() => handleLang('en')}
-            />
-            <LangButton
-              label="தமிழ்"
-              active={currentLng === 'ta'}
-              onPress={() => handleLang('ta')}
-            />
+            <LangButton label="English" active={currentLng === 'en'} onPress={() => handleLang('en')} />
+            <LangButton label="\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD" active={currentLng === 'ta'} onPress={() => handleLang('ta')} />
           </View>
-        </Card>
+        </ELCard>
 
         {/* Referral */}
-        <Card style={[styles.card, { backgroundColor: Colors.primaryLight, borderColor: Colors.primary }]}>
-          <Text style={styles.sectionTitle}>Refer & Earn</Text>
-          <Text style={styles.sub}>Share your code — you both get 1 month free</Text>
-          <Button
+        <ELCard style={[styles.card, { backgroundColor: EL.primaryFixed }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}>
+            <MaterialCommunityIcons name="gift-outline" size={20} color={EL.primary} />
+            <Text style={styles.sectionTitle}>Refer & Earn</Text>
+          </View>
+          <Text style={styles.sub}>Share your code \u2014 you both get 1 month free</Text>
+          <GradientButton
             title="Get referral code"
             onPress={() => navigation.navigate('Referral')}
-            style={{ marginTop: Spacing.md }}
+            style={{ marginTop: Space.md }}
           />
-        </Card>
+        </ELCard>
 
         {/* Agent management */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Agents</Text>
-          <Text style={styles.sub}>Create and manage collection agents</Text>
-          <Button
-            title="Manage agents"
-            variant="secondary"
-            onPress={() => navigation.navigate('AgentManagement')}
-            style={{ marginTop: Spacing.md }}
-          />
-        </Card>
+        <SettingsRow
+          icon="account-group"
+          title="Agents"
+          sub="Create and manage collection agents"
+          onPress={() => navigation.navigate('AgentManagement')}
+        />
 
         {/* Subscription */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Subscription</Text>
-          <Text style={styles.sub}>Free plan — upgrade for more features</Text>
-          <Button
-            title="View plans"
-            variant="secondary"
-            onPress={() => navigation.navigate('Subscription')}
-            style={{ marginTop: Spacing.md }}
-          />
-        </Card>
+        <SettingsRow
+          icon="crown-outline"
+          title="Subscription"
+          sub="Free plan \u2014 upgrade for more features"
+          onPress={() => navigation.navigate('Subscription')}
+        />
 
         {/* Import */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Import borrowers</Text>
-          <Text style={styles.sub}>Bulk import from paper or another app</Text>
-          <Button
-            title="Import"
-            variant="secondary"
-            onPress={() => navigation.navigate('Import')}
-            style={{ marginTop: Spacing.md }}
-          />
-        </Card>
+        <SettingsRow
+          icon="file-import-outline"
+          title="Import borrowers"
+          sub="Bulk import from paper or another app"
+          onPress={() => navigation.navigate('Import')}
+        />
 
         {/* Working days */}
-        <Card style={styles.card}>
+        <ELCard style={styles.card}>
           <Text style={styles.sectionTitle}>Working days</Text>
-          <Text style={styles.sub}>
-            Mon–Sat (Sundays skipped). Custom working day config coming in a future update.
-          </Text>
+          <Text style={styles.sub}>Mon\u2013Sat (Sundays skipped)</Text>
           <View style={styles.dayRow}>
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
               <Badge key={d} label={d} variant="success" />
             ))}
             <Badge label="Sun" variant="neutral" />
           </View>
-        </Card>
+        </ELCard>
 
         {/* Investments */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Capital invested</Text>
-          <Text style={styles.sub}>Track money put into the business</Text>
-          <Button
-            title="View investments"
-            variant="secondary"
-            onPress={() => navigation.navigate('Investments')}
-            style={{ marginTop: Spacing.md }}
-          />
-        </Card>
+        <SettingsRow
+          icon="bank-outline"
+          title="Capital invested"
+          sub="Track money put into the business"
+          onPress={() => navigation.navigate('Investments')}
+        />
 
         {/* Data export */}
-        <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Export data</Text>
-          <Text style={styles.sub}>Download as CSV (opens in Excel/Sheets)</Text>
-          <View style={{ marginTop: Spacing.md }}>
-            <Button title="Export borrowers" variant="secondary" onPress={() => handleExport('borrowers')} style={{ marginBottom: Spacing.sm }} />
-            <Button title="Export collections" variant="secondary" onPress={() => handleExport('collections')} style={{ marginBottom: Spacing.sm }} />
-            <Button title="Export expenses" variant="secondary" onPress={() => handleExport('expenses')} />
+        <ELCard style={styles.card}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}>
+            <MaterialCommunityIcons name="download-outline" size={20} color={EL.primary} />
+            <Text style={styles.sectionTitle}>Export data</Text>
           </View>
-        </Card>
+          <Text style={styles.sub}>Download as CSV (opens in Excel/Sheets)</Text>
+          <View style={{ marginTop: Space.md, gap: Space.sm }}>
+            <GradientButton title="Export borrowers" variant="secondary" onPress={() => handleExport('borrowers')} />
+            <GradientButton title="Export collections" variant="secondary" onPress={() => handleExport('collections')} />
+            <GradientButton title="Export expenses" variant="secondary" onPress={() => handleExport('expenses')} />
+          </View>
+        </ELCard>
 
         {/* App info */}
-        <Card style={styles.card}>
+        <ELCard style={styles.card}>
           <Text style={styles.sectionTitle}>VasoolAI</Text>
-          <Text style={styles.sub}>Version 0.1.0 • Phase 1 MVP</Text>
-          <Text style={styles.sub}>Local-first • Offline-ready</Text>
-        </Card>
+          <Text style={styles.sub}>Version 0.1.0 \u2022 Phase 1 MVP</Text>
+          <Text style={styles.sub}>Local-first \u2022 Offline-ready</Text>
+        </ELCard>
 
-        <Button
+        <GradientButton
           title={t('auth.sign_out')}
           variant="danger"
           onPress={signOut}
-          style={{ marginTop: Spacing.lg }}
+          style={{ marginTop: Space.lg }}
         />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function SettingsRow({ icon, title, sub, onPress }: { icon: string; title: string; sub: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress}>
+      <ELCard style={styles.card}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}>
+          <MaterialCommunityIcons name={icon as any} size={20} color={EL.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            <Text style={styles.sub}>{sub}</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={EL.onSurfaceMuted} />
+        </View>
+      </ELCard>
+    </Pressable>
   );
 }
 
@@ -164,33 +161,29 @@ function LangButton({ label, active, onPress }: { label: string; active: boolean
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.langBtn, active && styles.langBtnActive]}
+      style={[styles.langBtn, active ? styles.langBtnActive : styles.langBtnInactive]}
     >
-      <Text style={[styles.langLabel, active && styles.langLabelActive]}>{label}</Text>
+      <Text style={[styles.langLabel, active && { color: EL.white }]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  container: { padding: Spacing.xl, paddingBottom: Spacing.xxl },
-  title: { ...Typography.display, color: Colors.text, marginBottom: Spacing.lg },
-  card: { marginBottom: Spacing.lg },
-  sectionTitle: { ...Typography.title, color: Colors.text, marginBottom: Spacing.sm },
-  sub: { ...Typography.caption, color: Colors.textSec, marginTop: 2 },
-  langRow: { flexDirection: 'row', marginTop: Spacing.md },
+  content: { padding: Space.xl, paddingBottom: Space.xxxl },
+  title: { ...Type.displayMd, marginBottom: Space.lg },
+  card: { marginBottom: Space.md },
+  sectionTitle: { ...Type.titleMd, marginBottom: Space.xs },
+  sub: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: 2 },
+  langRow: { flexDirection: 'row', marginTop: Space.md, gap: Space.sm },
   langBtn: {
     flex: 1,
-    minHeight: TouchTarget.min,
+    minHeight: Touch.min,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginRight: Spacing.sm,
+    borderRadius: Radii.md,
   },
-  langBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  langLabel: { ...Typography.title, color: Colors.text },
-  langLabelActive: { color: Colors.white },
-  dayRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: Spacing.md, gap: Spacing.sm },
+  langBtnActive: { backgroundColor: EL.primary },
+  langBtnInactive: { backgroundColor: EL.surfaceHigh },
+  langLabel: { ...Type.labelLg, color: EL.onSurface },
+  dayRow: { flexDirection: 'row', flexWrap: 'wrap', marginTop: Space.md, gap: Space.sm },
 });

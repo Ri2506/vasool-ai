@@ -1,8 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Colors } from '@/constants/colors';
-import { Radius, Typography } from '@/constants/typography';
+import { EL, Radii, Type, Space } from '@/theme/emeraldLedger';
 
 interface Props {
   /** 0 to 1 */
@@ -24,19 +23,19 @@ export function ProgressBar({ progress, label }: Props) {
 
 const styles = StyleSheet.create({
   label: {
-    ...Typography.caption,
-    color: Colors.textSec,
-    marginBottom: 6,
+    ...Type.labelSm,
+    color: EL.onSurfaceSec,
+    marginBottom: Space.xs,
   },
   track: {
-    height: 10,
-    backgroundColor: Colors.border,
-    borderRadius: Radius.pill,
+    height: 8,
+    backgroundColor: EL.surfaceHigh,
+    borderRadius: Radii.pill,
     overflow: 'hidden',
   },
   fill: {
     height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.pill,
+    backgroundColor: EL.primary,
+    borderRadius: Radii.pill,
   },
 });

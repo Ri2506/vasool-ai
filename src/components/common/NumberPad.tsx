@@ -1,8 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, Typography } from '@/constants/typography';
+import { EL, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 
 interface Props {
   value: string;
@@ -16,15 +15,14 @@ const KEYS = [
   ['1', '2', '3'],
   ['4', '5', '6'],
   ['7', '8', '9'],
-  ['', '0', '⌫'],
+  ['', '0', '\u232B'],
 ];
 
 export function NumberPad({ value, onChange, onConfirm, confirmLabel = 'Collect', disabled }: Props) {
   const handleKey = (key: string) => {
-    if (key === '⌫') {
+    if (key === '\u232B') {
       onChange(value.slice(0, -1));
     } else if (key !== '') {
-      // Max 8 digits (₹99,99,999)
       if (value.length < 8) {
         onChange(value + key);
       }
@@ -35,9 +33,10 @@ export function NumberPad({ value, onChange, onConfirm, confirmLabel = 'Collect'
     <View style={styles.container}>
       {/* Display */}
       <View style={styles.display}>
-        <Text style={styles.rupee}>₹</Text>
+        <Text style={styles.rupee}>\u20B9</Text>
         <Text style={styles.amount}>{value || '0'}</Text>
       </View>
+      <View style={styles.divider} />
 
       {/* Keys */}
       {KEYS.map((row, ri) => (
@@ -50,10 +49,12 @@ export function NumberPad({ value, onChange, onConfirm, confirmLabel = 'Collect'
               style={({ pressed }) => [
                 styles.key,
                 key === '' && styles.keyEmpty,
-                pressed && key !== '' && { backgroundColor: Colors.primaryLight },
+                pressed && key !== '' && { backgroundColor: EL.surfaceHigh },
               ]}
             >
-              <Text style={styles.keyLabel}>{key}</Text>
+              <Text style={[styles.keyLabel, key === '\u232B' && { color: EL.onSurfaceMuted }]}>
+                {key}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -70,7 +71,7 @@ export function NumberPad({ value, onChange, onConfirm, confirmLabel = 'Collect'
         ]}
       >
         <Text style={styles.confirmLabel}>
-          {confirmLabel} ₹{value || '0'}
+          {confirmLabel} \u20B9{value || '0'}
         </Text>
       </Pressable>
     </View>
@@ -78,35 +79,61 @@ export function NumberPad({ value, onChange, onConfirm, confirmLabel = 'Collect'
 }
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: Spacing.md },
+  container: { paddingHorizontal: Space.md },
   display: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
-    paddingVertical: Spacing.lg,
+    paddingVertical: Space.xl,
   },
-  rupee: { ...Typography.display, color: Colors.textMuted, marginRight: 4 },
-  amount: { fontSize: 36, fontWeight: '700', color: Colors.text },
+  rupee: {
+    ...Type.displayMd,
+    color: EL.primary,
+    fontWeight: '700',
+    marginRight: 4,
+  },
+  amount: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: EL.primary,
+    letterSpacing: -1,
+  },
+  divider: {
+    width: 48,
+    height: 3,
+    backgroundColor: 'rgba(5, 150, 105, 0.2)',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: Space.xl,
+  },
   row: { flexDirection: 'row', justifyContent: 'center' },
   key: {
-    width: 80,
-    height: 56,
-    borderRadius: Radius.button,
+    width: 72,
+    height: 64,
+    borderRadius: Radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
     margin: 4,
-    backgroundColor: Colors.white,
   },
   keyEmpty: { backgroundColor: 'transparent' },
-  keyLabel: { fontSize: 24, fontWeight: '600', color: Colors.text },
+  keyLabel: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: EL.onSurface,
+  },
   confirm: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.button,
-    minHeight: 56,
+    backgroundColor: EL.primary,
+    borderRadius: Radii.md,
+    minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.md,
+    marginTop: Space.lg,
+    ...Shadows.card,
   },
   confirmDisabled: { opacity: 0.5 },
-  confirmLabel: { ...Typography.title, color: Colors.white, fontSize: 18 },
+  confirmLabel: {
+    ...Type.labelLg,
+    color: EL.white,
+    fontSize: 16,
+  },
 });

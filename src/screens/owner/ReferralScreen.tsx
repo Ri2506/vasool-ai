@@ -12,10 +12,9 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { ELCard } from '@/components/common/ELCard';
+import { GradientButton } from '@/components/common/GradientButton';
+import { EL, Common, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { applyReferralCode, getReferralStats } from '@/db/repos/referrals';
 import { useAuthStore } from '@/store/authStore';
 
@@ -37,12 +36,11 @@ export function ReferralScreen() {
 
   const handleShare = async () => {
     await Share.share({
-      message: `Try VasoolAI — the fastest collection app for money lenders! Use my code ${code} to get 1 month free.\n\nDownload: https://vasoolai.com`,
+      message: `Try VasoolAI \u2014 the fastest collection app for money lenders! Use my code ${code} to get 1 month free.\n\nDownload: https://vasoolai.com`,
     });
   };
 
   const handleCopy = () => {
-    // Web: use clipboard API
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(code);
       Alert.alert('Copied!', `${code} copied to clipboard`);
@@ -65,31 +63,25 @@ export function ReferralScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <SafeAreaView style={Common.screen}>
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Refer & Earn</Text>
-        <Text style={styles.sub}>
-          Share your code. When they sign up, you BOTH get 1 month free.
-        </Text>
+        <Text style={styles.sub}>Share your code. When they sign up, you BOTH get 1 month free.</Text>
 
         {/* Your referral code */}
-        <Card style={styles.codeCard}>
+        <ELCard style={[styles.card, { backgroundColor: EL.primaryFixed }]}>
           <Text style={styles.codeLabel}>Your referral code</Text>
           <View style={styles.codeRow}>
             <Text style={styles.codeText}>{code}</Text>
             <Pressable onPress={handleCopy} style={styles.copyBtn}>
-              <MaterialCommunityIcons name="content-copy" size={20} color={Colors.primary} />
+              <MaterialCommunityIcons name="content-copy" size={20} color={EL.primary} />
             </Pressable>
           </View>
-          <Button
-            title="Share with WhatsApp"
-            onPress={handleShare}
-            style={{ marginTop: Spacing.md }}
-          />
-        </Card>
+          <GradientButton title="Share with WhatsApp" onPress={handleShare} style={{ marginTop: Space.md }} />
+        </ELCard>
 
         {/* Stats */}
-        <Card style={styles.statsCard}>
+        <ELCard style={styles.card}>
           <View style={styles.statRow}>
             <View style={styles.stat}>
               <Text style={styles.statNum}>{stats.completedCount}</Text>
@@ -100,19 +92,28 @@ export function ReferralScreen() {
               <Text style={styles.statLabel}>Free months earned</Text>
             </View>
           </View>
-        </Card>
+        </ELCard>
 
         {/* How it works */}
-        <Card style={styles.card}>
+        <ELCard style={styles.card}>
           <Text style={styles.sectionTitle}>How it works</Text>
-          <Step n="1" text="Share your code with a fellow financier" />
-          <Step n="2" text="They sign up and enter your code" />
-          <Step n="3" text="You both get 1 month of Pro plan free" />
-          <Step n="4" text="No limit — refer 10 friends, get 10 free months!" />
-        </Card>
+          {[
+            'Share your code with a fellow financier',
+            'They sign up and enter your code',
+            'You both get 1 month of Pro plan free',
+            'No limit \u2014 refer 10 friends, get 10 free months!',
+          ].map((text, i) => (
+            <View key={i} style={styles.stepRow}>
+              <View style={styles.stepCircle}>
+                <Text style={styles.stepNum}>{i + 1}</Text>
+              </View>
+              <Text style={styles.stepText}>{text}</Text>
+            </View>
+          ))}
+        </ELCard>
 
         {/* Apply a code */}
-        <Card style={styles.card}>
+        <ELCard style={styles.card}>
           <Text style={styles.sectionTitle}>Have a referral code?</Text>
           <View style={styles.applyRow}>
             <TextInput
@@ -120,62 +121,39 @@ export function ReferralScreen() {
               value={applyCode}
               onChangeText={(v) => setApplyCode(v.toUpperCase())}
               placeholder="VASOOL-XXXXXX"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={EL.onSurfaceMuted}
               autoCapitalize="characters"
             />
-            <Button
-              title="Apply"
-              onPress={handleApply}
-              loading={loading}
-              style={{ marginLeft: Spacing.sm }}
-            />
+            <GradientButton title="Apply" onPress={handleApply} loading={loading} style={{ marginLeft: Space.sm }} />
           </View>
-        </Card>
+        </ELCard>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Step({ n, text }: { n: string; text: string }) {
-  return (
-    <View style={styles.stepRow}>
-      <View style={styles.stepCircle}>
-        <Text style={styles.stepNum}>{n}</Text>
-      </View>
-      <Text style={styles.stepText}>{text}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  container: { padding: Spacing.xl, paddingBottom: Spacing.xxl },
-  title: { ...Typography.display, color: Colors.text },
-  sub: { ...Typography.body, color: Colors.textSec, marginBottom: Spacing.lg },
-  codeCard: { marginBottom: Spacing.lg, backgroundColor: Colors.primaryLight, borderColor: Colors.primary },
-  codeLabel: { ...Typography.caption, color: Colors.primaryDark },
-  codeRow: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.sm },
-  codeText: { fontSize: 28, fontWeight: '800', color: Colors.primaryDark, letterSpacing: 2, flex: 1 },
-  copyBtn: { padding: Spacing.md },
-  statsCard: { marginBottom: Spacing.lg },
+  content: { padding: Space.xl, paddingBottom: Space.xxxl },
+  title: { ...Type.displayMd },
+  sub: { ...Type.bodyMd, color: EL.onSurfaceSec, marginBottom: Space.lg },
+  card: { marginBottom: Space.lg },
+  codeLabel: { ...Type.labelMd, color: EL.onPrimaryFixed },
+  codeRow: { flexDirection: 'row', alignItems: 'center', marginTop: Space.sm },
+  codeText: { fontSize: 28, fontWeight: '800', color: EL.primaryDark, letterSpacing: 2, flex: 1 },
+  copyBtn: { padding: Space.md },
   statRow: { flexDirection: 'row' },
   stat: { flex: 1, alignItems: 'center' },
-  statNum: { fontSize: 32, fontWeight: '800', color: Colors.primary },
-  statLabel: { ...Typography.caption, color: Colors.textSec, marginTop: 4 },
-  card: { marginBottom: Spacing.lg },
-  sectionTitle: { ...Typography.title, color: Colors.text, marginBottom: Spacing.md },
-  stepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md },
-  stepCircle: {
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
-    marginRight: Spacing.md,
-  },
-  stepNum: { ...Typography.body, color: Colors.white, fontWeight: '700' },
-  stepText: { ...Typography.body, color: Colors.text, flex: 1 },
+  statNum: { fontSize: 32, fontWeight: '800', color: EL.primary },
+  statLabel: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: Space.xs },
+  sectionTitle: { ...Type.titleMd, marginBottom: Space.md },
+  stepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Space.md },
+  stepCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: EL.primary, alignItems: 'center', justifyContent: 'center', marginRight: Space.md },
+  stepNum: { ...Type.labelMd, color: EL.white, fontWeight: '700' },
+  stepText: { ...Type.bodyMd, color: EL.onSurface, flex: 1 },
   applyRow: { flexDirection: 'row', alignItems: 'center' },
   applyInput: {
-    flex: 1, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.button, paddingHorizontal: Spacing.md, minHeight: TouchTarget.min,
-    ...Typography.body, color: Colors.text, letterSpacing: 1,
+    flex: 1, backgroundColor: EL.surfaceCard, borderRadius: Radii.sm + 2,
+    paddingHorizontal: Space.lg, minHeight: Touch.min, ...Type.bodyMd, color: EL.onSurface,
+    letterSpacing: 1, ...Shadows.card,
   },
 });

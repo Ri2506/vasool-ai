@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { AgentHomeScreen } from '@/screens/agent/AgentHomeScreen';
 import { AgentExpenseScreen } from '@/screens/agent/AgentExpenseScreen';
 import { AgentSummaryScreen } from '@/screens/agent/AgentSummaryScreen';
-import { Colors } from '@/constants/colors';
+import { EL, Shadows } from '@/theme/emeraldLedger';
 import { TabIcon } from '@/components/common/TabIcon';
 import type { AgentTabParamList } from './types';
 
@@ -17,9 +17,15 @@ export function AgentNavigator() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
-        tabBarStyle: { borderTopColor: Colors.border, height: 56, paddingBottom: 4 },
+        tabBarActiveTintColor: EL.primary,
+        tabBarInactiveTintColor: EL.onSurfaceMuted,
+        tabBarStyle: {
+          borderTopWidth: 0,
+          height: 64,
+          paddingBottom: 8,
+          backgroundColor: 'rgba(250, 252, 251, 0.85)',
+          ...Shadows.float,
+        },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >

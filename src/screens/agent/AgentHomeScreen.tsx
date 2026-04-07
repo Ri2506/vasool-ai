@@ -8,13 +8,13 @@ import {
   Text,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
 import { Avatar } from '@/components/common/Avatar';
-import { Button } from '@/components/common/Button';
+import { ELCard } from '@/components/common/ELCard';
 import { ProgressBar } from '@/components/common/ProgressBar';
-import { Colors } from '@/constants/colors';
-import { Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { EL, Common, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { useDueToday, useRecordCollection, useTodaySummary } from '@/hooks/useCollections';
 import { useAuthStore } from '@/store/authStore';
 import { formatRupees } from '@/utils/format';
@@ -48,20 +48,17 @@ export function AgentHomeScreen() {
 
   const renderItem = ({ item }: { item: DueTodayItem }) => (
     <View style={styles.row}>
-      <Avatar name={item.borrower_name} />
+      <Avatar name={item.borrower_name} size={36} />
       <View style={styles.rowBody}>
         <Text style={styles.rowName}>{item.borrower_name}</Text>
         <Text style={styles.rowSub}>
-          EMI {formatRupees(item.expected_amount)} • #{item.installment_number}
+          EMI {formatRupees(item.expected_amount)} \u2022 #{item.installment_number}
         </Text>
       </View>
       <Pressable
         onPress={() => handleQuickCollect(item)}
         disabled={recordMut.isPending}
-        style={({ pressed }) => [
-          styles.collectBtn,
-          pressed && { opacity: 0.8 },
-        ]}
+        style={({ pressed }) => [styles.collectBtn, pressed && { opacity: 0.85 }, recordMut.isPending && { opacity: 0.5 }]}
       >
         <Text style={styles.collectBtnLabel}>{formatRupees(item.expected_amount)}</Text>
       </Pressable>
@@ -69,12 +66,11 @@ export function AgentHomeScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <FlatList
         data={items}
         keyExtractor={(item) => item.plan_entry_id}
         renderItem={renderItem}
-        ItemSeparatorComponent={() => <View style={styles.sep} />}
         contentContainerStyle={{ paddingBottom: 100 }}
         ListHeaderComponent={
           <>
@@ -83,19 +79,24 @@ export function AgentHomeScreen() {
                 {t('common.hello_name', { name: user?.name ?? '' })}
               </Text>
               <Pressable onPress={signOut}>
-                <Text style={styles.signOutText}>{t('auth.sign_out')}</Text>
+                <MaterialCommunityIcons name="logout" size={20} color={EL.onSurfaceMuted} />
               </Pressable>
             </View>
-            <View style={styles.progressWrap}>
+
+            <ELCard style={styles.progressCard}>
               <ProgressBar progress={progress} label={`${done}/${total} collected`} />
               {summary ? (
                 <Text style={styles.summaryText}>
                   {formatRupees(summary.totalCollected)} collected today
                 </Text>
               ) : null}
-            </View>
+            </ELCard>
+
             {items.length === 0 ? (
               <View style={styles.emptyWrap}>
+                <View style={styles.emptyIcon}>
+                  <MaterialCommunityIcons name="check-all" size={48} color={EL.primary} />
+                </View>
                 <Text style={styles.emptyTitle}>All done!</Text>
                 <Text style={styles.emptySub}>No more collections due today.</Text>
               </View>
@@ -108,49 +109,53 @@ export function AgentHomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
   greet: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: Spacing.xl,
+    paddingHorizontal: Space.xl,
+    paddingTop: Space.lg,
     paddingBottom: 0,
   },
-  greeting: { ...Typography.display, color: Colors.text },
-  signOutText: { ...Typography.caption, color: Colors.textSec },
-  progressWrap: {
-    padding: Spacing.xl,
-    backgroundColor: Colors.white,
-    margin: Spacing.xl,
-    marginTop: Spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  greeting: { ...Type.displaySm, color: EL.onSurface },
+  progressCard: {
+    marginHorizontal: Space.xl,
+    marginTop: Space.md,
+    marginBottom: Space.lg,
   },
-  summaryText: { ...Typography.caption, color: Colors.primary, marginTop: Spacing.sm, fontWeight: '600' },
+  summaryText: { ...Type.labelMd, color: EL.primary, marginTop: Space.sm, fontWeight: '600' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.white,
-    minHeight: TouchTarget.min + 20,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.md,
+    marginHorizontal: Space.xl,
+    marginBottom: Space.sm,
+    paddingHorizontal: Space.lg,
+    height: 64,
+    ...Shadows.card,
   },
-  rowBody: { flex: 1, marginLeft: Spacing.md },
-  rowName: { ...Typography.title, color: Colors.text },
-  rowSub: { ...Typography.caption, color: Colors.textSec, marginTop: 2 },
+  rowBody: { flex: 1, marginLeft: Space.md },
+  rowName: { ...Type.labelLg, color: EL.onSurface },
+  rowSub: { ...Type.labelSm, color: EL.onSurfaceMuted, marginTop: 1 },
   collectBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: Spacing.lg,
-    minHeight: TouchTarget.min,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 90,
+    backgroundColor: EL.primary,
+    borderRadius: Radii.md,
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.sm,
+    ...Shadows.card,
   },
-  collectBtnLabel: { ...Typography.title, color: Colors.white },
-  sep: { height: 1, backgroundColor: Colors.border, marginLeft: 72 },
-  emptyWrap: { alignItems: 'center', padding: Spacing.xl },
-  emptyTitle: { ...Typography.display, color: Colors.primary },
-  emptySub: { ...Typography.body, color: Colors.textSec, marginTop: Spacing.sm },
+  collectBtnLabel: { ...Type.labelLg, color: EL.white },
+  emptyWrap: { alignItems: 'center', padding: Space.xl, marginTop: Space.xxxl },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: EL.primaryFixed,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Space.lg,
+  },
+  emptyTitle: { ...Type.displaySm, color: EL.primary },
+  emptySub: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: Space.xs },
 });

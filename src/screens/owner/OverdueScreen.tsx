@@ -1,14 +1,14 @@
 import React from 'react';
 import { FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
 import { Badge } from '@/components/common/Badge';
-import { Card } from '@/components/common/Card';
-import { Colors } from '@/constants/colors';
-import { Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { ELCard } from '@/components/common/ELCard';
+import { EL, Common, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { openDb } from '@/db';
 import { useAuthStore } from '@/store/authStore';
 import { formatRupees, formatDateShort } from '@/utils/format';
@@ -66,14 +66,14 @@ export function OverdueScreen() {
 
   const renderItem = ({ item }: { item: OverdueItem }) => (
     <Pressable
-      style={styles.row}
+      style={({ pressed }) => [styles.row, pressed && { backgroundColor: EL.surfaceLow }]}
       onPress={() => navigation.navigate('BorrowerDetail', { id: item.borrower_id })}
     >
       <Avatar name={item.borrower_name} />
       <View style={styles.rowBody}>
         <Text style={styles.rowName}>{item.borrower_name}</Text>
         <Text style={styles.rowSub}>
-          {item.days_overdue} days overdue • {formatRupees(item.amount_owed)} owed
+          {item.days_overdue} days overdue \u2022 {formatRupees(item.amount_owed)} owed
         </Text>
         {item.last_payment_date ? (
           <Text style={styles.rowSub}>
@@ -89,16 +89,16 @@ export function OverdueScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Overdue</Text>
         <Text style={styles.sub}>Borrowers with missed payments</Text>
       </View>
 
-      {/* Aging buckets summary */}
       {items && items.length > 0 ? (
         <>
-          <Card style={{ marginHorizontal: Spacing.xl, marginBottom: Spacing.md }}>
+          {/* Aging buckets */}
+          <ELCard style={styles.bucketsCard}>
             {[
               { label: '1-3 days', min: 1, max: 3 },
               { label: '4-7 days', min: 4, max: 7 },
@@ -114,49 +114,90 @@ export function OverdueScreen() {
               return (
                 <View key={bucket.label} style={styles.bucketRow}>
                   <Text style={styles.bucketLabel}>{bucket.label}</Text>
-                  <Text style={styles.bucketCount}>{inBucket.length}</Text>
+                  <View style={styles.bucketCount}>
+                    <Text style={styles.bucketCountText}>{inBucket.length}</Text>
+                  </View>
                   <Text style={styles.bucketAmount}>{formatRupees(total)}</Text>
                 </View>
               );
             })}
-          </Card>
+          </ELCard>
+
           <FlatList
             data={items}
             keyExtractor={(item) => item.loan_id}
             renderItem={renderItem}
-            ItemSeparatorComponent={() => <View style={styles.sep} />}
             contentContainerStyle={{ paddingBottom: 40 }}
           />
         </>
       ) : (
-        <Card style={{ margin: Spacing.xl }}>
-          <Text style={styles.emptyText}>No overdue borrowers</Text>
-        </Card>
+        <ELCard style={{ margin: Space.xl, alignItems: 'center', paddingVertical: Space.xxxl }}>
+          <View style={styles.emptyIcon}>
+            <MaterialCommunityIcons name="check-circle-outline" size={40} color={EL.primary} />
+          </View>
+          <Text style={[Type.titleMd, { marginTop: Space.md }]}>No overdue borrowers</Text>
+          <Text style={[Type.bodySm, { marginTop: Space.xs }]}>All payments are on schedule</Text>
+        </ELCard>
       )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { padding: Spacing.xl, paddingBottom: Spacing.md },
-  title: { ...Typography.display, color: Colors.danger },
-  sub: { ...Typography.caption, color: Colors.textSec, marginTop: 2 },
+  header: {
+    paddingHorizontal: Space.xl,
+    paddingTop: Space.lg,
+    paddingBottom: Space.md,
+  },
+  title: { ...Type.displayMd, color: EL.nippu },
+  sub: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: 2 },
+
+  // Buckets
+  bucketsCard: {
+    marginHorizontal: Space.xl,
+    marginBottom: Space.lg,
+  },
+  bucketRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Space.sm,
+  },
+  bucketLabel: { ...Type.bodyMd, color: EL.onSurfaceSec, flex: 1 },
+  bucketCount: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: EL.nippuContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Space.md,
+  },
+  bucketCountText: { ...Type.labelMd, color: EL.nippu, fontWeight: '700' },
+  bucketAmount: { ...Type.labelLg, color: EL.nippu, fontWeight: '700', width: 100, textAlign: 'right' },
+
+  // Row
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.white,
-    minHeight: TouchTarget.min + 12,
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.lg,
+    backgroundColor: EL.surfaceCard,
+    marginHorizontal: Space.xl,
+    marginBottom: Space.sm,
+    borderRadius: Radii.lg,
+    ...Shadows.card,
   },
-  rowBody: { flex: 1, marginLeft: Spacing.md },
-  rowName: { ...Typography.title, color: Colors.text },
-  rowSub: { ...Typography.caption, color: Colors.textSec, marginTop: 2 },
-  sep: { height: 1, backgroundColor: Colors.border, marginLeft: 72 },
-  emptyText: { ...Typography.body, color: Colors.textSec },
-  bucketRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm },
-  bucketLabel: { ...Typography.body, color: Colors.textSec, flex: 1 },
-  bucketCount: { ...Typography.body, color: Colors.text, fontWeight: '600', width: 40, textAlign: 'center' },
-  bucketAmount: { ...Typography.body, color: Colors.danger, fontWeight: '700', width: 100, textAlign: 'right' },
+  rowBody: { flex: 1, marginLeft: Space.md },
+  rowName: { ...Type.titleMd, color: EL.onSurface },
+  rowSub: { ...Type.bodySm, color: EL.onSurfaceMuted, marginTop: 2 },
+
+  // Empty
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: EL.primaryFixed,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

@@ -8,7 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
-import { Colors } from '@/constants/colors';
+import { EL } from '@/theme/emeraldLedger';
 import { initI18n } from '@/i18n';
 import { useAuthStore } from '@/store/authStore';
 import { openDb } from '@/db';
@@ -35,7 +35,7 @@ export default function App() {
   if (!ready) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color={Colors.primary} size="large" />
+        <ActivityIndicator color={EL.primary} size="large" />
       </View>
     );
   }
@@ -61,6 +61,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.bg,
+    backgroundColor: EL.surface,
   },
 });

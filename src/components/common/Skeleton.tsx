@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View, ViewStyle } from 'react-native';
 
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing } from '@/constants/typography';
+import { EL, Radii, Shadows, Space } from '@/theme/emeraldLedger';
 
 interface Props {
   width?: number | string;
@@ -14,7 +13,7 @@ interface Props {
 export function Skeleton({
   width = '100%',
   height = 16,
-  borderRadius = Radius.button,
+  borderRadius = Radii.sm,
   style,
 }: Props) {
   const opacity = useRef(new Animated.Value(0.3)).current;
@@ -41,7 +40,6 @@ export function Skeleton({
   );
 }
 
-/** Pre-built skeleton for a list item row (avatar + 2 lines). */
 export function SkeletonRow() {
   return (
     <View style={styles.row}>
@@ -54,7 +52,6 @@ export function SkeletonRow() {
   );
 }
 
-/** Pre-built skeleton for a card. */
 export function SkeletonCard() {
   return (
     <View style={styles.card}>
@@ -66,22 +63,21 @@ export function SkeletonCard() {
 
 const styles = StyleSheet.create({
   base: {
-    backgroundColor: Colors.border,
+    backgroundColor: EL.surfaceHigh,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.md,
   },
-  rowText: { flex: 1, marginLeft: Spacing.md },
+  rowText: { flex: 1, marginLeft: Space.md },
   card: {
-    backgroundColor: Colors.card,
-    borderRadius: Radius.card,
-    padding: Spacing.lg,
-    marginHorizontal: Spacing.xl,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    padding: Space.lg,
+    marginHorizontal: Space.xl,
+    marginBottom: Space.md,
+    ...Shadows.card,
   },
 });

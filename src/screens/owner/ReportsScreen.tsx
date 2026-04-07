@@ -3,20 +3,23 @@ import {
   FlatList,
   Pressable,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 
 import { Avatar } from '@/components/common/Avatar';
 import { Badge } from '@/components/common/Badge';
-import { Card } from '@/components/common/Card';
+import { ELCard } from '@/components/common/ELCard';
+import { GradientButton } from '@/components/common/GradientButton';
 import { ProgressBar } from '@/components/common/ProgressBar';
-import { Colors } from '@/constants/colors';
-import { Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { EL, Common, Radii, Space, Touch, Type } from '@/theme/emeraldLedger';
+import type { OwnerStackParamList } from '@/navigation/types';
 import {
   getDailySummaries,
   getLineSummary,
@@ -25,15 +28,17 @@ import {
   type LineSummaryRow,
   type OutstandingRow,
 } from '@/db/repos/reports';
-import { Button } from '@/components/common/Button';
 import { useAuthStore } from '@/store/authStore';
 import { formatDateShort, formatRupees } from '@/utils/format';
 import { generateReportHtml, sharePdf } from '@/utils/pdfExport';
 
 type Tab = 'daily' | 'lines' | 'outstanding';
 
+type Nav = NativeStackNavigationProp<OwnerStackParamList>;
+
 export function ReportsScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<Nav>();
   const orgId = useAuthStore((s) => s.user?.orgId ?? null);
   const [tab, setTab] = useState<Tab>('daily');
 
@@ -69,27 +74,45 @@ export function ReportsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={styles.title}>{t('nav.reports')}</Text>
-          <Button title={t('common.share_pdf')} variant="secondary" onPress={handleSharePdf} />
+          <GradientButton
+            title={t('common.share_pdf')}
+            variant="secondary"
+            onPress={handleSharePdf}
+            icon={<MaterialCommunityIcons name="file-pdf-box" size={16} color={EL.primary} />}
+          />
         </View>
       </View>
 
+      {/* Nippu Report link */}
+      <Pressable
+        style={styles.nippuLink}
+        onPress={() => navigation.navigate('NippuReport')}
+      >
+        <MaterialCommunityIcons name="alert-circle-outline" size={16} color={EL.nippu} />
+        <Text style={styles.nippuLinkText}>{'\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1'} Report</Text>
+        <MaterialCommunityIcons name="chevron-right" size={16} color={EL.nippu} />
+      </Pressable>
+
       {/* Tab selector */}
       <View style={styles.tabs}>
-        {(['daily', 'lines', 'outstanding'] as Tab[]).map((t) => (
-          <Pressable
-            key={t}
-            onPress={() => setTab(t)}
-            style={[styles.tab, tab === t && styles.tabActive]}
-          >
-            <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>
-              {t === 'daily' ? 'Daily' : t === 'lines' ? 'Lines' : 'Outstanding'}
-            </Text>
-          </Pressable>
-        ))}
+        {(['daily', 'lines', 'outstanding'] as Tab[]).map((t) => {
+          const active = tab === t;
+          return (
+            <Pressable
+              key={t}
+              onPress={() => setTab(t)}
+              style={[styles.tab, active && styles.tabActive]}
+            >
+              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                {t === 'daily' ? 'Daily' : t === 'lines' ? 'Lines' : 'Outstanding'}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {tab === 'daily' && <DailyTab data={daily ?? []} />}
@@ -100,73 +123,49 @@ export function ReportsScreen() {
 }
 
 function DailyTab({ data }: { data: DailySummaryRow[] }) {
-  if (data.length === 0) {
-    return <EmptyCard text="No collection data yet. Start collecting to see daily summaries." />;
-  }
+  if (data.length === 0) return <EmptyCard text="No collection data yet. Start collecting to see daily summaries." />;
   return (
     <FlatList
       data={data}
       keyExtractor={(_, i) => String(i)}
-      contentContainerStyle={{ padding: Spacing.xl }}
+      contentContainerStyle={{ padding: Space.xl }}
       renderItem={({ item }) => (
-        <Card style={styles.reportCard}>
+        <ELCard style={styles.reportCard}>
           <Text style={styles.cardDate}>{formatDateShort(new Date(item.date))}</Text>
-          <View style={styles.cardRow}>
-            <Text style={styles.cardLabel}>Collected</Text>
-            <Text style={styles.cardValue}>{formatRupees(item.total_collected)}</Text>
-          </View>
-          <View style={styles.cardRow}>
-            <Text style={styles.cardLabel}>Collections</Text>
-            <Text style={styles.cardValue}>{item.collection_count}</Text>
-          </View>
+          <ReportRow label="Collected" value={formatRupees(item.total_collected)} />
+          <ReportRow label="Collections" value={String(item.collection_count)} />
           {item.total_expenses > 0 ? (
-            <View style={styles.cardRow}>
-              <Text style={styles.cardLabel}>Expenses</Text>
-              <Text style={[styles.cardValue, { color: Colors.danger }]}>
-                -{formatRupees(item.total_expenses)}
-              </Text>
-            </View>
+            <ReportRow label="Expenses" value={`-${formatRupees(item.total_expenses)}`} valueColor={EL.nippu} />
           ) : null}
-          <View style={styles.cardRow}>
-            <Text style={[styles.cardLabel, { fontWeight: '700' }]}>Net</Text>
-            <Text style={[styles.cardValue, { fontWeight: '700', color: Colors.primary }]}>
-              {formatRupees(item.total_collected - item.total_expenses)}
-            </Text>
-          </View>
-        </Card>
+          <ReportRow label="Net" value={formatRupees(item.total_collected - item.total_expenses)} valueColor={EL.primary} bold />
+        </ELCard>
       )}
     />
   );
 }
 
 function LinesTab({ data }: { data: LineSummaryRow[] }) {
-  if (data.length === 0) {
-    return <EmptyCard text="No lines yet. Create lines to see the patti-note view." />;
-  }
+  if (data.length === 0) return <EmptyCard text="No lines yet. Create lines to see the patti-note view." />;
   return (
     <FlatList
       data={data}
       keyExtractor={(item) => item.line_id}
-      contentContainerStyle={{ padding: Spacing.xl }}
+      contentContainerStyle={{ padding: Space.xl }}
       renderItem={({ item }) => {
         const pct = item.total_due > 0 ? item.total_collected / item.total_due : 0;
         return (
-          <Card style={styles.reportCard}>
+          <ELCard style={styles.reportCard}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.cardDate}>{item.line_name}</Text>
               <Badge label={item.line_type} variant="info" />
             </View>
-            <Text style={styles.cardLabel}>{item.borrower_count} borrowers</Text>
-            <View style={styles.cardRow}>
-              <Text style={styles.cardLabel}>Due today</Text>
-              <Text style={styles.cardValue}>{formatRupees(item.total_due)}</Text>
+            <Text style={[Type.bodySm, { marginTop: Space.xs }]}>{item.borrower_count} borrowers</Text>
+            <ReportRow label="Due today" value={formatRupees(item.total_due)} />
+            <ReportRow label="Collected" value={formatRupees(item.total_collected)} />
+            <View style={{ marginTop: Space.sm }}>
+              <ProgressBar progress={pct} />
             </View>
-            <View style={styles.cardRow}>
-              <Text style={styles.cardLabel}>Collected</Text>
-              <Text style={styles.cardValue}>{formatRupees(item.total_collected)}</Text>
-            </View>
-            <ProgressBar progress={pct} />
-          </Card>
+          </ELCard>
         );
       }}
     />
@@ -174,78 +173,94 @@ function LinesTab({ data }: { data: LineSummaryRow[] }) {
 }
 
 function OutstandingTab({ data }: { data: OutstandingRow[] }) {
-  if (data.length === 0) {
-    return <EmptyCard text="No active loans. Outstanding report will appear once loans are created." />;
-  }
+  if (data.length === 0) return <EmptyCard text="No active loans. Outstanding report will appear once loans are created." />;
   return (
     <FlatList
       data={data}
       keyExtractor={(item) => item.loan_id}
-      contentContainerStyle={{ padding: Spacing.xl }}
+      contentContainerStyle={{ padding: Space.xl }}
       renderItem={({ item }) => {
         const pct = item.total_repayment > 0 ? item.total_paid / item.total_repayment : 0;
         return (
-          <Card style={styles.reportCard}>
+          <ELCard style={styles.reportCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Avatar name={item.borrower_name} size={36} />
-              <View style={{ marginLeft: Spacing.md, flex: 1 }}>
+              <View style={{ marginLeft: Space.md, flex: 1 }}>
                 <Text style={styles.cardDate}>{item.borrower_name}</Text>
-                {item.borrower_phone ? <Text style={styles.cardLabel}>{item.borrower_phone}</Text> : null}
+                {item.borrower_phone ? <Text style={Type.bodySm}>{item.borrower_phone}</Text> : null}
               </View>
-              <Badge
-                label={item.status}
-                variant={item.status === 'overdue' ? 'danger' : 'success'}
-              />
+              <Badge label={item.status} variant={item.status === 'overdue' ? 'danger' : 'success'} />
             </View>
-            <View style={[styles.cardRow, { marginTop: Spacing.md }]}>
-              <Text style={styles.cardLabel}>Principal</Text>
-              <Text style={styles.cardValue}>{formatRupees(item.principal)}</Text>
+            <View style={{ marginTop: Space.md }}>
+              <ReportRow label="Principal" value={formatRupees(item.principal)} />
+              <ReportRow label="Paid" value={formatRupees(item.total_paid)} />
+              <ReportRow label="Outstanding" value={formatRupees(item.outstanding)} valueColor={EL.nippu} bold />
             </View>
-            <View style={styles.cardRow}>
-              <Text style={styles.cardLabel}>Paid</Text>
-              <Text style={styles.cardValue}>{formatRupees(item.total_paid)}</Text>
+            <View style={{ marginTop: Space.sm }}>
+              <ProgressBar progress={pct} />
             </View>
-            <View style={styles.cardRow}>
-              <Text style={[styles.cardLabel, { fontWeight: '700' }]}>Outstanding</Text>
-              <Text style={[styles.cardValue, { fontWeight: '700', color: Colors.danger }]}>
-                {formatRupees(item.outstanding)}
-              </Text>
-            </View>
-            <ProgressBar progress={pct} />
-          </Card>
+          </ELCard>
         );
       }}
     />
   );
 }
 
+function ReportRow({ label, value, valueColor, bold }: { label: string; value: string; valueColor?: string; bold?: boolean }) {
+  return (
+    <View style={styles.cardRow}>
+      <Text style={[Type.bodyMd, { color: EL.onSurfaceSec }, bold && { fontWeight: '700' }]}>{label}</Text>
+      <Text style={[Type.bodyMd, bold && { fontWeight: '700' }, valueColor ? { color: valueColor } : null]}>{value}</Text>
+    </View>
+  );
+}
+
 function EmptyCard({ text }: { text: string }) {
   return (
-    <Card style={{ margin: Spacing.xl }}>
-      <Text style={{ ...Typography.body, color: Colors.textSec }}>{text}</Text>
-    </Card>
+    <ELCard style={{ margin: Space.xl }}>
+      <Text style={Type.bodySm}>{text}</Text>
+    </ELCard>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg },
-  title: { ...Typography.display, color: Colors.text },
-  tabs: { flexDirection: 'row', paddingHorizontal: Spacing.xl, marginTop: Spacing.md },
-  tab: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-    minHeight: TouchTarget.min,
-    justifyContent: 'center',
+  header: { paddingHorizontal: Space.xl, paddingTop: Space.lg },
+  title: { ...Type.displayMd },
+  tabs: {
+    flexDirection: 'row',
+    paddingHorizontal: Space.xl,
+    marginTop: Space.md,
+    marginBottom: Space.sm,
+    gap: Space.sm,
   },
-  tabActive: { borderBottomColor: Colors.primary },
-  tabLabel: { ...Typography.body, color: Colors.textMuted, fontWeight: '600' },
-  tabLabelActive: { color: Colors.primary },
-  reportCard: { marginBottom: Spacing.md },
-  cardDate: { ...Typography.title, color: Colors.text, marginBottom: 4 },
-  cardLabel: { ...Typography.caption, color: Colors.textSec },
-  cardRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  cardValue: { ...Typography.body, color: Colors.text },
+  tab: {
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.sm,
+    borderRadius: Radii.pill,
+    minHeight: Touch.min,
+    justifyContent: 'center',
+    backgroundColor: EL.surfaceHigh,
+  },
+  tabActive: { backgroundColor: EL.primary },
+  tabLabel: { ...Type.labelMd, color: EL.onSurfaceSec, fontWeight: '600' },
+  tabLabelActive: { color: EL.white },
+  reportCard: { marginBottom: Space.md },
+  cardDate: { ...Type.titleMd, marginBottom: Space.xs },
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Space.sm },
+  nippuLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.sm,
+    marginHorizontal: Space.xl,
+    marginTop: Space.md,
+    backgroundColor: EL.nippuContainer,
+    borderRadius: Radii.md,
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.md,
+  },
+  nippuLinkText: {
+    ...Type.labelLg,
+    color: EL.nippu,
+    flex: 1,
+  },
 });

@@ -1,24 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Modal,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
-import { Badge } from '@/components/common/Badge';
-import { Button } from '@/components/common/Button';
+import { GradientButton } from '@/components/common/GradientButton';
 import { NumberPad } from '@/components/common/NumberPad';
 import { QuickAmountChips } from '@/components/common/QuickAmountChips';
+import { StarRating } from '@/components/common/StarRating';
 import { VoiceButton } from '@/components/common/VoiceButton';
-import { Colors } from '@/constants/colors';
-import { Spacing, Typography } from '@/constants/typography';
+import { EL, Common, Glass, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { useRecordCollection } from '@/hooks/useCollections';
+import { useBorrowerStatuses } from '@/hooks/useBorrowerStatus';
 import { useGps } from '@/hooks/useGps';
 import { useVoice } from '@/hooks/useVoice';
 import { formatRupees } from '@/utils/format';
@@ -31,20 +34,20 @@ export function CollectScreen({ route, navigation }: Props) {
   const { item } = route.params;
   const recordMut = useRecordCollection();
   const { getLocation } = useGps();
-
+  const { data: statuses } = useBorrowerStatuses();
   const voice = useVoice();
+
+  const st = statuses?.[item.borrower_id];
 
   const [amount, setAmount] = useState(String(item.expected_amount));
   const [showAdvance, setShowAdvance] = useState(false);
   const [advancePeriods, setAdvancePeriods] = useState(0);
 
-  // When voice recognizes an amount, fill it in
   useEffect(() => {
     if (voice.lastResult?.amount) {
       setAmount(String(voice.lastResult.amount));
     }
   }, [voice.lastResult]);
-  const [collected, setCollected] = useState(false);
 
   const isInterestOnlyLoan = item.line_type === 'daily_interest' || item.line_type === 'weekly_interest' || item.line_type === 'monthly_interest';
 
@@ -63,13 +66,20 @@ export function CollectScreen({ route, navigation }: Props) {
         gpsLat: gps?.lat,
         gpsLng: gps?.lng,
       });
-      // If principal return on interest-only loan, record it separately
       if (isPrincipalReturn) {
         const { recordPrincipalReturn } = await import('@/db/repos/principalReturns');
-        const orgId = item.loan_id; // will be corrected by the repo from loan's org_id
+        const orgId = item.loan_id;
         await recordPrincipalReturn(orgId, item.loan_id, numAmount - item.expected_amount, 'Principal return from collection');
       }
-      setCollected(true);
+      // Navigate to receipt screen
+      navigation.replace('SuccessReceipt', {
+        borrowerName: item.borrower_name,
+        amount: numAmount,
+        loanRemaining: Math.max(0, item.loan_principal - numAmount),
+        daysPaid: item.installment_number,
+        totalDays: item.loan_principal > 0 ? Math.ceil(item.loan_principal / item.loan_emi) : 100,
+        timestamp: Date.now(),
+      });
     } catch (e: any) {
       Alert.alert(t('common.error_generic'), e?.message ?? '');
     }
@@ -78,15 +88,14 @@ export function CollectScreen({ route, navigation }: Props) {
   const handleCollect = async () => {
     const numAmount = Number(amount);
     if (numAmount <= 0) return;
-    // For interest-only loans: if amount > expected interest, ask if it's principal return
     if (isInterestOnlyLoan && numAmount > item.expected_amount) {
       const excess = numAmount - item.expected_amount;
       Alert.alert(
         t('loan.return_principal'),
-        `₹${excess.toLocaleString('en-IN')} is more than the interest. Is this a principal return?`,
+        `\u20B9${excess.toLocaleString('en-IN')} is more than the interest. Is this a principal return?`,
         [
           { text: 'No, just payment', onPress: () => doRecord(false) },
-          { text: `Yes, ₹${excess.toLocaleString('en-IN')} principal`, onPress: () => doRecord(true) },
+          { text: `Yes, \u20B9${excess.toLocaleString('en-IN')} principal`, onPress: () => doRecord(true) },
         ]
       );
       return;
@@ -98,136 +107,346 @@ export function CollectScreen({ route, navigation }: Props) {
     }
   };
 
-  if (collected) {
-    return (
-      <SafeAreaView style={[styles.safe, { backgroundColor: Colors.primaryLight }]}>
-        <View style={styles.successContainer}>
-          <Text style={styles.checkmark}>✓</Text>
-          <Text style={styles.successAmount}>{formatRupees(Number(amount))}</Text>
-          <Text style={styles.successName}>{item.borrower_name}</Text>
-          <Text style={styles.successSub}>Collection recorded</Text>
-          <Button
-            title="Done"
-            onPress={() => navigation.goBack()}
-            style={{ marginTop: Spacing.xl, minWidth: 200 }}
-          />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Borrower header */}
-        <View style={styles.header}>
-          <Avatar name={item.borrower_name} size={56} />
-          <View style={styles.headerText}>
-            <Text style={styles.name}>{item.borrower_name}</Text>
+    <SafeAreaView style={Common.screen}>
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* ── Borrower Info Card ── */}
+        <View style={styles.borrowerCard}>
+          <View style={styles.borrowerTop}>
+            <View style={styles.borrowerLeft}>
+              <Avatar name={item.borrower_name} size={56} />
+              <View style={styles.borrowerInfo}>
+                <Text style={styles.borrowerName}>{item.borrower_name}</Text>
+                {item.borrower_phone ? (
+                  <Text style={styles.borrowerPhone}>{item.borrower_phone}</Text>
+                ) : null}
+                {st?.rating ? (
+                  <StarRating rating={st.rating} size={16} />
+                ) : null}
+              </View>
+            </View>
             {item.borrower_phone ? (
-              <Text style={styles.sub}>{item.borrower_phone}</Text>
+              <Pressable style={styles.callBtn}>
+                <MaterialCommunityIcons name="phone" size={20} color={EL.primary} />
+              </Pressable>
             ) : null}
-            <Text style={styles.sub}>
-              EMI {formatRupees(item.expected_amount)} • #{item.installment_number}
+          </View>
+
+          {/* Loan info strip */}
+          <View style={styles.loanInfo}>
+            <Text style={styles.loanInfoText}>
+              {item.line_name ?? 'Daily loan'} \u2022 EMI{' '}
+              <Text style={{ fontWeight: '600' }}>{formatRupees(item.expected_amount)}</Text>
+              {' '}\u2022 #{item.installment_number}
             </Text>
           </View>
-          {item.line_name ? (
-            <Badge label={item.line_name} variant="info" />
-          ) : null}
+
+          {/* Due today highlight */}
+          <View style={styles.dueBox}>
+            <Text style={styles.dueLabel}>Due today</Text>
+            <Text style={styles.dueAmount}>{formatRupees(item.expected_amount)}</Text>
+          </View>
         </View>
 
-        {/* Quick amount chips — Layer 1 */}
-        <QuickAmountChips
-          emiAmount={item.expected_amount}
-          selected={Number(amount)}
-          onSelect={(v) => setAmount(String(v))}
+        {/* ── Number Pad with Amount Display ── */}
+        <NumberPad
+          value={amount}
+          onChange={setAmount}
+          onConfirm={handleCollect}
+          confirmLabel={`Collect`}
+          disabled={recordMut.isPending}
         />
 
-        {/* Voice input — Layer 3 */}
+        {/* ── Quick Amount Chips ── */}
+        <View style={{ marginTop: Space.lg }}>
+          <QuickAmountChips
+            emiAmount={item.expected_amount}
+            selected={Number(amount)}
+            onSelect={(v) => setAmount(String(v))}
+          />
+        </View>
+
+        {/* ── Voice input ── */}
         <VoiceButton
           isListening={voice.isListening}
           onPress={voice.isListening ? voice.stopListening : voice.startListening}
           lastText={voice.lastResult?.text}
         />
 
-        {/* Number pad — Layer 2 */}
-        <NumberPad
-          value={amount}
-          onChange={setAmount}
-          onConfirm={handleCollect}
-          confirmLabel={t('loan.amount')}
-          disabled={recordMut.isPending}
+        {/* ── Advance toggle ── */}
+        <GradientButton
+          title="Advance payment"
+          variant="secondary"
+          onPress={() => setShowAdvance(true)}
+          style={{ marginTop: Space.lg, marginHorizontal: Space.lg }}
         />
-
-        {/* Advance toggle */}
-        {!showAdvance ? (
-          <Button
-            title="Advance payment"
-            variant="secondary"
-            onPress={() => setShowAdvance(true)}
-            style={{ marginTop: Spacing.lg, marginHorizontal: Spacing.md }}
-          />
-        ) : (
-          <View style={styles.advanceWrap}>
-            <Text style={styles.advanceLabel}>Pay for how many periods?</Text>
-            <View style={styles.advanceChips}>
-              {[2, 3, 5, 7, 10].map((n) => (
-                <Button
-                  key={n}
-                  title={`${n}×`}
-                  variant={advancePeriods === n ? 'primary' : 'secondary'}
-                  onPress={() => {
-                    setAdvancePeriods(n);
-                    setAmount(String(item.expected_amount * n));
-                  }}
-                  style={styles.advanceChip}
-                />
-              ))}
-            </View>
-            <Text style={styles.advanceTotal}>
-              Total: {formatRupees(item.expected_amount * (advancePeriods || 1))}
-            </Text>
-          </View>
-        )}
       </ScrollView>
+
+      {/* ── Advance Payment Bottom Sheet ── */}
+      <Modal visible={showAdvance} transparent animationType="slide" onRequestClose={() => setShowAdvance(false)}>
+        <Pressable style={[Glass.dark, styles.sheetBackdrop]} onPress={() => setShowAdvance(false)}>
+          <View style={[Glass.container, styles.advanceSheet]}>
+            {/* Handle */}
+            <View style={styles.sheetHandle} />
+
+            {/* Header */}
+            <Text style={styles.advanceTitle}>Advance Payment</Text>
+            <Text style={styles.advanceEmi}>EMI: {formatRupees(item.expected_amount)}/day</Text>
+
+            {/* Multiplier chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.advanceChipRow}
+              style={{ marginVertical: Space.xxl }}
+            >
+              {[2, 3, 5, 7, 10].map((n) => {
+                const active = advancePeriods === n;
+                return (
+                  <Pressable
+                    key={n}
+                    onPress={() => {
+                      setAdvancePeriods(n);
+                      setAmount(String(item.expected_amount * n));
+                    }}
+                    style={[styles.advanceChip, active ? styles.advanceChipActive : styles.advanceChipInactive]}
+                  >
+                    <Text style={[styles.advanceChipText, active && { color: EL.white }]}>
+                      {n} days {formatRupees(item.expected_amount * n)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {/* Calculation display */}
+            <View style={styles.calcBox}>
+              <Text style={styles.calcText}>
+                {advancePeriods || '?'} \u00D7 {formatRupees(item.expected_amount)} = {formatRupees(item.expected_amount * (advancePeriods || 0))}
+              </Text>
+            </View>
+
+            {/* Info note */}
+            <View style={styles.advanceInfo}>
+              <MaterialCommunityIcons name="information-outline" size={16} color={EL.primary} />
+              <Text style={styles.advanceInfoText}>
+                {item.borrower_name} will be marked as paid for{' '}
+                <Text style={{ fontWeight: '700', color: EL.onSurface }}>{advancePeriods || 0} working days</Text>
+              </Text>
+            </View>
+
+            {/* Confirm button */}
+            <GradientButton
+              title={`Confirm Advance ${formatRupees(item.expected_amount * (advancePeriods || 0))}`}
+              onPress={() => {
+                setShowAdvance(false);
+                handleCollect();
+              }}
+              disabled={advancePeriods === 0}
+              icon={<MaterialCommunityIcons name="check-circle" size={20} color={EL.white} />}
+              style={{ marginTop: Space.xl }}
+            />
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* ── Bottom Status Bar ── */}
+      <View style={[Glass.container, styles.bottomBar]}>
+        <View style={styles.bottomStatus}>
+          <View style={styles.statusItem}>
+            <MaterialCommunityIcons name="map-marker" size={12} color={EL.onSurfaceMuted} />
+            <Text style={styles.statusText}>GPS: captured</Text>
+          </View>
+          <View style={styles.statusItem}>
+            <MaterialCommunityIcons name="cloud-off-outline" size={12} color={EL.onSurfaceMuted} />
+            <Text style={styles.statusText}>Offline: will sync</Text>
+          </View>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  container: { paddingBottom: Spacing.xxl },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.xl,
-  },
-  headerText: { flex: 1, marginLeft: Spacing.md },
-  name: { ...Typography.title, color: Colors.text, fontSize: 18 },
-  sub: { ...Typography.caption, color: Colors.textSec, marginTop: 2 },
+  content: { paddingBottom: 100 },
 
-  successContainer: {
+  // Borrower card
+  borrowerCard: {
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    padding: Space.lg,
+    marginHorizontal: Space.lg,
+    marginTop: Space.md,
+    marginBottom: Space.lg,
+    ...Shadows.card,
+  },
+  borrowerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  borrowerLeft: {
+    flexDirection: 'row',
     flex: 1,
+    gap: Space.lg,
+  },
+  borrowerInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  borrowerName: {
+    ...Type.titleLg,
+    fontWeight: '700',
+  },
+  borrowerPhone: {
+    ...Type.bodySm,
+    color: EL.onSurfaceMuted,
+  },
+  callBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: EL.surfaceHigh,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.xl,
   },
-  checkmark: {
-    fontSize: 72,
-    color: Colors.primary,
-    marginBottom: Spacing.md,
+  loanInfo: {
+    marginTop: Space.lg,
+    paddingTop: Space.lg,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.04)',
   },
-  successAmount: {
-    fontSize: 36,
+  loanInfoText: {
+    ...Type.bodyMd,
+    color: EL.onSurfaceSec,
+  },
+  dueBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.md,
+    padding: Space.md,
+    marginTop: Space.md,
+  },
+  dueLabel: {
+    ...Type.labelMd,
+    color: EL.onSurfaceSec,
+  },
+  dueAmount: {
+    ...Type.titleLg,
+    color: EL.primary,
     fontWeight: '700',
-    color: Colors.primaryDark,
   },
-  successName: { ...Typography.title, color: Colors.text, marginTop: Spacing.sm },
-  successSub: { ...Typography.body, color: Colors.textSec, marginTop: 4 },
 
-  advanceWrap: { padding: Spacing.xl },
-  advanceLabel: { ...Typography.body, color: Colors.textSec, marginBottom: Spacing.md },
-  advanceChips: { flexDirection: 'row', flexWrap: 'wrap' },
-  advanceChip: { marginRight: Spacing.sm, marginBottom: Spacing.sm, minWidth: 60 },
-  advanceTotal: { ...Typography.title, color: Colors.text, marginTop: Spacing.md },
+  // Advance bottom sheet
+  sheetBackdrop: { flex: 1, justifyContent: 'flex-end' },
+  advanceSheet: {
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: Space.xl,
+    paddingBottom: Space.xxxl + 8,
+    alignItems: 'center',
+    ...Shadows.float,
+  },
+  sheetHandle: {
+    width: 48,
+    height: 5,
+    backgroundColor: EL.outline,
+    borderRadius: 3,
+    opacity: 0.4,
+    marginBottom: Space.xxl,
+  },
+  advanceTitle: {
+    ...Type.displaySm,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  advanceEmi: {
+    ...Type.bodyMd,
+    color: EL.onSurfaceSec,
+    fontWeight: '500',
+    marginTop: Space.xs,
+  },
+  advanceChipRow: {
+    gap: Space.sm,
+    paddingHorizontal: Space.sm,
+  },
+  advanceChip: {
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.md,
+    borderRadius: Radii.md,
+  },
+  advanceChipActive: {
+    backgroundColor: EL.primary,
+    ...Shadows.card,
+  },
+  advanceChipInactive: {
+    backgroundColor: EL.surfaceCard,
+    borderWidth: 1,
+    borderColor: EL.primary,
+  },
+  advanceChipText: {
+    ...Type.labelMd,
+    color: EL.primary,
+    fontWeight: '600',
+  },
+  calcBox: {
+    width: '100%',
+    backgroundColor: EL.surfaceHigh,
+    borderRadius: Radii.lg,
+    paddingVertical: Space.xxl,
+    paddingHorizontal: Space.lg,
+    marginBottom: Space.lg,
+    alignItems: 'center',
+  },
+  calcText: {
+    ...Type.displaySm,
+    color: EL.primary,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    fontSize: 24,
+  },
+  advanceInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Space.sm,
+    paddingHorizontal: Space.sm,
+    marginBottom: Space.md,
+  },
+  advanceInfoText: {
+    ...Type.bodyMd,
+    color: EL.onSurfaceSec,
+    flex: 1,
+    lineHeight: 20,
+  },
+
+  // Bottom bar
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingVertical: Space.md,
+    paddingHorizontal: Space.xl,
+    borderTopLeftRadius: Radii.xl,
+    borderTopRightRadius: Radii.xl,
+  },
+  bottomStatus: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Space.xl,
+  },
+  statusItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.xs,
+  },
+  statusText: {
+    ...Type.labelSm,
+    color: EL.onSurfaceMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    fontSize: 10,
+  },
 });

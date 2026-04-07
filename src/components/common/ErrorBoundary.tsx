@@ -1,8 +1,7 @@
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Colors } from '@/constants/colors';
-import { Spacing, Typography } from '@/constants/typography';
+import { EL, Radii, Space, Type } from '@/theme/emeraldLedger';
 
 interface Props {
   children: ReactNode;
@@ -21,7 +20,6 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // eslint-disable-next-line no-console
     console.error('[ErrorBoundary]', error, info.componentStack);
   }
 
@@ -33,7 +31,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
-          <Text style={styles.emoji}>😵</Text>
+          <Text style={styles.emoji}>!</Text>
           <Text style={styles.title}>Something went wrong</Text>
           <Text style={styles.message}>
             {this.state.error?.message ?? 'An unexpected error occurred'}
@@ -51,24 +49,29 @@ export class ErrorBoundary extends Component<Props, State> {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.bg,
+    backgroundColor: EL.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.xl,
+    padding: Space.xl,
   },
-  emoji: { fontSize: 48, marginBottom: Spacing.md },
-  title: { ...Typography.display, color: Colors.text, marginBottom: Spacing.sm },
+  emoji: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: EL.nippu,
+    marginBottom: Space.md,
+  },
+  title: { ...Type.displaySm, marginBottom: Space.sm },
   message: {
-    ...Typography.body,
-    color: Colors.textSec,
+    ...Type.bodyMd,
+    color: EL.onSurfaceSec,
     textAlign: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Space.xl,
   },
   button: {
-    backgroundColor: Colors.primary,
+    backgroundColor: EL.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: Radii.md,
   },
-  buttonText: { ...Typography.title, color: Colors.white },
+  buttonText: { ...Type.labelLg, color: EL.white },
 });

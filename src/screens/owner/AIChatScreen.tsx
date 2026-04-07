@@ -12,9 +12,8 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Card } from '@/components/common/Card';
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { ELCard } from '@/components/common/ELCard';
+import { EL, Common, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { useAuthStore } from '@/store/authStore';
 import { askLocalRag } from '@/lib/localRag';
 
@@ -31,7 +30,7 @@ export function AIChatScreen() {
     {
       id: '0',
       role: 'assistant',
-      text: `Hello ${user?.name ?? ''}! I'm your VasoolAI assistant. Ask me anything about your business.\n\nTry:\n• "What's my profit this month?"\n• "How much can I lend?"\n• "Who is overdue?"\n• "About Murugan" (borrower lookup)\n• "Expenses this month"`,
+      text: `Hello ${user?.name ?? ''}! I'm your VasoolAI assistant. Ask me anything about your business.\n\nTry:\n\u2022 "What's my profit this month?"\n\u2022 "How much can I lend?"\n\u2022 "Who is overdue?"\n\u2022 "About Murugan" (borrower lookup)\n\u2022 "Expenses this month"`,
     },
   ]);
   const [input, setInput] = useState('');
@@ -41,80 +40,56 @@ export function AIChatScreen() {
     const q = input.trim();
     if (!q || loading) return;
     setInput('');
-
     const userMsg: Message = { id: String(Date.now()), role: 'user', text: q };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
-
-    // Local RAG: turns question into SQL, queries local SQLite, formats answer
     const result = await askLocalRag(q, orgId);
-
-    const botMsg: Message = {
-      id: String(Date.now() + 1),
-      role: 'assistant',
-      text: result.text,
-    };
-
+    const botMsg: Message = { id: String(Date.now() + 1), role: 'assistant', text: result.text };
     setMessages((prev) => [...prev, botMsg]);
     setLoading(false);
   }, [input, loading, orgId]);
 
   const renderMessage = ({ item }: { item: Message }) => (
-    <View
-      style={[
-        styles.msgRow,
-        item.role === 'user' ? styles.msgUser : styles.msgBot,
-      ]}
-    >
-      <Card
-        style={[
-          styles.msgCard,
-          item.role === 'user' ? styles.msgCardUser : undefined,
-        ]}
-      >
-        <Text style={[styles.msgText, item.role === 'user' && { color: Colors.white }]}>
+    <View style={[styles.msgRow, item.role === 'user' ? styles.msgUser : styles.msgBot]}>
+      <View style={[styles.msgBubble, item.role === 'user' ? styles.msgBubbleUser : styles.msgBubbleBot]}>
+        <Text style={[styles.msgText, item.role === 'user' && { color: EL.white }]}>
           {item.text}
         </Text>
-      </Card>
+      </View>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <View style={styles.header}>
-        <MaterialCommunityIcons name="robot" size={24} color={Colors.primary} />
-        <Text style={styles.title}>  AI Assistant</Text>
+        <MaterialCommunityIcons name="robot-outline" size={22} color={EL.primary} />
+        <Text style={styles.headerTitle}>AI Assistant</Text>
       </View>
 
       <FlatList
         data={messages}
         keyExtractor={(m) => m.id}
         renderItem={renderMessage}
-        contentContainerStyle={{ padding: Spacing.md, paddingBottom: 20 }}
+        contentContainerStyle={{ padding: Space.md, paddingBottom: 20 }}
       />
 
       {loading ? (
         <Text style={styles.thinking}>Querying your data...</Text>
       ) : null}
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
             value={input}
             onChangeText={setInput}
             placeholder="Ask about your business..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={EL.onSurfaceMuted}
             onSubmitEditing={handleSend}
             returnKeyType="send"
           />
-          <Pressable
-            onPress={handleSend}
-            style={({ pressed }) => [styles.sendBtn, pressed && { opacity: 0.7 }]}
-          >
-            <MaterialCommunityIcons name="send" size={22} color={Colors.white} />
+          <Pressable onPress={handleSend} style={({ pressed }) => [styles.sendBtn, pressed && { opacity: 0.7 }]}>
+            <MaterialCommunityIcons name="send" size={20} color={EL.white} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -123,47 +98,50 @@ export function AIChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.xl,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.lg,
+    gap: Space.sm,
   },
-  title: { ...Typography.title, color: Colors.text, fontSize: 18 },
-  msgRow: { marginBottom: Spacing.sm },
+  headerTitle: { ...Type.titleLg, fontWeight: '700' },
+  msgRow: { marginBottom: Space.sm },
   msgUser: { alignItems: 'flex-end' },
   msgBot: { alignItems: 'flex-start' },
-  msgCard: { maxWidth: '85%', marginHorizontal: 0 },
-  msgCardUser: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  msgText: { ...Typography.body, color: Colors.text },
-  thinking: { ...Typography.caption, color: Colors.textMuted, textAlign: 'center', paddingVertical: Spacing.sm },
+  msgBubble: {
+    maxWidth: '85%',
+    borderRadius: Radii.lg,
+    padding: Space.lg,
+    ...Shadows.card,
+  },
+  msgBubbleUser: { backgroundColor: EL.primary },
+  msgBubbleBot: { backgroundColor: EL.surfaceCard },
+  msgText: { ...Type.bodyMd, color: EL.onSurface },
+  thinking: { ...Type.labelSm, color: EL.onSurfaceMuted, textAlign: 'center', paddingVertical: Space.sm },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.white,
+    padding: Space.md,
+    backgroundColor: EL.surfaceCard,
+    ...Shadows.float,
   },
   input: {
     flex: 1,
-    backgroundColor: Colors.bg,
-    borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.lg,
-    minHeight: TouchTarget.min,
-    ...Typography.body,
-    color: Colors.text,
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.pill,
+    paddingHorizontal: Space.lg,
+    minHeight: Touch.min,
+    ...Type.bodyMd,
+    color: EL.onSurface,
   },
   sendBtn: {
-    width: TouchTarget.min,
-    height: TouchTarget.min,
-    borderRadius: Radius.pill,
-    backgroundColor: Colors.primary,
+    width: Touch.min,
+    height: Touch.min,
+    borderRadius: Radii.pill,
+    backgroundColor: EL.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: Spacing.sm,
+    marginLeft: Space.sm,
   },
 });

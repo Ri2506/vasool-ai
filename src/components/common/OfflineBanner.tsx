@@ -3,8 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/constants/colors';
-import { Typography } from '@/constants/typography';
+import { EL, Space, Type } from '@/theme/emeraldLedger';
 import { useAppStore } from '@/store/appStore';
 import { syncSilent } from '@/db/sync';
 
@@ -18,7 +17,6 @@ export function OfflineBanner() {
     const unsubscribe = NetInfo.addEventListener((state) => {
       const online = Boolean(state.isConnected && state.isInternetReachable !== false);
       setOnline(online);
-      // Sync when coming back online
       if (online && wasOffline.current) {
         syncSilent();
       }
@@ -27,7 +25,6 @@ export function OfflineBanner() {
     return unsubscribe;
   }, [setOnline]);
 
-  // Periodic sync every 5 minutes when online
   useEffect(() => {
     const interval = setInterval(() => {
       if (isOnline) syncSilent();
@@ -46,15 +43,13 @@ export function OfflineBanner() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.warnLight,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.warn,
+    backgroundColor: EL.warnContainer,
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.sm,
   },
   text: {
-    ...Typography.caption,
-    color: Colors.warn,
+    ...Type.labelMd,
+    color: EL.warn,
     fontWeight: '600',
     textAlign: 'center',
   },

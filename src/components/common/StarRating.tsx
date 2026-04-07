@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Colors } from '@/constants/colors';
+import { EL } from '@/theme/emeraldLedger';
 
 interface Props {
   rating: number; // 0-5
@@ -16,17 +16,19 @@ export function StarRating({ rating, size = 12 }: Props) {
   return (
     <View style={styles.container}>
       <Text style={[styles.stars, { fontSize: size }]}>
-        {'★'.repeat(filled)}
+        {'\u2605'.repeat(filled)}
       </Text>
-      <Text style={[styles.emptyStars, { fontSize: size }]}>
-        {'☆'.repeat(empty)}
-      </Text>
+      {empty > 0 ? (
+        <Text style={[styles.emptyStars, { fontSize: size }]}>
+          {'\u2606'.repeat(empty)}
+        </Text>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flexDirection: 'row', alignItems: 'center' },
-  stars: { color: Colors.warn, letterSpacing: 1 },
-  emptyStars: { color: Colors.border, letterSpacing: 1 },
+  stars: { color: EL.starAmber, letterSpacing: 1 },
+  emptyStars: { color: EL.outline, letterSpacing: 1 },
 });

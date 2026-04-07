@@ -10,21 +10,15 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Avatar } from '@/components/common/Avatar';
 import { Badge } from '@/components/common/Badge';
-import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
-import {
-  createAgent,
-  deleteAgent,
-  listAgents,
-  toggleAgentActive,
-  updateAgentPin,
-} from '@/db/repos/agents';
+import { ELCard } from '@/components/common/ELCard';
+import { GradientButton } from '@/components/common/GradientButton';
+import { EL, Common, Glass, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
+import { createAgent, deleteAgent, listAgents, toggleAgentActive, updateAgentPin } from '@/db/repos/agents';
 import type { UserRow } from '@/db/types';
 import { useAuthStore } from '@/store/authStore';
 
@@ -39,23 +33,17 @@ export function AgentManagementScreen() {
   });
 
   const createMut = useMutation({
-    mutationFn: (input: { name: string; phone: string; pin: string }) =>
-      createAgent({ orgId: orgId!, ...input }),
+    mutationFn: (input: { name: string; phone: string; pin: string }) => createAgent({ orgId: orgId!, ...input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agents', orgId] }),
   });
-
   const toggleMut = useMutation({
-    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
-      toggleAgentActive(id, active),
+    mutationFn: ({ id, active }: { id: string; active: boolean }) => toggleAgentActive(id, active),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agents', orgId] }),
   });
-
   const pinMut = useMutation({
-    mutationFn: ({ id, pin }: { id: string; pin: string }) =>
-      updateAgentPin(id, pin),
+    mutationFn: ({ id, pin }: { id: string; pin: string }) => updateAgentPin(id, pin),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agents', orgId] }),
   });
-
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteAgent(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['agents', orgId] }),
@@ -71,9 +59,7 @@ export function AgentManagementScreen() {
     if (!/^\d{10}$/.test(phone)) return Alert.alert('Enter valid 10-digit phone');
     if (!/^\d{4}$/.test(pin)) return Alert.alert('PIN must be 4 digits');
     await createMut.mutateAsync({ name, phone, pin });
-    setName('');
-    setPhone('');
-    setPin('');
+    setName(''); setPhone(''); setPin('');
     setShowAdd(false);
   };
 
@@ -91,104 +77,78 @@ export function AgentManagementScreen() {
   };
 
   const renderAgent = ({ item }: { item: UserRow }) => (
-    <Card style={styles.agentCard}>
+    <ELCard style={styles.agentCard}>
       <View style={styles.agentRow}>
         <Avatar name={item.name} />
         <View style={styles.agentBody}>
           <Text style={styles.agentName}>{item.name}</Text>
           <Text style={styles.agentPhone}>{item.phone}</Text>
         </View>
-        <Badge
-          label={item.is_active ? 'Active' : 'Inactive'}
-          variant={item.is_active ? 'success' : 'neutral'}
-        />
+        <Badge label={item.is_active ? 'Active' : 'Inactive'} variant={item.is_active ? 'success' : 'neutral'} />
       </View>
       <View style={styles.agentActions}>
-        <Button
-          title={item.is_active ? 'Deactivate' : 'Activate'}
-          variant="secondary"
-          onPress={() => toggleMut.mutate({ id: item.id, active: !item.is_active })}
-          style={styles.actionBtn}
-        />
-        <Button
-          title="Change PIN"
-          variant="secondary"
-          onPress={() => handleChangePin(item)}
-          style={styles.actionBtn}
-        />
-        <Button
-          title="Remove"
-          variant="danger"
-          onPress={() => handleDelete(item)}
-          style={styles.actionBtn}
-        />
+        <GradientButton title={item.is_active ? 'Deactivate' : 'Activate'} variant="secondary" onPress={() => toggleMut.mutate({ id: item.id, active: !item.is_active })} style={styles.actionBtn} />
+        <GradientButton title="Change PIN" variant="secondary" onPress={() => handleChangePin(item)} style={styles.actionBtn} />
+        <GradientButton title="Remove" variant="danger" onPress={() => handleDelete(item)} style={styles.actionBtn} />
       </View>
-    </Card>
+    </ELCard>
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Agents</Text>
         <Text style={styles.sub}>Manage your collection agents</Text>
       </View>
 
       {agents && agents.length > 0 ? (
-        <FlatList
-          data={agents}
-          keyExtractor={(a) => a.id}
-          renderItem={renderAgent}
-          contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 120 }}
-        />
+        <FlatList data={agents} keyExtractor={(a) => a.id} renderItem={renderAgent} contentContainerStyle={{ padding: Space.xl, paddingBottom: 120 }} />
       ) : (
-        <Card style={{ margin: Spacing.xl }}>
-          <Text style={styles.emptyText}>No agents yet. Add your first agent to delegate collections.</Text>
-        </Card>
+        <ELCard style={{ margin: Space.xl }}>
+          <Text style={Type.bodySm}>No agents yet. Add your first agent to delegate collections.</Text>
+        </ELCard>
       )}
 
-      <View style={styles.fab}>
-        <Button title="+ Add agent" onPress={() => setShowAdd(true)} />
-      </View>
+      <Pressable style={Common.fab} onPress={() => setShowAdd(true)}>
+        <MaterialCommunityIcons name="plus" size={28} color={EL.white} />
+      </Pressable>
 
       <Modal visible={showAdd} animationType="slide" transparent onRequestClose={() => setShowAdd(false)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
+        <Pressable style={[Glass.dark, styles.backdrop]} onPress={() => setShowAdd(false)}>
+          <View style={[Glass.container, styles.sheet]}>
             <Text style={styles.sheetTitle}>Add agent</Text>
             <Text style={styles.label}>Name</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor={Colors.textMuted} placeholder="Agent name" />
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor={EL.onSurfaceMuted} placeholder="Agent name" />
             <Text style={styles.label}>Phone (10 digits)</Text>
-            <TextInput style={styles.input} value={phone} onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))} keyboardType="number-pad" placeholderTextColor={Colors.textMuted} placeholder="9876543210" />
+            <TextInput style={styles.input} value={phone} onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))} keyboardType="number-pad" placeholderTextColor={EL.onSurfaceMuted} placeholder="9876543210" />
             <Text style={styles.label}>4-digit PIN</Text>
-            <TextInput style={styles.input} value={pin} onChangeText={(v) => setPin(v.replace(/\D/g, '').slice(0, 4))} keyboardType="number-pad" secureTextEntry placeholderTextColor={Colors.textMuted} placeholder="••••" />
+            <TextInput style={styles.input} value={pin} onChangeText={(v) => setPin(v.replace(/\D/g, '').slice(0, 4))} keyboardType="number-pad" secureTextEntry placeholderTextColor={EL.onSurfaceMuted} placeholder="\u2022\u2022\u2022\u2022" />
             <View style={styles.btnRow}>
-              <Button title="Cancel" variant="secondary" onPress={() => setShowAdd(false)} style={{ flex: 1, marginRight: 8 }} />
-              <Button title="Create" onPress={handleAdd} loading={createMut.isPending} style={{ flex: 1, marginLeft: 8 }} />
+              <GradientButton title="Cancel" variant="secondary" onPress={() => setShowAdd(false)} style={{ flex: 1, marginRight: Space.sm }} />
+              <GradientButton title="Create" onPress={handleAdd} loading={createMut.isPending} style={{ flex: 1, marginLeft: Space.sm }} />
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { padding: Spacing.xl, paddingBottom: Spacing.md },
-  title: { ...Typography.display, color: Colors.text },
-  sub: { ...Typography.caption, color: Colors.textSec, marginTop: 2 },
-  agentCard: { marginBottom: Spacing.md },
+  header: { padding: Space.xl, paddingBottom: Space.md },
+  title: { ...Type.displayMd },
+  sub: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: 2 },
+  agentCard: { marginBottom: Space.md },
   agentRow: { flexDirection: 'row', alignItems: 'center' },
-  agentBody: { flex: 1, marginLeft: Spacing.md },
-  agentName: { ...Typography.title, color: Colors.text },
-  agentPhone: { ...Typography.caption, color: Colors.textSec },
-  agentActions: { flexDirection: 'row', marginTop: Spacing.md, gap: Spacing.sm },
+  agentBody: { flex: 1, marginLeft: Space.md },
+  agentName: { ...Type.titleMd },
+  agentPhone: { ...Type.bodySm, color: EL.onSurfaceMuted },
+  agentActions: { flexDirection: 'row', marginTop: Space.md, gap: Space.sm },
   actionBtn: { flex: 1 },
-  emptyText: { ...Typography.body, color: Colors.textSec },
-  fab: { position: 'absolute', left: Spacing.xl, right: Spacing.xl, bottom: Spacing.xl },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: Colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl, paddingBottom: Spacing.xxl },
-  sheetTitle: { ...Typography.display, color: Colors.text, marginBottom: Spacing.lg },
-  label: { ...Typography.caption, color: Colors.textSec, marginBottom: Spacing.sm, marginTop: Spacing.md },
-  input: { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.button, paddingHorizontal: Spacing.md, minHeight: TouchTarget.min, ...Typography.body, color: Colors.text },
-  btnRow: { flexDirection: 'row', marginTop: Spacing.xl },
+  backdrop: { flex: 1, justifyContent: 'flex-end' },
+  sheet: { borderTopLeftRadius: Radii.xl + 4, borderTopRightRadius: Radii.xl + 4, padding: Space.xl, paddingBottom: Space.xxxl },
+  sheetTitle: { ...Type.displaySm, marginBottom: Space.lg },
+  label: { ...Type.labelMd, color: EL.onSurfaceSec, marginBottom: Space.sm, marginTop: Space.lg },
+  input: { backgroundColor: EL.surfaceCard, borderRadius: Radii.sm + 2, paddingHorizontal: Space.lg, minHeight: Touch.min, ...Type.bodyMd, color: EL.onSurface, ...Shadows.card },
+  btnRow: { flexDirection: 'row', marginTop: Space.xl },
 });

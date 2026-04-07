@@ -8,14 +8,15 @@ import {
   Text,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
+import { ELCard } from '@/components/common/ELCard';
 import { ProgressBar } from '@/components/common/ProgressBar';
-import { Colors } from '@/constants/colors';
-import { Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { EL, Common, Glass, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { useDueToday, useRecordCollection, useTodaySummary } from '@/hooks/useCollections';
 import { formatRupees } from '@/utils/format';
 import type { DueTodayItem } from '@/db/repos/collections';
@@ -23,11 +24,6 @@ import type { OwnerStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<OwnerStackParamList>;
 
-/**
- * BatchCollectScreen — rapid-fire collection list per PRD §5.3.
- * No screen transitions: tap the green button → instant record → checkmark.
- * Progress bar at top fills as agent works through the list.
- */
 export function BatchCollectScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
@@ -53,24 +49,23 @@ export function BatchCollectScreen() {
   };
 
   const renderItem = ({ item }: { item: DueTodayItem }) => (
-    <View style={styles.row}>
-      <Avatar name={item.borrower_name} />
-      <Pressable
-        style={styles.rowBody}
-        onPress={() => navigation.navigate('Collect', { item })}
-      >
+    <Pressable
+      style={styles.row}
+      onPress={() => navigation.navigate('Collect', { item })}
+    >
+      <Avatar name={item.borrower_name} size={36} />
+      <View style={styles.rowBody}>
         <Text style={styles.rowName}>{item.borrower_name}</Text>
         <Text style={styles.rowSub}>
-          EMI {formatRupees(item.expected_amount)} • #{item.installment_number}
+          {formatRupees(item.expected_amount)} {item.line_name ? `\u2022 ${item.line_name}` : 'daily'}
         </Text>
-      </Pressable>
-      {/* One-tap green button — THE core interaction */}
+      </View>
       <Pressable
         onPress={() => handleQuickCollect(item)}
         disabled={recordMut.isPending}
         style={({ pressed }) => [
           styles.collectBtn,
-          pressed && { opacity: 0.8 },
+          pressed && { opacity: 0.85 },
           recordMut.isPending && { opacity: 0.5 },
         ]}
       >
@@ -78,79 +73,179 @@ export function BatchCollectScreen() {
           {formatRupees(item.expected_amount)}
         </Text>
       </Pressable>
-    </View>
+    </Pressable>
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* Progress header */}
-      <View style={styles.progressWrap}>
-        <ProgressBar
-          progress={progress}
-          label={`${done}/${total} collected`}
-        />
-        {summary ? (
-          <Text style={styles.summaryText}>
-            {formatRupees(summary.totalCollected)} of{' '}
-            {formatRupees(summary.totalCollected + summary.totalExpected)}
-          </Text>
-        ) : null}
-      </View>
+    <SafeAreaView style={Common.screen}>
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.plan_entry_id}
+        renderItem={renderItem}
+        contentContainerStyle={{ paddingBottom: 120 }}
+        ListHeaderComponent={
+          <>
+            {/* Progress card */}
+            <ELCard style={styles.progressCard}>
+              <View style={styles.progressTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.progressLabel}>Daily Collection Progress</Text>
+                  <Text style={styles.progressAmount}>
+                    {formatRupees(summary?.totalCollected ?? 0)} collected today
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[Type.labelLg, { color: EL.primary }]}>
+                    {done} of {total}
+                  </Text>
+                  <Text style={Type.labelSm}>collected</Text>
+                </View>
+              </View>
+              <ProgressBar progress={progress} />
+            </ELCard>
 
-      {items.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>All done!</Text>
-          <Text style={styles.emptySub}>No more collections due today.</Text>
+            {/* Section header for remaining */}
+            {items.length > 0 ? (
+              <Text style={styles.sectionLabel}>Remaining Today</Text>
+            ) : null}
+          </>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyWrap}>
+            <View style={styles.emptyIcon}>
+              <MaterialCommunityIcons name="check-all" size={48} color={EL.primary} />
+            </View>
+            <Text style={styles.emptyTitle}>All done!</Text>
+            <Text style={styles.emptySub}>No more collections due today.</Text>
+          </View>
+        }
+      />
+
+      {/* Bottom summary bar */}
+      <View style={[Glass.container, styles.bottomBar]}>
+        <View style={styles.bottomLeft}>
+          <View style={styles.pulseDot} />
+          <View>
+            <Text style={Type.labelSm}>Session Total</Text>
+            <Text style={styles.bottomAmount}>
+              {formatRupees(summary?.totalCollected ?? 0)} collected
+            </Text>
+          </View>
         </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.plan_entry_id}
-          renderItem={renderItem}
-          ItemSeparatorComponent={() => <View style={styles.sep} />}
-          contentContainerStyle={{ paddingBottom: 100 }}
-        />
-      )}
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={Type.labelSm}>Pending</Text>
+          <Text style={[Type.titleMd, { color: EL.onSurfaceMuted }]}>
+            {items.length} remaining
+          </Text>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  progressWrap: {
-    padding: Spacing.xl,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+  // Progress
+  progressCard: {
+    marginHorizontal: Space.lg,
+    marginTop: Space.md,
+    marginBottom: Space.lg,
   },
-  summaryText: {
-    ...Typography.caption,
-    color: Colors.textSec,
-    marginTop: Spacing.sm,
+  progressTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: Space.md,
   },
+  progressLabel: {
+    ...Type.bodySm,
+    color: EL.onSurfaceMuted,
+  },
+  progressAmount: {
+    ...Type.displaySm,
+    color: EL.primary,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+
+  // Section
+  sectionLabel: {
+    ...Type.labelSm,
+    color: EL.onSurfaceMuted,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    paddingHorizontal: Space.xl,
+    marginBottom: Space.md,
+  },
+
+  // Row
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.white,
-    minHeight: TouchTarget.min + 20,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.md,
+    marginHorizontal: Space.lg,
+    marginBottom: Space.sm,
+    paddingHorizontal: Space.lg,
+    height: 64,
+    ...Shadows.card,
   },
-  rowBody: { flex: 1, marginLeft: Spacing.md },
-  rowName: { ...Typography.title, color: Colors.text },
-  rowSub: { ...Typography.caption, color: Colors.textSec, marginTop: 2 },
+  rowBody: { flex: 1, marginLeft: Space.md },
+  rowName: { ...Type.labelLg, color: EL.onSurface },
+  rowSub: { ...Type.labelSm, color: EL.onSurfaceMuted, marginTop: 1 },
   collectBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: Spacing.lg,
-    minHeight: TouchTarget.min,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 90,
+    backgroundColor: EL.primary,
+    borderRadius: Radii.md,
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.sm,
+    ...Shadows.card,
   },
-  collectBtnLabel: { ...Typography.title, color: Colors.white },
-  sep: { height: 1, backgroundColor: Colors.border, marginLeft: 72 },
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  emptyTitle: { ...Typography.display, color: Colors.primary },
-  emptySub: { ...Typography.body, color: Colors.textSec, marginTop: Spacing.sm },
+  collectBtnLabel: { ...Type.labelLg, color: EL.white },
+
+  // Empty
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Space.xl, marginTop: Space.xxxl },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: EL.primaryFixed,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Space.lg,
+  },
+  emptyTitle: { ...Type.displaySm, color: EL.primary },
+  emptySub: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: Space.xs },
+
+  // Bottom bar
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Space.xxl,
+    paddingVertical: Space.xl,
+    paddingBottom: Space.xxxl,
+    borderTopLeftRadius: Radii.xl + 12,
+    borderTopRightRadius: Radii.xl + 12,
+    ...Shadows.float,
+  },
+  bottomLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: EL.primary,
+  },
+  bottomAmount: {
+    ...Type.titleLg,
+    fontWeight: '800',
+    color: EL.onSurface,
+  },
 });

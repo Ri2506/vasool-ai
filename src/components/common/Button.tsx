@@ -7,8 +7,7 @@ import {
   ViewStyle,
 } from 'react-native';
 
-import { Colors } from '@/constants/colors';
-import { Radius, TouchTarget, Typography } from '@/constants/typography';
+import { EL, Radii, Touch, Type } from '@/theme/emeraldLedger';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger';
 
@@ -55,14 +54,14 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: TouchTarget.min,
+    minHeight: Touch.min,
     paddingHorizontal: 20,
-    borderRadius: Radius.button,
+    borderRadius: Radii.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
-    ...Typography.title,
+    ...Type.labelLg,
   },
   disabled: {
     opacity: 0.5,
@@ -71,19 +70,17 @@ const styles = StyleSheet.create({
 
 const variantStyles = {
   primary: {
-    container: { backgroundColor: Colors.primary },
-    labelColor: Colors.white,
+    container: { backgroundColor: EL.primary },
+    labelColor: EL.white,
   },
   secondary: {
     container: {
-      backgroundColor: Colors.white,
-      borderWidth: 1,
-      borderColor: Colors.primary,
+      backgroundColor: EL.surfaceLow,
     },
-    labelColor: Colors.primary,
+    labelColor: EL.primary,
   },
   danger: {
-    container: { backgroundColor: Colors.danger },
-    labelColor: Colors.white,
+    container: { backgroundColor: EL.nippu },
+    labelColor: EL.white,
   },
 } as const;

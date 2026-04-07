@@ -1,7 +1,7 @@
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-import { Colors } from '@/constants/colors';
+import { EL } from '@/theme/emeraldLedger';
 
 interface Props {
   name: string;
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   text: {
-    color: Colors.white,
+    color: EL.white,
     fontWeight: '700',
   },
 });

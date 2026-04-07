@@ -11,13 +11,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { Avatar } from '@/components/common/Avatar';
+import { ELCard } from '@/components/common/ELCard';
+import { GradientButton } from '@/components/common/GradientButton';
+import { EL, Common, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { useLines } from '@/hooks/useLines';
 import { useCreateLoan } from '@/hooks/useLoans';
 import { useBorrower } from '@/hooks/useBorrowers';
@@ -56,13 +57,7 @@ export function NewLoanScreen({ route, navigation }: Props) {
     const e = Number(emiAmount);
     const n = Number(installments);
     if (p > 0 && e > 0 && n > 0) {
-      return computeLoan({
-        principal: p,
-        emiAmount: e,
-        totalInstallments: n,
-        lineType,
-        startDate,
-      });
+      return computeLoan({ principal: p, emiAmount: e, totalInstallments: n, lineType, startDate });
     }
     return null;
   }, [principal, emiAmount, installments, lineType, startDate]);
@@ -118,28 +113,124 @@ export function NewLoanScreen({ route, navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.title}>{t('loan.title')}</Text>
-          {borrower ? <Text style={styles.sub}>{borrower.name}</Text> : null}
 
-          {/* Start date picker */}
-          <Text style={styles.fieldLabel}>{t('loan.start_date')}</Text>
-          <Pressable
-            style={styles.dateBtn}
-            onPress={() => setShowDatePicker(!showDatePicker)}
-          >
-            <Text style={styles.dateBtnText}>
+          {/* ── Borrower Selector ── */}
+          {borrower ? (
+            <View style={styles.borrowerCard}>
+              <Avatar name={borrower.name} size={48} photoUri={borrower.photo_url} />
+              <View style={styles.borrowerInfo}>
+                <Text style={styles.borrowerName}>{borrower.name}</Text>
+                {borrower.phone ? (
+                  <Text style={styles.borrowerPhone}>{borrower.phone}</Text>
+                ) : null}
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={EL.onSurfaceMuted} />
+            </View>
+          ) : null}
+
+          {/* ── Line Type ── */}
+          <Text style={styles.sectionLabel}>{t('loan.line')}</Text>
+          <View style={styles.chipGrid}>
+            {(lines ?? []).map((line) => {
+              const active = lineId === line.id;
+              return (
+                <Pressable
+                  key={line.id}
+                  onPress={() => setLineId(line.id)}
+                  style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+                >
+                  <Text style={[styles.chipLabel, active && { color: EL.white }]}>
+                    {line.name}
+                  </Text>
+                  <Text style={[styles.chipSub, active && { color: 'rgba(255,255,255,0.7)' }]}>
+                    {t(`lines.type_${line.type}`)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {lines && lines.length === 0 ? (
+            <Text style={styles.hint}>No lines yet \u2014 create one in the Lines tab.</Text>
+          ) : null}
+
+          {/* ── Principal ── */}
+          <Text style={styles.sectionLabel}>{t('loan.principal')} (\u0B85\u0B9A\u0BB2\u0BCD)</Text>
+          <View style={styles.bigInput}>
+            <Text style={styles.bigPrefix}>\u20B9</Text>
+            <TextInput
+              style={styles.bigInputText}
+              value={principal}
+              onChangeText={handlePrincipalChange}
+              keyboardType="number-pad"
+              placeholder="50,000"
+              placeholderTextColor={EL.outline}
+            />
+          </View>
+
+          {/* ── EMI ── */}
+          <Text style={styles.sectionLabel}>
+            {isInterestOnly ? t('loan.interest_amount') : t('loan.emi')}
+          </Text>
+          <View style={styles.inputCard}>
+            <Text style={styles.inputPrefix}>\u20B9</Text>
+            <TextInput
+              style={styles.inputText}
+              value={emiAmount}
+              onChangeText={handleEmiChange}
+              keyboardType="number-pad"
+              placeholder="600"
+              placeholderTextColor={EL.outline}
+            />
+          </View>
+
+          {/* ── Installments ── */}
+          <Text style={styles.sectionLabel}>{t('loan.installments')}</Text>
+          <View style={styles.stepperRow}>
+            <Pressable
+              style={styles.stepperBtn}
+              onPress={() => {
+                const n = Math.max(1, Number(installments) - 1);
+                handleInstallmentsChange(String(n));
+              }}
+            >
+              <MaterialCommunityIcons name="minus" size={20} color={EL.primary} />
+            </Pressable>
+            <View style={styles.stepperValue}>
+              <TextInput
+                style={styles.stepperText}
+                value={installments}
+                onChangeText={handleInstallmentsChange}
+                keyboardType="number-pad"
+                placeholder="100"
+                placeholderTextColor={EL.outline}
+                textAlign="center"
+              />
+            </View>
+            <Pressable
+              style={styles.stepperBtn}
+              onPress={() => handleInstallmentsChange(String(Number(installments || 0) + 1))}
+            >
+              <MaterialCommunityIcons name="plus" size={20} color={EL.primary} />
+            </Pressable>
+          </View>
+
+          {/* ── Start Date ── */}
+          <Text style={styles.sectionLabel}>{t('loan.start_date')} (\u0BA4\u0BCA\u0B9F\u0B95\u0BCD\u0B95 \u0BA4\u0BC7\u0BA4\u0BBF)</Text>
+          <Pressable style={styles.dateCard} onPress={() => setShowDatePicker(!showDatePicker)}>
+            <Text style={styles.dateText}>
               {startDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
             </Text>
-            <Text style={styles.dateBtnIcon}>📅</Text>
+            <MaterialCommunityIcons name="calendar" size={20} color={EL.primary} />
           </Pressable>
           {showDatePicker ? (
-            <View style={styles.dateGrid}>
+            <View style={styles.chipGrid}>
               {[0, 1, 2, 3, 7, 14].map((offset) => {
                 const d = new Date();
                 d.setDate(d.getDate() + offset);
@@ -148,264 +239,301 @@ export function NewLoanScreen({ route, navigation }: Props) {
                 return (
                   <Pressable
                     key={offset}
-                    style={[styles.lineChip, isSelected && styles.lineChipActive]}
+                    style={[styles.chip, isSelected ? styles.chipActive : styles.chipInactive]}
                     onPress={() => { setStartDate(d); setShowDatePicker(false); }}
                   >
-                    <Text style={[styles.lineChipLabel, isSelected && styles.lineChipLabelActive]}>
-                      {label}
-                    </Text>
+                    <Text style={[styles.chipLabel, isSelected && { color: EL.white }]}>{label}</Text>
                   </Pressable>
                 );
               })}
             </View>
           ) : null}
 
-          <Field
-            label={t('loan.principal')}
-            value={principal}
-            onChangeText={handlePrincipalChange}
-            prefix="₹"
-          />
-          <Field
-            label={t('loan.installments')}
-            value={installments}
-            onChangeText={handleInstallmentsChange}
-          />
-          <Field
-            label={isInterestOnly ? t('loan.interest_amount') : t('loan.emi')}
-            value={emiAmount}
-            onChangeText={handleEmiChange}
-            prefix="₹"
-          />
-
-          {/* Grace period — tappable chips */}
-          <Text style={styles.fieldLabel}>{t('loan.grace_period')}</Text>
-          <View style={styles.dateGrid}>
-            {[0, 1, 2, 3].map((days) => (
-              <Pressable
-                key={days}
-                style={[styles.lineChip, gracePeriod === days && styles.lineChipActive]}
-                onPress={() => setGracePeriod(days)}
-              >
-                <Text style={[styles.lineChipLabel, gracePeriod === days && styles.lineChipLabelActive]}>
-                  {days === 0 ? 'None' : `${days} day${days > 1 ? 's' : ''}`}
-                </Text>
-              </Pressable>
-            ))}
+          {/* ── Grace Period ── */}
+          <Text style={styles.sectionLabel}>{t('loan.grace_period')}</Text>
+          <View style={styles.chipGrid}>
+            {[0, 1, 2, 3].map((days) => {
+              const active = gracePeriod === days;
+              return (
+                <Pressable
+                  key={days}
+                  style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+                  onPress={() => setGracePeriod(days)}
+                >
+                  <Text style={[styles.chipLabel, active && { color: EL.white }]}>
+                    {days === 0 ? 'None' : `${days} day${days > 1 ? 's' : ''}`}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
           <Text style={styles.hint}>{t('loan.grace_hint')}</Text>
 
-          {/* Penalty */}
-          <Text style={styles.fieldLabel}>{t('loan.penalty_type')}</Text>
-          <View style={styles.lineGrid}>
+          {/* ── Penalty ── */}
+          <Text style={styles.sectionLabel}>{t('loan.penalty_type')}</Text>
+          <View style={styles.chipGrid}>
             {[
               { val: 'none' as const, label: t('loan.penalty_none') },
               { val: 'flat' as const, label: t('loan.penalty_flat') },
               { val: 'percentage' as const, label: t('loan.penalty_pct') },
-            ].map((opt) => (
-              <Pressable
-                key={opt.val}
-                onPress={() => setPenaltyType(opt.val)}
-                style={[styles.lineChip, penaltyType === opt.val && styles.lineChipActive]}
-              >
-                <Text style={[styles.lineChipLabel, penaltyType === opt.val && styles.lineChipLabelActive]}>
-                  {opt.label}
-                </Text>
-              </Pressable>
-            ))}
+            ].map((opt) => {
+              const active = penaltyType === opt.val;
+              return (
+                <Pressable
+                  key={opt.val}
+                  onPress={() => setPenaltyType(opt.val)}
+                  style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+                >
+                  <Text style={[styles.chipLabel, active && { color: EL.white }]}>{opt.label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
           {penaltyType !== 'none' ? (
-            <Field
-              label={t('loan.penalty_amount')}
-              value={penaltyAmount}
-              onChangeText={(v) => setPenaltyAmount(v.replace(/\D/g, ''))}
-              prefix={penaltyType === 'flat' ? '₹' : '%'}
-            />
+            <>
+              <Text style={styles.sectionLabel}>{t('loan.penalty_amount')}</Text>
+              <View style={styles.inputCard}>
+                <Text style={styles.inputPrefix}>{penaltyType === 'flat' ? '\u20B9' : '%'}</Text>
+                <TextInput
+                  style={styles.inputText}
+                  value={penaltyAmount}
+                  onChangeText={(v) => setPenaltyAmount(v.replace(/\D/g, ''))}
+                  keyboardType="number-pad"
+                  placeholderTextColor={EL.outline}
+                />
+              </View>
+            </>
           ) : null}
 
-          {/* Product description (enterprise only) */}
+          {/* ── Product description (enterprise only) ── */}
           {lineType === 'enterprise' ? (
-            <Field
-              label={t('loan.product_desc')}
-              value={productDesc}
-              onChangeText={setProductDesc}
-            />
+            <>
+              <Text style={styles.sectionLabel}>{t('loan.product_desc')}</Text>
+              <View style={styles.inputCard}>
+                <TextInput
+                  style={[styles.inputText, { flex: 1 }]}
+                  value={productDesc}
+                  onChangeText={setProductDesc}
+                  placeholderTextColor={EL.outline}
+                />
+              </View>
+            </>
           ) : null}
 
           {isInterestOnly ? (
-            <View style={styles.interestBanner}>
-              <Text style={styles.interestBannerText}>{t('loan.interest_only')}</Text>
+            <View style={styles.infoBanner}>
+              <MaterialCommunityIcons name="information-outline" size={16} color={EL.info} />
+              <Text style={styles.infoBannerText}>{t('loan.interest_only')}</Text>
             </View>
           ) : null}
 
-          <Text style={styles.fieldLabel}>{t('loan.line')}</Text>
-          <View style={styles.lineGrid}>
-            {(lines ?? []).map((line) => (
-              <Pressable
-                key={line.id}
-                onPress={() => setLineId(line.id)}
-                style={[
-                  styles.lineChip,
-                  lineId === line.id && styles.lineChipActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.lineChipLabel,
-                    lineId === line.id && styles.lineChipLabelActive,
-                  ]}
-                >
-                  {line.name}
-                </Text>
-                <Text
-                  style={[
-                    styles.lineChipType,
-                    lineId === line.id && styles.lineChipLabelActive,
-                  ]}
-                >
-                  {t(`lines.type_${line.type}`)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          {lines && lines.length === 0 ? (
-            <Text style={styles.hint}>No lines yet — create one in the Lines tab.</Text>
-          ) : null}
-
+          {/* ── Preview Card ── */}
           {summary ? (
-            <Card style={{ marginTop: Spacing.lg }}>
-              <Text style={styles.summaryTitle}>{t('loan.summary')}</Text>
-              <Row
-                label={t('loan.total_repay')}
-                value={formatRupees(summary.totalRepayment)}
-              />
-              <Row label={t('loan.interest')} value={formatRupees(summary.interest)} />
-              <Row
-                label={t('loan.ends_on')}
-                value={formatDateShort(new Date(summary.expectedEndDate))}
-              />
-            </Card>
+            <ELCard variant="section" style={styles.previewCard}>
+              <View style={styles.previewHeader}>
+                <MaterialCommunityIcons name="chart-line" size={14} color={EL.primary} />
+                <Text style={styles.previewTag}>LOAN PROJECTION</Text>
+              </View>
+              <View style={styles.previewGrid}>
+                <View>
+                  <Text style={styles.previewLabel}>Total repayment</Text>
+                  <Text style={styles.previewValue}>{formatRupees(summary.totalRepayment)}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={styles.previewLabel}>Interest earned</Text>
+                  <Text style={[styles.previewValue, { color: EL.primary }]}>
+                    {formatRupees(summary.interest)}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.previewDate}>
+                <Text style={styles.previewLabel}>Completion</Text>
+                <Text style={Type.labelLg}>
+                  {formatDateShort(new Date(summary.expectedEndDate))}
+                </Text>
+              </View>
+            </ELCard>
           ) : null}
 
-          <Button
+          {/* Spacer for fixed bottom */}
+          <View style={{ height: 100 }} />
+        </ScrollView>
+
+        {/* ── Fixed Bottom ── */}
+        <View style={styles.bottomBar}>
+          <GradientButton
             title={t('loan.create')}
             onPress={handleCreate}
             loading={createLoan.isPending}
-            style={{ marginTop: Spacing.lg }}
+            icon={<MaterialCommunityIcons name="check-circle" size={20} color={EL.white} />}
           />
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
-    </View>
-  );
-}
-
-interface FieldProps {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  prefix?: string;
-}
-
-function Field({ label, value, onChangeText, prefix }: FieldProps) {
-  return (
-    <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.inputRow}>
-        {prefix ? <Text style={styles.prefix}>{prefix}</Text> : null}
-        <TextInput
-          style={styles.input}
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType="number-pad"
-          placeholderTextColor={Colors.textMuted}
-        />
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  container: { padding: Spacing.xl, paddingBottom: Spacing.xxl },
-  title: { ...Typography.display, color: Colors.text },
-  sub: { ...Typography.body, color: Colors.textSec, marginBottom: Spacing.lg },
-  fieldWrap: { marginBottom: Spacing.md },
-  fieldLabel: {
-    ...Typography.caption,
-    color: Colors.textSec,
-    marginBottom: Spacing.sm,
-  },
-  inputRow: {
+  content: { padding: Space.xl, paddingBottom: Space.xxl },
+  title: { ...Type.displaySm, marginBottom: Space.md },
+
+  // Borrower card
+  borrowerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: Radius.button,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-    minHeight: TouchTarget.min,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    padding: Space.lg,
+    marginBottom: Space.xxl,
+    gap: Space.lg,
+    ...Shadows.card,
   },
-  prefix: {
-    ...Typography.title,
-    color: Colors.text,
-    marginRight: Spacing.sm,
+  borrowerInfo: { flex: 1 },
+  borrowerName: { ...Type.titleLg, fontWeight: '700' },
+  borrowerPhone: { ...Type.bodySm, color: EL.onSurfaceMuted, marginTop: 2 },
+
+  // Section labels
+  sectionLabel: {
+    ...Type.labelSm,
+    color: EL.onSurfaceSec,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: Space.sm,
+    marginTop: Space.lg,
+    opacity: 0.7,
   },
-  input: { flex: 1, ...Typography.title, color: Colors.text },
-  lineGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: Spacing.md },
-  lineChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.button,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginRight: Spacing.sm,
-    marginBottom: Spacing.sm,
-    backgroundColor: Colors.white,
-    minHeight: TouchTarget.min,
+
+  // Chip grid
+  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.sm, marginBottom: Space.sm },
+  chip: {
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.md,
+    borderRadius: Radii.md,
+    minHeight: Touch.min,
     justifyContent: 'center',
   },
-  lineChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  lineChipLabel: { ...Typography.body, color: Colors.text, fontWeight: '600' },
-  lineChipLabelActive: { color: Colors.white },
-  lineChipType: { ...Typography.caption, color: Colors.textSec, marginTop: 2 },
-  hint: { ...Typography.caption, color: Colors.textMuted },
-  summaryTitle: { ...Typography.title, color: Colors.text, marginBottom: Spacing.md },
-  row: {
+  chipActive: { backgroundColor: EL.primary },
+  chipInactive: { backgroundColor: EL.surfaceCard, ...Shadows.card },
+  chipLabel: { ...Type.labelMd, color: EL.onSurface, fontWeight: '600' },
+  chipSub: { ...Type.labelSm, color: EL.onSurfaceSec, marginTop: 2 },
+
+  // Big input (principal)
+  bigInput: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: Spacing.sm,
+    alignItems: 'center',
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.xl,
+    ...Shadows.card,
   },
-  rowLabel: { ...Typography.body, color: Colors.textSec },
-  rowValue: { ...Typography.body, color: Colors.text, fontWeight: '700' },
-  interestBanner: {
-    backgroundColor: Colors.infoLight,
-    borderRadius: Radius.button,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
+  bigPrefix: {
+    ...Type.displaySm,
+    color: EL.primary,
+    fontWeight: '800',
+    marginRight: Space.sm,
   },
-  interestBannerText: { ...Typography.caption, color: Colors.info, fontWeight: '600' },
-  dateBtn: {
+  bigInputText: {
+    flex: 1,
+    fontSize: 32,
+    fontWeight: '800',
+    color: EL.onSurface,
+  },
+
+  // Regular input
+  inputCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    paddingHorizontal: Space.lg,
+    minHeight: Touch.comfortable,
+    ...Shadows.card,
+  },
+  inputPrefix: {
+    ...Type.titleLg,
+    color: EL.onSurfaceSec,
+    fontWeight: '700',
+    marginRight: Space.sm,
+  },
+  inputText: {
+    flex: 1,
+    ...Type.titleLg,
+    color: EL.onSurface,
+    fontWeight: '700',
+  },
+
+  // Stepper
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+  },
+  stepperBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: Radii.lg,
+    backgroundColor: EL.surfaceHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperValue: {
+    flex: 1,
+    height: 56,
+    borderRadius: Radii.lg,
+    backgroundColor: EL.surfaceCard,
+    justifyContent: 'center',
+    ...Shadows.card,
+  },
+  stepperText: {
+    ...Type.displaySm,
+    fontWeight: '700',
+    color: EL.onSurface,
+  },
+
+  // Date
+  dateCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.white,
-    borderRadius: Radius.button,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-    minHeight: TouchTarget.min,
-    marginBottom: Spacing.md,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    paddingHorizontal: Space.xl,
+    minHeight: Touch.comfortable,
+    marginBottom: Space.sm,
+    ...Shadows.card,
   },
-  dateBtnText: { ...Typography.title, color: Colors.text },
-  dateBtnIcon: { fontSize: 18 },
-  dateGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: Spacing.md },
+  dateText: { ...Type.titleMd, fontWeight: '600' },
+
+  hint: { ...Type.labelSm, color: EL.onSurfaceMuted },
+
+  // Info banner
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: EL.infoContainer,
+    borderRadius: Radii.md,
+    padding: Space.md,
+    marginVertical: Space.md,
+    gap: Space.sm,
+  },
+  infoBannerText: { ...Type.bodySm, color: EL.info, fontWeight: '600', flex: 1 },
+
+  // Preview card
+  previewCard: { marginTop: Space.xl },
+  previewHeader: { flexDirection: 'row', alignItems: 'center', gap: Space.sm, marginBottom: Space.lg },
+  previewTag: { ...Type.labelSm, color: EL.primary, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  previewGrid: { flexDirection: 'row', justifyContent: 'space-between' },
+  previewLabel: { ...Type.labelSm, color: EL.onSurfaceSec },
+  previewValue: { ...Type.displaySm, fontWeight: '800', marginTop: Space.xs },
+  previewDate: { marginTop: Space.lg, paddingTop: Space.md, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.04)' },
+
+  // Bottom
+  bottomBar: {
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.lg,
+    paddingBottom: Space.xxxl,
+    backgroundColor: 'rgba(250, 252, 251, 0.92)',
+  },
 });

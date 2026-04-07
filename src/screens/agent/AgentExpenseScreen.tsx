@@ -10,10 +10,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { Badge } from '@/components/common/Badge';
 import { NumberPad } from '@/components/common/NumberPad';
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { EL, Common, Radii, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { createExpense, getTodayExpenseTotal } from '@/db/repos/expenses';
 import type { ExpenseCategory } from '@/db/types';
 import { useAuthStore } from '@/store/authStore';
@@ -63,48 +61,48 @@ export function AgentExpenseScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Expenses</Text>
-        <Text style={styles.todayTotal}>
-          Today: {formatRupees(todayTotal ?? 0)}
-        </Text>
+        <Text style={styles.todayTotal}>Today: {formatRupees(todayTotal ?? 0)}</Text>
       </View>
 
       {saved ? (
         <View style={styles.savedBanner}>
-          <Text style={styles.savedText}>✓ Saved</Text>
+          <Text style={styles.savedText}>{'\u2713'} Saved</Text>
         </View>
       ) : null}
 
       {/* Category chips */}
-      <View style={styles.catRow}>
-        {CATEGORIES.map((c) => (
-          <Pressable
-            key={c.value}
-            onPress={() => setCategory(c.value)}
-            style={[styles.catChip, category === c.value && styles.catChipActive]}
-          >
-            <Text style={[styles.catLabel, category === c.value && styles.catLabelActive]}>
-              {c.label}
-            </Text>
-          </Pressable>
-        ))}
+      <View style={styles.chipRow}>
+        {CATEGORIES.map((c) => {
+          const active = category === c.value;
+          return (
+            <Pressable
+              key={c.value}
+              onPress={() => setCategory(c.value)}
+              style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+            >
+              <Text style={[styles.chipLabel, active && { color: EL.white }]}>{c.label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Quick amounts */}
-      <View style={styles.catRow}>
-        {[50, 100, 200, 500].map((v) => (
-          <Pressable
-            key={v}
-            onPress={() => setAmount(String(v))}
-            style={[styles.catChip, Number(amount) === v && styles.catChipActive]}
-          >
-            <Text style={[styles.catLabel, Number(amount) === v && styles.catLabelActive]}>
-              ₹{v}
-            </Text>
-          </Pressable>
-        ))}
+      <View style={styles.chipRow}>
+        {[50, 100, 200, 500].map((v) => {
+          const active = Number(amount) === v;
+          return (
+            <Pressable
+              key={v}
+              onPress={() => setAmount(String(v))}
+              style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+            >
+              <Text style={[styles.chipLabel, active && { color: EL.white }]}>{'\u20B9'}{v}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       <NumberPad
@@ -119,38 +117,33 @@ export function AgentExpenseScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { padding: Spacing.xl },
-  title: { ...Typography.display, color: Colors.text },
-  todayTotal: { ...Typography.body, color: Colors.textSec, marginTop: 4 },
+  header: { padding: Space.xl },
+  title: { ...Type.displayMd },
+  todayTotal: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: Space.xs },
   savedBanner: {
-    backgroundColor: Colors.primaryLight,
-    padding: Spacing.md,
+    backgroundColor: EL.primaryFixed,
+    padding: Space.md,
     alignItems: 'center',
-    marginHorizontal: Spacing.xl,
-    borderRadius: 8,
-    marginBottom: Spacing.md,
+    marginHorizontal: Space.xl,
+    borderRadius: Radii.md,
+    marginBottom: Space.md,
   },
-  savedText: { ...Typography.title, color: Colors.primary },
-  catRow: {
+  savedText: { ...Type.labelLg, color: EL.primary },
+  chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: Spacing.xl,
-    marginBottom: Spacing.sm,
+    paddingHorizontal: Space.xl,
+    marginBottom: Space.sm,
+    gap: Space.sm,
   },
-  catChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.white,
-    marginRight: Spacing.sm,
-    marginBottom: Spacing.sm,
-    minHeight: TouchTarget.min,
+  chip: {
+    paddingHorizontal: Space.lg,
+    paddingVertical: 10,
+    borderRadius: Radii.pill,
+    minHeight: Touch.min,
     justifyContent: 'center',
   },
-  catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  catLabel: { ...Typography.body, fontWeight: '600', color: Colors.text },
-  catLabelActive: { color: Colors.white },
+  chipActive: { backgroundColor: EL.primary },
+  chipInactive: { backgroundColor: EL.surfaceHigh },
+  chipLabel: { ...Type.labelMd, fontWeight: '600', color: EL.onSurface },
 });

@@ -9,22 +9,14 @@ import {
   View,
 } from 'react-native';
 
-import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { ELCard } from '@/components/common/ELCard';
+import { GradientButton } from '@/components/common/GradientButton';
+import { VoiceButton } from '@/components/common/VoiceButton';
+import { EL, Common, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { createBorrower } from '@/db/repos/borrowers';
 import { useAuthStore } from '@/store/authStore';
 import { useVoice } from '@/hooks/useVoice';
-import { VoiceButton } from '@/components/common/VoiceButton';
 
-/**
- * Bulk import screen. Two modes:
- *   1. Paste mode: paste a list (one borrower per line, "Name, Phone")
- *   2. Voice mode: speak each borrower name, tap to confirm
- *
- * PRD §4.9: "voice-powered bulk entry for migrating from paper"
- */
 export function ImportScreen() {
   const orgId = useAuthStore((s) => s.user?.orgId ?? null);
   const voice = useVoice();
@@ -34,7 +26,6 @@ export function ImportScreen() {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
-  // Voice: when speech is recognized, add to the list
   React.useEffect(() => {
     if (voice.lastResult?.text && mode === 'voice') {
       setVoiceEntries((prev) => [...prev, voice.lastResult!.text]);
@@ -51,12 +42,7 @@ export function ImportScreen() {
       const name = parts[0];
       const phone = parts[1] || undefined;
       if (!name) continue;
-      try {
-        await createBorrower({ orgId, name, phone });
-        count++;
-      } catch {
-        // skip duplicates or errors
-      }
+      try { await createBorrower({ orgId, name, phone }); count++; } catch {}
     }
     setImporting(false);
     setResult(`Imported ${count} borrowers`);
@@ -68,12 +54,7 @@ export function ImportScreen() {
     setImporting(true);
     let count = 0;
     for (const name of voiceEntries) {
-      try {
-        await createBorrower({ orgId, name: name.trim() });
-        count++;
-      } catch {
-        // skip
-      }
+      try { await createBorrower({ orgId, name: name.trim() }); count++; } catch {}
     }
     setImporting(false);
     setResult(`Imported ${count} borrowers`);
@@ -81,82 +62,68 @@ export function ImportScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <SafeAreaView style={Common.screen}>
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Import borrowers</Text>
         <Text style={styles.sub}>Migrate from paper or another app</Text>
 
-        {/* Mode toggle */}
         <View style={styles.modeRow}>
-          <Button
+          <GradientButton
             title="Paste list"
             variant={mode === 'paste' ? 'primary' : 'secondary'}
             onPress={() => setMode('paste')}
-            style={{ flex: 1, marginRight: 8 }}
+            style={{ flex: 1, marginRight: Space.sm }}
           />
-          <Button
+          <GradientButton
             title="Voice entry"
             variant={mode === 'voice' ? 'primary' : 'secondary'}
             onPress={() => setMode('voice')}
-            style={{ flex: 1, marginLeft: 8 }}
+            style={{ flex: 1, marginLeft: Space.sm }}
           />
         </View>
 
         {mode === 'paste' ? (
           <>
-            <Text style={styles.label}>
-              One borrower per line. Format: Name, Phone
-            </Text>
+            <Text style={styles.label}>One borrower per line. Format: Name, Phone</Text>
             <TextInput
               style={styles.textarea}
               value={pasteText}
               onChangeText={setPasteText}
               multiline
               placeholder={'Murugan K, 9876543210\nLakshmi S, 9988776655\nRaja M'}
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={EL.onSurfaceMuted}
             />
             <Text style={styles.hint}>
               {pasteText.split('\n').filter((l) => l.trim()).length} entries detected
             </Text>
-            <Button
-              title="Import all"
-              onPress={handleImportPaste}
-              loading={importing}
-              style={{ marginTop: Spacing.md }}
-            />
+            <GradientButton title="Import all" onPress={handleImportPaste} loading={importing} style={{ marginTop: Space.md }} />
           </>
         ) : (
           <>
-            <VoiceButton
-              isListening={voice.isListening}
-              onPress={voice.isListening ? voice.stopListening : voice.startListening}
-              lastText={voice.lastResult?.text}
-            />
-            <Text style={styles.label}>
-              Speak each borrower's name. They'll be added to the list below.
-            </Text>
+            <VoiceButton isListening={voice.isListening} onPress={voice.isListening ? voice.stopListening : voice.startListening} lastText={voice.lastResult?.text} />
+            <Text style={styles.label}>Speak each borrower's name. They'll be added to the list below.</Text>
             {voiceEntries.length > 0 ? (
-              <Card style={{ marginTop: Spacing.md }}>
+              <ELCard style={{ marginTop: Space.md }}>
                 {voiceEntries.map((name, i) => (
                   <Text key={i} style={styles.entryText}>{i + 1}. {name}</Text>
                 ))}
-              </Card>
+              </ELCard>
             ) : null}
             <Text style={styles.hint}>{voiceEntries.length} entries</Text>
-            <Button
+            <GradientButton
               title={`Import ${voiceEntries.length} borrowers`}
               onPress={handleImportVoice}
               loading={importing}
               disabled={voiceEntries.length === 0}
-              style={{ marginTop: Spacing.md }}
+              style={{ marginTop: Space.md }}
             />
           </>
         )}
 
         {result ? (
-          <Card style={{ marginTop: Spacing.lg, backgroundColor: Colors.primaryLight }}>
-            <Text style={styles.resultText}>{result}</Text>
-          </Card>
+          <ELCard style={{ marginTop: Space.lg, backgroundColor: EL.primaryFixed }}>
+            <Text style={[Type.titleMd, { color: EL.primaryDark }]}>{result}</Text>
+          </ELCard>
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -164,18 +131,16 @@ export function ImportScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  container: { padding: Spacing.xl, paddingBottom: Spacing.xxl },
-  title: { ...Typography.display, color: Colors.text },
-  sub: { ...Typography.caption, color: Colors.textSec, marginBottom: Spacing.lg },
-  modeRow: { flexDirection: 'row', marginBottom: Spacing.lg },
-  label: { ...Typography.caption, color: Colors.textSec, marginBottom: Spacing.sm },
+  content: { padding: Space.xl, paddingBottom: Space.xxxl },
+  title: { ...Type.displaySm },
+  sub: { ...Type.bodySm, color: EL.onSurfaceSec, marginBottom: Space.lg },
+  modeRow: { flexDirection: 'row', marginBottom: Space.lg },
+  label: { ...Type.labelMd, color: EL.onSurfaceSec, marginBottom: Space.sm },
   textarea: {
-    backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.button, padding: Spacing.md, minHeight: 150,
-    ...Typography.body, color: Colors.text, textAlignVertical: 'top',
+    backgroundColor: EL.surfaceCard, borderRadius: Radii.sm + 2,
+    padding: Space.lg, minHeight: 150, ...Type.bodyMd, color: EL.onSurface,
+    textAlignVertical: 'top', ...Shadows.card,
   },
-  hint: { ...Typography.caption, color: Colors.textMuted, marginTop: Spacing.sm },
-  entryText: { ...Typography.body, color: Colors.text, marginTop: 4 },
-  resultText: { ...Typography.title, color: Colors.primaryDark },
+  hint: { ...Type.labelSm, color: EL.onSurfaceMuted, marginTop: Space.sm },
+  entryText: { ...Type.bodyMd, marginTop: Space.xs },
 });

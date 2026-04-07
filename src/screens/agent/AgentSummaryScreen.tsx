@@ -3,10 +3,9 @@ import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 
-import { Card } from '@/components/common/Card';
+import { ELCard } from '@/components/common/ELCard';
 import { ProgressBar } from '@/components/common/ProgressBar';
-import { Colors } from '@/constants/colors';
-import { Spacing, Typography } from '@/constants/typography';
+import { EL, Common, Space, Type } from '@/theme/emeraldLedger';
 import { getTodaySummary } from '@/db/repos/collections';
 import { getTodayExpenseTotal } from '@/db/repos/expenses';
 import { useAuthStore } from '@/store/authStore';
@@ -29,38 +28,34 @@ export function AgentSummaryScreen() {
     queryFn: () => getTodayExpenseTotal(orgId!),
   });
 
-  const totalDue = (summary?.totalExpected ?? 0) + (summary?.totalCollected ?? 0);
   const done = summary?.collectionCount ?? 0;
   const dueCount = (summary?.dueCount ?? 0) + done;
   const progress = dueCount > 0 ? done / dueCount : 0;
   const netCash = (summary?.totalCollected ?? 0) - (expenseTotal ?? 0);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('nav.summary')}</Text>
       </View>
 
-      {/* Big collected number */}
-      <Card style={styles.bigCard}>
+      <ELCard style={styles.bigCard}>
         <Text style={styles.bigLabel}>Total collected today</Text>
         <Text style={styles.bigNumber}>{formatRupees(summary?.totalCollected ?? 0)}</Text>
-      </Card>
+      </ELCard>
 
-      {/* Progress */}
-      <Card style={styles.card}>
+      <ELCard style={styles.card}>
         <Text style={styles.cardTitle}>Visits</Text>
         <ProgressBar
           progress={progress}
           label={`${done} of ${dueCount} borrowers (${Math.round(progress * 100)}%)`}
         />
-      </Card>
+      </ELCard>
 
-      {/* Expenses + net cash */}
-      <Card style={styles.card}>
-        <Row label="Expenses today" value={formatRupees(expenseTotal ?? 0)} color={Colors.danger} />
-        <Row label="Net cash in hand" value={formatRupees(netCash)} color={Colors.primary} />
-      </Card>
+      <ELCard style={styles.card}>
+        <Row label="Expenses today" value={formatRupees(expenseTotal ?? 0)} color={EL.nippu} />
+        <Row label="Net cash in hand" value={formatRupees(netCash)} color={EL.primary} />
+      </ELCard>
     </SafeAreaView>
   );
 }
@@ -68,22 +63,19 @@ export function AgentSummaryScreen() {
 function Row({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={[styles.rowValue, { color }]}>{value}</Text>
+      <Text style={[Type.bodyMd, { color: EL.onSurfaceSec }]}>{label}</Text>
+      <Text style={[Type.titleMd, { color, fontWeight: '700' }]}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { padding: Spacing.xl, paddingBottom: 0 },
-  title: { ...Typography.display, color: Colors.text },
-  bigCard: { margin: Spacing.xl, alignItems: 'center' },
-  bigLabel: { ...Typography.body, color: Colors.textSec },
-  bigNumber: { fontSize: 42, fontWeight: '700', color: Colors.primary, marginTop: Spacing.sm },
-  card: { marginHorizontal: Spacing.xl, marginBottom: Spacing.lg },
-  cardTitle: { ...Typography.title, color: Colors.text, marginBottom: Spacing.md },
-  row: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.md },
-  rowLabel: { ...Typography.body, color: Colors.textSec },
-  rowValue: { ...Typography.title },
+  header: { padding: Space.xl, paddingBottom: 0 },
+  title: { ...Type.displayMd },
+  bigCard: { margin: Space.xl, alignItems: 'center' },
+  bigLabel: { ...Type.bodySm, color: EL.onSurfaceSec },
+  bigNumber: { fontSize: 42, fontWeight: '800', color: EL.primary, marginTop: Space.sm, letterSpacing: -1 },
+  card: { marginHorizontal: Space.xl, marginBottom: Space.lg },
+  cardTitle: { ...Type.titleMd, marginBottom: Space.md },
+  row: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Space.md },
 });

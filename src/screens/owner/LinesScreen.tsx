@@ -10,13 +10,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 
 import { Badge } from '@/components/common/Badge';
-import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { ELCard } from '@/components/common/ELCard';
+import { GradientButton } from '@/components/common/GradientButton';
+import { EL, Common, Glass, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { useCreateLine, useLines } from '@/hooks/useLines';
 import type { LineRow, LineType } from '@/db/types';
 
@@ -50,16 +50,16 @@ export function LinesScreen() {
   };
 
   const renderItem = ({ item }: { item: LineRow }) => (
-    <Card style={styles.lineCard}>
+    <ELCard style={styles.lineCard}>
       <View style={styles.lineHeader}>
         <Text style={styles.lineName}>{item.name}</Text>
         <Badge label={t(`lines.type_${item.type}`)} variant="info" />
       </View>
-    </Card>
+    </ELCard>
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>{t('lines.title')}</Text>
       </View>
@@ -69,27 +69,24 @@ export function LinesScreen() {
           data={lines}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 120 }}
+          contentContainerStyle={{ padding: Space.xl, paddingBottom: 120 }}
         />
       ) : (
-        <Card style={{ margin: Spacing.xl }}>
-          <Text style={styles.emptyTitle}>{t('lines.empty_title')}</Text>
-          <Text style={styles.emptySub}>{t('lines.empty_sub')}</Text>
-        </Card>
+        <ELCard style={{ margin: Space.xl }}>
+          <Text style={Type.titleMd}>{t('lines.empty_title')}</Text>
+          <Text style={[Type.bodySm, { marginTop: Space.xs }]}>{t('lines.empty_sub')}</Text>
+        </ELCard>
       )}
 
-      <View style={styles.fab}>
-        <Button title={'+ ' + t('lines.add')} onPress={() => setShowModal(true)} />
-      </View>
+      {/* FAB */}
+      <Pressable style={Common.fab} onPress={() => setShowModal(true)}>
+        <MaterialCommunityIcons name="plus" size={28} color={EL.white} />
+      </Pressable>
 
-      <Modal
-        visible={showModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowModal(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
+      {/* Add Line Modal */}
+      <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
+        <Pressable style={[Glass.dark, styles.modalBackdrop]} onPress={() => setShowModal(false)}>
+          <View style={[Glass.container, styles.modalSheet]}>
             <Text style={styles.modalTitle}>{t('lines.add')}</Text>
 
             <Text style={styles.label}>{t('lines.line_name')}</Text>
@@ -97,135 +94,92 @@ export function LinesScreen() {
               style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholderTextColor={Colors.textMuted}
+              placeholder="e.g. Koyambedu Market"
+              placeholderTextColor={EL.onSurfaceMuted}
             />
 
-            <Text style={[styles.label, { marginTop: Spacing.md }]}>
-              {t('lines.line_type')}
-            </Text>
+            <Text style={[styles.label, { marginTop: Space.lg }]}>{t('lines.line_type')}</Text>
             <View style={styles.typeGrid}>
-              {LINE_TYPES.map((opt) => (
-                <Pressable
-                  key={opt.value}
-                  onPress={() => setType(opt.value)}
-                  style={[
-                    styles.typeChip,
-                    type === opt.value && styles.typeChipActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.typeChipLabel,
-                      type === opt.value && styles.typeChipLabelActive,
-                    ]}
+              {LINE_TYPES.map((opt) => {
+                const active = type === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => setType(opt.value)}
+                    style={[styles.typeChip, active ? styles.typeChipActive : styles.typeChipInactive]}
                   >
-                    {t(opt.labelKey)}
-                  </Text>
-                </Pressable>
-              ))}
+                    <Text style={[styles.typeChipLabel, active && { color: EL.white }]}>
+                      {t(opt.labelKey)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             <View style={styles.modalButtons}>
-              <Button
+              <GradientButton
                 title={t('common.cancel')}
                 variant="secondary"
                 onPress={() => setShowModal(false)}
-                style={{ flex: 1, marginRight: Spacing.sm }}
+                style={{ flex: 1, marginRight: Space.sm }}
               />
-              <Button
+              <GradientButton
                 title={t('lines.create')}
                 onPress={handleCreate}
                 loading={createMut.isPending}
-                style={{ flex: 1, marginLeft: Spacing.sm }}
+                style={{ flex: 1, marginLeft: Space.sm }}
               />
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
   header: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingHorizontal: Space.xl,
+    paddingTop: Space.lg,
+    paddingBottom: Space.md,
   },
-  title: { ...Typography.display, color: Colors.text },
-  lineCard: { marginBottom: Spacing.md },
+  title: { ...Type.displayMd },
+  lineCard: { marginBottom: Space.md },
   lineHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  lineName: { ...Typography.title, color: Colors.text },
-  emptyTitle: { ...Typography.title, color: Colors.text },
-  emptySub: { ...Typography.body, color: Colors.textSec, marginTop: 4 },
-  fab: {
-    position: 'absolute',
-    left: Spacing.xl,
-    right: Spacing.xl,
-    bottom: Spacing.xl,
-  },
+  lineName: { ...Type.titleMd },
 
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: Colors.bg,
-    borderTopLeftRadius: Radius.card * 2,
-    borderTopRightRadius: Radius.card * 2,
-    padding: Spacing.xl,
-    paddingBottom: Spacing.xxl,
+    borderTopLeftRadius: Radii.xl + 4,
+    borderTopRightRadius: Radii.xl + 4,
+    padding: Space.xl,
+    paddingBottom: Space.xxxl,
   },
-  modalTitle: {
-    ...Typography.display,
-    color: Colors.text,
-    marginBottom: Spacing.lg,
-  },
-  label: {
-    ...Typography.caption,
-    color: Colors.textSec,
-    marginBottom: Spacing.sm,
-  },
+  modalTitle: { ...Type.displaySm, marginBottom: Space.lg },
+  label: { ...Type.labelMd, color: EL.onSurfaceSec, marginBottom: Space.sm },
   input: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.button,
-    paddingHorizontal: Spacing.md,
-    minHeight: TouchTarget.min,
-    ...Typography.body,
-    color: Colors.text,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.sm + 2,
+    paddingHorizontal: Space.lg,
+    minHeight: Touch.min,
+    ...Type.bodyMd,
+    color: EL.onSurface,
+    ...Shadows.card,
   },
-  typeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
+  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.sm },
   typeChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginRight: Spacing.sm,
-    marginBottom: Spacing.sm,
-    backgroundColor: Colors.white,
-    minHeight: TouchTarget.min,
+    paddingHorizontal: Space.xl,
+    paddingVertical: 10,
+    borderRadius: Radii.pill,
+    minHeight: Touch.min,
     justifyContent: 'center',
   },
-  typeChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  typeChipLabel: { ...Typography.body, color: Colors.text, fontWeight: '600' },
-  typeChipLabelActive: { color: Colors.white },
-  modalButtons: {
-    flexDirection: 'row',
-    marginTop: Spacing.xl,
-  },
+  typeChipActive: { backgroundColor: EL.primary },
+  typeChipInactive: { backgroundColor: EL.surfaceHigh },
+  typeChipLabel: { ...Type.labelMd, color: EL.onSurface, fontWeight: '600' },
+  modalButtons: { flexDirection: 'row', marginTop: Space.xl },
 });

@@ -27,6 +27,8 @@ export type OwnerStackParamList = {
   Import: undefined;
   Documents: { borrowerId: string };
   Referral: undefined;
+  NippuReport: undefined;
+  SuccessReceipt: { borrowerName: string; amount: number; loanRemaining: number; daysPaid: number; totalDays: number; agentName?: string; timestamp: number };
   BorrowerRating: { id: string };
   Deposits: undefined;
   Guarantor: { loanId: string };

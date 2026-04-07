@@ -2,16 +2,15 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Colors } from '@/constants/colors';
-import { Typography } from '@/constants/typography';
+import { EL, Radii, Space, Type } from '@/theme/emeraldLedger';
 
 export type BorrowerStatusType = 'nadapu' | 'nippu' | 'completed' | 'none';
 
-const STATUS_CONFIG: Record<BorrowerStatusType, { color: string; en: string; ta: string }> = {
-  nadapu: { color: Colors.primary, en: 'On Schedule', ta: 'நடப்பு' },
-  nippu: { color: Colors.danger, en: 'Overdue', ta: 'நிப்பு' },
-  completed: { color: Colors.info, en: 'Completed', ta: 'முடிந்தது' },
-  none: { color: Colors.textMuted, en: '-', ta: '-' },
+const STATUS_CONFIG: Record<BorrowerStatusType, { bg: string; fg: string; en: string; ta: string }> = {
+  nadapu: { bg: EL.primaryFixed, fg: EL.onPrimaryFixed, en: 'On Schedule', ta: '\u0BA8\u0B9F\u0BAA\u0BCD\u0BAA\u0BC1' },
+  nippu: { bg: '#ba5551', fg: EL.white, en: 'Overdue', ta: '\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1' },
+  completed: { bg: EL.completedContainer, fg: EL.completed, en: 'Completed', ta: '\u0BAE\u0BC1\u0B9F\u0BBF\u0BA8\u0BCD\u0BA4\u0BA4\u0BC1' },
+  none: { bg: 'transparent', fg: EL.onSurfaceMuted, en: '-', ta: '-' },
 };
 
 interface Props {
@@ -26,15 +25,22 @@ export function StatusBadge({ status }: Props) {
   if (status === 'none') return null;
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.dot, { backgroundColor: config.color }]} />
-      <Text style={[styles.label, { color: config.color }]}>{label}</Text>
+    <View style={[styles.pill, { backgroundColor: config.bg }]}>
+      <Text style={[styles.label, { color: config.fg }]}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
-  label: { ...Typography.caption, fontWeight: '700' },
+  pill: {
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.xs,
+    borderRadius: Radii.pill,
+  },
+  label: {
+    ...Type.labelSm,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
 });

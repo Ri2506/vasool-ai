@@ -1,8 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Colors } from '@/constants/colors';
-import { Radius, Typography } from '@/constants/typography';
+import { EL, Radii, Type } from '@/theme/emeraldLedger';
 
 export type BadgeVariant = 'success' | 'danger' | 'warn' | 'info' | 'neutral';
 
@@ -12,11 +11,11 @@ interface Props {
 }
 
 const map: Record<BadgeVariant, { bg: string; fg: string }> = {
-  success: { bg: Colors.primaryLight, fg: Colors.primaryDark },
-  danger: { bg: Colors.dangerLight, fg: Colors.danger },
-  warn: { bg: Colors.warnLight, fg: Colors.warn },
-  info: { bg: Colors.infoLight, fg: Colors.info },
-  neutral: { bg: Colors.border, fg: Colors.textSec },
+  success: { bg: EL.primaryFixed, fg: EL.primary },
+  danger: { bg: EL.nippuContainer, fg: EL.nippu },
+  warn: { bg: EL.warnContainer, fg: EL.warn },
+  info: { bg: EL.infoContainer, fg: EL.info },
+  neutral: { bg: EL.surfaceHigh, fg: EL.onSurfaceSec },
 };
 
 export function Badge({ label, variant = 'neutral' }: Props) {
@@ -32,11 +31,11 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: Radius.pill,
+    borderRadius: Radii.pill,
     alignSelf: 'flex-start',
   },
   label: {
-    ...Typography.caption,
+    ...Type.labelSm,
     fontWeight: '600',
   },
 });

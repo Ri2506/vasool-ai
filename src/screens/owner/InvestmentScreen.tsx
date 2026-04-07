@@ -3,18 +3,19 @@ import {
   Alert,
   FlatList,
   Modal,
+  Pressable,
   SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { ELCard } from '@/components/common/ELCard';
+import { GradientButton } from '@/components/common/GradientButton';
+import { EL, Common, Glass, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { createInvestment, listInvestments, getTotalInvested } from '@/db/repos/investments';
 import type { InvestmentRow } from '@/db/types';
 import { useAuthStore } from '@/store/authStore';
@@ -65,18 +66,18 @@ export function InvestmentScreen() {
   };
 
   const renderItem = ({ item }: { item: InvestmentRow }) => (
-    <Card style={styles.row}>
+    <ELCard style={styles.row}>
       <View style={styles.rowHeader}>
         <Text style={styles.rowAmount}>{formatRupees(item.amount)}</Text>
         <Text style={styles.rowDate}>{formatDateShort(new Date(item.date))}</Text>
       </View>
       {item.source ? <Text style={styles.rowSub}>{item.source}</Text> : null}
       {item.notes ? <Text style={styles.rowSub}>{item.notes}</Text> : null}
-    </Card>
+    </ELCard>
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Capital invested</Text>
         <Text style={styles.total}>{formatRupees(totalInvested ?? 0)}</Text>
@@ -87,78 +88,91 @@ export function InvestmentScreen() {
           data={investments}
           keyExtractor={(i) => i.id}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: Spacing.xl, paddingBottom: 120 }}
+          contentContainerStyle={{ padding: Space.xl, paddingBottom: 120 }}
         />
       ) : (
-        <Card style={{ margin: Spacing.xl }}>
-          <Text style={styles.empty}>No investments recorded yet</Text>
-        </Card>
+        <ELCard style={{ margin: Space.xl }}>
+          <Text style={Type.bodySm}>No investments recorded yet</Text>
+        </ELCard>
       )}
 
-      <View style={styles.fab}>
-        <Button title="+ Add investment" onPress={() => setShowModal(true)} />
-      </View>
+      {/* FAB */}
+      <Pressable style={Common.fab} onPress={() => setShowModal(true)}>
+        <MaterialCommunityIcons name="plus" size={28} color={EL.white} />
+      </Pressable>
 
+      {/* Add Modal */}
       <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
-        <View style={styles.backdrop}>
-          <View style={styles.sheet}>
+        <Pressable style={[Glass.dark, styles.backdrop]} onPress={() => setShowModal(false)}>
+          <View style={[Glass.container, styles.sheet]}>
             <Text style={styles.sheetTitle}>Add investment</Text>
+
             <Text style={styles.label}>Amount</Text>
             <TextInput
               style={styles.input}
               value={amount}
               onChangeText={(v) => setAmount(v.replace(/\D/g, ''))}
               keyboardType="number-pad"
-              placeholder="₹"
-              placeholderTextColor={Colors.textMuted}
+              placeholder="\u20B9"
+              placeholderTextColor={EL.onSurfaceMuted}
             />
+
             <Text style={styles.label}>Source (optional)</Text>
             <TextInput
               style={styles.input}
               value={source}
               onChangeText={setSource}
               placeholder="Own funds, bank loan, etc."
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={EL.onSurfaceMuted}
             />
+
             <Text style={styles.label}>Notes (optional)</Text>
             <TextInput
-              style={[styles.input, { minHeight: 60 }]}
+              style={[styles.input, { minHeight: 60, textAlignVertical: 'top', paddingTop: Space.md }]}
               value={notes}
               onChangeText={setNotes}
               multiline
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={EL.onSurfaceMuted}
             />
+
             <View style={styles.btnRow}>
-              <Button title="Cancel" variant="secondary" onPress={() => setShowModal(false)} style={{ flex: 1, marginRight: 8 }} />
-              <Button title="Save" onPress={handleAdd} loading={addMut.isPending} style={{ flex: 1, marginLeft: 8 }} />
+              <GradientButton title="Cancel" variant="secondary" onPress={() => setShowModal(false)} style={{ flex: 1, marginRight: Space.sm }} />
+              <GradientButton title="Save" onPress={handleAdd} loading={addMut.isPending} style={{ flex: 1, marginLeft: Space.sm }} />
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { padding: Spacing.xl },
-  title: { ...Typography.display, color: Colors.text },
-  total: { ...Typography.display, color: Colors.primary, fontSize: 32, marginTop: Spacing.sm },
-  row: { marginBottom: Spacing.md },
+  header: { padding: Space.xl },
+  title: { ...Type.displaySm },
+  total: { ...Type.displayLg, color: EL.primary, marginTop: Space.sm },
+  row: { marginBottom: Space.md },
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rowAmount: { ...Typography.title, color: Colors.text },
-  rowDate: { ...Typography.caption, color: Colors.textSec },
-  rowSub: { ...Typography.caption, color: Colors.textSec, marginTop: 4 },
-  empty: { ...Typography.body, color: Colors.textSec },
-  fab: { position: 'absolute', left: Spacing.xl, right: Spacing.xl, bottom: Spacing.xl },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: Colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.xl, paddingBottom: Spacing.xxl },
-  sheetTitle: { ...Typography.display, color: Colors.text, marginBottom: Spacing.lg },
-  label: { ...Typography.caption, color: Colors.textSec, marginBottom: Spacing.sm, marginTop: Spacing.md },
-  input: {
-    backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Radius.button, paddingHorizontal: Spacing.md, minHeight: TouchTarget.min,
-    ...Typography.body, color: Colors.text,
+  rowAmount: { ...Type.titleMd, fontWeight: '700' },
+  rowDate: { ...Type.labelSm, color: EL.onSurfaceMuted },
+  rowSub: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: Space.xs },
+
+  backdrop: { flex: 1, justifyContent: 'flex-end' },
+  sheet: {
+    borderTopLeftRadius: Radii.xl + 4,
+    borderTopRightRadius: Radii.xl + 4,
+    padding: Space.xl,
+    paddingBottom: Space.xxxl,
   },
-  btnRow: { flexDirection: 'row', marginTop: Spacing.xl },
+  sheetTitle: { ...Type.displaySm, marginBottom: Space.lg },
+  label: { ...Type.labelMd, color: EL.onSurfaceSec, marginBottom: Space.sm, marginTop: Space.lg },
+  input: {
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.sm + 2,
+    paddingHorizontal: Space.lg,
+    minHeight: Touch.min,
+    ...Type.bodyMd,
+    color: EL.onSurface,
+    ...Shadows.card,
+  },
+  btnRow: { flexDirection: 'row', marginTop: Space.xl },
 });

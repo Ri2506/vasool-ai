@@ -7,7 +7,7 @@ import { OwnerNavigator } from './OwnerNavigator';
 import { AgentNavigator } from './AgentNavigator';
 import { OfflineBanner } from '@/components/common/OfflineBanner';
 import { useAuthStore } from '@/store/authStore';
-import { Colors } from '@/constants/colors';
+import { EL } from '@/theme/emeraldLedger';
 import type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -19,7 +19,7 @@ export function RootNavigator() {
   if (isHydrating) {
     return (
       <View style={styles.loading}>
-        <ActivityIndicator color={Colors.primary} size="large" />
+        <ActivityIndicator color={EL.primary} size="large" />
       </View>
     );
   }
@@ -42,6 +42,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.bg,
+    backgroundColor: EL.surface,
   },
 });

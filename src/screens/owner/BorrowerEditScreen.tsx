@@ -11,14 +11,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useTranslation } from 'react-i18next';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
-import { Button } from '@/components/common/Button';
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { GradientButton } from '@/components/common/GradientButton';
+import { EL, Common, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import {
   useBorrower,
   useCreateBorrower,
@@ -97,7 +96,6 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
 
   const handleDelete = () => {
     if (!id) return;
-    // Using Alert for confirmation; on web it becomes a simple confirm dialog.
     Alert.alert(t('borrowers.delete'), t('borrowers.delete_confirm'), [
       { text: t('common.cancel'), style: 'cancel' },
       {
@@ -112,157 +110,288 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.container}>
-          <Text style={styles.title}>
+        <ScrollView contentContainerStyle={styles.content}>
+          {/* Header */}
+          <Text style={styles.screenTitle}>
             {isEditing ? t('borrowers.edit') : t('borrowers.add')}
           </Text>
 
-          {/* Photo + Camera */}
-          <View style={styles.photoRow}>
-            <Avatar name={name || '?'} size={64} photoUri={photoUri} />
-            <Pressable style={styles.photoBtn} onPress={handleTakePhoto}>
-              <MaterialCommunityIcons name="camera" size={20} color={Colors.primary} />
-              <Text style={styles.photoBtnText}>{t('common.take_photo')}</Text>
+          {/* ── Photo Section ── */}
+          <View style={styles.photoSection}>
+            <Pressable onPress={handleTakePhoto} style={styles.photoWrap}>
+              {photoUri || (isEditing && existing?.photo_url) ? (
+                <Avatar name={name || '?'} size={80} photoUri={photoUri ?? existing?.photo_url} />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <MaterialCommunityIcons name="camera" size={32} color={EL.onSurfaceMuted} />
+                </View>
+              )}
+            </Pressable>
+            <Pressable onPress={handleTakePhoto}>
+              <Text style={styles.photoLabel}>{t('common.take_photo')}</Text>
             </Pressable>
           </View>
 
-          {/* Name + Contacts import */}
-          <View style={styles.nameRow}>
-            <View style={{ flex: 1 }}>
-              <Field label={t('borrowers.name')} value={name} onChangeText={setName} />
+          {/* ── Form Fields ── */}
+          <View style={styles.formSection}>
+            {/* Name field */}
+            <View style={styles.fieldWrap}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>
+                  {t('borrowers.name')} ({'\u0B95\u0B9F\u0BA9\u0BCD\u0B95\u0BBE\u0BB0\u0BB0\u0BCD \u0BAA\u0BC6\u0BAF\u0BB0\u0BCD'})
+                </Text>
+                <Text style={styles.requiredTag}>REQUIRED</Text>
+              </View>
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Enter full name"
+                  placeholderTextColor={EL.onSurfaceMuted}
+                />
+                <Pressable style={styles.contactBtn} onPress={handlePickContact}>
+                  <MaterialCommunityIcons name="card-account-details-outline" size={22} color={EL.primary} />
+                </Pressable>
+              </View>
             </View>
-            <Pressable style={styles.contactsBtn} onPress={handlePickContact}>
-              <MaterialCommunityIcons name="contacts" size={24} color={Colors.primary} />
-            </Pressable>
+
+            {/* Phone field */}
+            <View style={styles.fieldWrap}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>
+                  {t('borrowers.phone')} ({'\u0BA4\u0BCA\u0BB2\u0BC8\u0BAA\u0BC7\u0B9A\u0BBF'})
+                </Text>
+                <Text style={styles.requiredTag}>REQUIRED</Text>
+              </View>
+              <View style={styles.phoneRow}>
+                <View style={styles.phonePrefix}>
+                  <Text style={styles.phonePrefixText}>+91</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, styles.phoneInput]}
+                  value={phone}
+                  onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
+                  keyboardType="number-pad"
+                  placeholder="98765 43210"
+                  placeholderTextColor={EL.onSurfaceMuted}
+                />
+              </View>
+            </View>
+
+            {/* Address field */}
+            <View style={styles.fieldWrap}>
+              <Text style={styles.fieldLabel}>
+                {t('borrowers.address')} (optional)
+              </Text>
+              <TextInput
+                style={[styles.input, styles.multiline]}
+                value={address}
+                onChangeText={setAddress}
+                multiline
+                placeholder="Area, Street, Town"
+                placeholderTextColor={EL.onSurfaceMuted}
+              />
+            </View>
+
+            {/* Notes field */}
+            <View style={styles.fieldWrap}>
+              <Text style={styles.fieldLabel}>
+                {t('borrowers.notes')} (optional)
+              </Text>
+              <TextInput
+                style={styles.input}
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Any reference info..."
+                placeholderTextColor={EL.onSurfaceMuted}
+              />
+            </View>
           </View>
 
-          <Field
-            label={t('borrowers.phone')}
-            value={phone}
-            onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
-            keyboardType="number-pad"
-          />
-          <Field
-            label={t('borrowers.address')}
-            value={address}
-            onChangeText={setAddress}
-            multiline
-          />
-          <Field
-            label={t('borrowers.notes')}
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-          />
+          {/* ── Info Card ── */}
+          <View style={styles.infoCard}>
+            <MaterialCommunityIcons name="information-outline" size={18} color={EL.primary} style={{ marginTop: 1 }} />
+            <Text style={styles.infoText}>
+              Add the borrower's phone number to send automated WhatsApp reminders
+              ({'\u0BA4\u0BBE\u0BA9\u0BBF\u0BAF\u0B99\u0BCD\u0B95\u0BBF \u0BB5\u0BBE\u0B9F\u0BCD\u0B9A\u0BCD\u0B85\u0BAA\u0BCD \u0BA8\u0BBF\u0BA9\u0BC8\u0BB5\u0BC2\u0B9F\u0BCD\u0B9F\u0BB2\u0BCD\u0B95\u0BB3\u0BCD'}).
+            </Text>
+          </View>
 
-          <Button
-            title={t('common.save')}
+          {/* Spacer for fixed bottom */}
+          <View style={{ height: 100 }} />
+        </ScrollView>
+
+        {/* ── Fixed Bottom Action ── */}
+        <View style={styles.bottomBar}>
+          <GradientButton
+            title={isEditing ? t('common.save') : t('borrowers.add')}
             onPress={handleSave}
             loading={createMut.isPending || updateMut.isPending}
-            style={{ marginTop: Spacing.lg }}
+            icon={<MaterialCommunityIcons name="check-circle" size={20} color={EL.white} />}
           />
-
           {isEditing ? (
-            <Button
+            <GradientButton
               title={t('borrowers.delete')}
               variant="danger"
               onPress={handleDelete}
-              style={{ marginTop: Spacing.md }}
               loading={deleteMut.isPending}
+              style={{ marginTop: Space.sm }}
             />
           ) : null}
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-interface FieldProps {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  keyboardType?: 'default' | 'number-pad';
-  multiline?: boolean;
-}
-
-function Field({ label, value, onChangeText, keyboardType, multiline }: FieldProps) {
-  return (
-    <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={[styles.input, multiline && styles.multiline]}
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType}
-        multiline={multiline}
-        placeholderTextColor={Colors.textMuted}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  container: { padding: Spacing.xl, paddingBottom: Spacing.xxl },
-  title: {
-    ...Typography.display,
-    color: Colors.text,
-    marginBottom: Spacing.lg,
+  content: {
+    paddingHorizontal: Space.xl,
+    paddingTop: Space.lg,
   },
-  fieldWrap: { marginBottom: Spacing.md },
-  fieldLabel: {
-    ...Typography.caption,
-    color: Colors.textSec,
-    marginBottom: Spacing.sm,
+  screenTitle: {
+    ...Type.displaySm,
+    marginBottom: Space.lg,
   },
-  input: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.button,
-    paddingHorizontal: Spacing.md,
-    minHeight: TouchTarget.min,
-    ...Typography.body,
-    color: Colors.text,
-  },
-  multiline: { minHeight: 80, paddingTop: Spacing.md, textAlignVertical: 'top' },
-  photoRow: {
-    flexDirection: 'row',
+
+  // Photo
+  photoSection: {
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Space.xxxl,
   },
-  photoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: Spacing.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-    minHeight: TouchTarget.min,
+  photoWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    overflow: 'hidden',
   },
-  photoBtnText: {
-    ...Typography.caption,
-    color: Colors.primary,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  contactsBtn: {
-    width: TouchTarget.min,
-    height: TouchTarget.min,
+  photoPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    borderColor: EL.outline,
+    borderStyle: 'dashed',
+    backgroundColor: EL.surfaceCard,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: Spacing.sm,
-    marginBottom: Spacing.md,
+  },
+  photoLabel: {
+    ...Type.labelMd,
+    color: EL.primary,
+    fontWeight: '600',
+    marginTop: Space.sm,
+  },
+
+  // Form
+  formSection: {
+    gap: Space.xl,
+  },
+  fieldWrap: {},
+  fieldLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Space.sm,
+  },
+  fieldLabel: {
+    ...Type.bodySm,
+    color: EL.onSurfaceSec,
+    fontWeight: '500',
+    fontSize: 13,
+  },
+  requiredTag: {
+    ...Type.labelSm,
+    color: EL.primary,
+    fontWeight: '700',
+    fontSize: 11,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  input: {
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.sm + 2,
+    paddingHorizontal: Space.lg,
+    minHeight: Touch.min,
+    ...Type.bodyMd,
+    color: EL.onSurface,
+    ...Shadows.card,
+  },
+  multiline: {
+    minHeight: 72,
+    paddingTop: Space.lg,
+    textAlignVertical: 'top',
+  },
+  contactBtn: {
+    width: Touch.min,
+    height: Touch.min,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Space.sm,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.sm + 2,
+    ...Shadows.card,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.sm + 2,
+    overflow: 'hidden',
+    ...Shadows.card,
+  },
+  phonePrefix: {
+    height: Touch.min,
+    paddingHorizontal: Space.lg,
+    justifyContent: 'center',
+    backgroundColor: EL.surfaceLow,
+    borderRightWidth: 1,
+    borderRightColor: EL.outline,
+  },
+  phonePrefixText: {
+    ...Type.bodyMd,
+    color: EL.onSurfaceSec,
+    fontWeight: '500',
+  },
+  phoneInput: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    shadowColor: 'transparent',
+    elevation: 0,
+  },
+
+  // Info card
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Space.md,
+    marginTop: Space.xxxl,
+    padding: Space.lg,
+    backgroundColor: 'rgba(5, 150, 105, 0.08)',
+    borderRadius: Radii.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: EL.primary,
+  },
+  infoText: {
+    ...Type.bodySm,
+    color: EL.onSurfaceSec,
+    fontWeight: '500',
+    flex: 1,
+    lineHeight: 20,
+  },
+
+  // Bottom bar
+  bottomBar: {
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.lg,
+    paddingBottom: Space.xxxl,
+    backgroundColor: 'rgba(250, 252, 251, 0.92)',
   },
 });

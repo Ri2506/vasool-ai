@@ -9,15 +9,15 @@ import {
   Text,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Badge, type BadgeVariant } from '@/components/common/Badge';
-import { Button } from '@/components/common/Button';
-import { Card } from '@/components/common/Card';
+import { ELCard } from '@/components/common/ELCard';
+import { GradientButton } from '@/components/common/GradientButton';
 import { NumberPad } from '@/components/common/NumberPad';
-import { Colors } from '@/constants/colors';
-import { Radius, Spacing, TouchTarget, Typography } from '@/constants/typography';
+import { EL, Common, Glass, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { createExpense, listExpenses } from '@/db/repos/expenses';
 import type { ExpenseCategory, ExpenseRow } from '@/db/types';
 import { useAuthStore } from '@/store/authStore';
@@ -68,18 +68,18 @@ export function ExpenseScreen() {
   const renderExpense = ({ item }: { item: ExpenseRow }) => {
     const cat = CATEGORIES.find((c) => c.value === item.category) ?? CATEGORIES[4];
     return (
-      <View style={styles.row}>
-        <Badge label={cat.label} variant={cat.variant} />
-        <View style={styles.rowBody}>
+      <ELCard style={styles.row}>
+        <View style={styles.rowInner}>
+          <Badge label={cat.label} variant={cat.variant} />
           <Text style={styles.rowDate}>{formatDateShort(new Date(item.date))}</Text>
+          <Text style={styles.rowAmount}>{formatRupees(item.amount)}</Text>
         </View>
-        <Text style={styles.rowAmount}>{formatRupees(item.amount)}</Text>
-      </View>
+      </ELCard>
     );
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={Common.screen}>
       <View style={styles.header}>
         <Text style={styles.title}>Expenses</Text>
       </View>
@@ -89,68 +89,55 @@ export function ExpenseScreen() {
           data={expenses}
           keyExtractor={(e) => e.id}
           renderItem={renderExpense}
-          ItemSeparatorComponent={() => <View style={styles.sep} />}
-          contentContainerStyle={{ paddingBottom: 120 }}
+          contentContainerStyle={{ padding: Space.xl, paddingBottom: 120 }}
         />
       ) : (
-        <Card style={{ margin: Spacing.xl }}>
-          <Text style={styles.emptyTitle}>No expenses yet</Text>
-        </Card>
+        <ELCard style={{ margin: Space.xl }}>
+          <Text style={Type.bodySm}>No expenses yet</Text>
+        </ELCard>
       )}
 
-      <View style={styles.fab}>
-        <Button title="+ Add expense" onPress={() => setShowModal(true)} />
-      </View>
+      {/* FAB */}
+      <Pressable style={Common.fab} onPress={() => setShowModal(true)}>
+        <MaterialCommunityIcons name="plus" size={28} color={EL.white} />
+      </Pressable>
 
+      {/* Add Expense Modal */}
       <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
+        <Pressable style={[Glass.dark, styles.modalBackdrop]} onPress={() => setShowModal(false)}>
+          <View style={[Glass.container, styles.modalSheet]}>
             <Text style={styles.modalTitle}>Add expense</Text>
 
             {/* Category chips */}
-            <View style={styles.catRow}>
-              {CATEGORIES.map((c) => (
-                <Pressable
-                  key={c.value}
-                  onPress={() => setCategory(c.value)}
-                  style={[
-                    styles.catChip,
-                    category === c.value && styles.catChipActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.catLabel,
-                      category === c.value && styles.catLabelActive,
-                    ]}
+            <View style={styles.chipRow}>
+              {CATEGORIES.map((c) => {
+                const active = category === c.value;
+                return (
+                  <Pressable
+                    key={c.value}
+                    onPress={() => setCategory(c.value)}
+                    style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
                   >
-                    {c.label}
-                  </Text>
-                </Pressable>
-              ))}
+                    <Text style={[styles.chipLabel, active && { color: EL.white }]}>{c.label}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             {/* Quick amount chips */}
-            <View style={styles.catRow}>
-              {[50, 100, 200, 500, 1000].map((v) => (
-                <Pressable
-                  key={v}
-                  onPress={() => setAmount(String(v))}
-                  style={[
-                    styles.catChip,
-                    Number(amount) === v && styles.catChipActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.catLabel,
-                      Number(amount) === v && styles.catLabelActive,
-                    ]}
+            <View style={styles.chipRow}>
+              {[50, 100, 200, 500, 1000].map((v) => {
+                const active = Number(amount) === v;
+                return (
+                  <Pressable
+                    key={v}
+                    onPress={() => setAmount(String(v))}
+                    style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
                   >
-                    ₹{v}
-                  </Text>
-                </Pressable>
-              ))}
+                    <Text style={[styles.chipLabel, active && { color: EL.white }]}>\u20B9{v}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             <NumberPad
@@ -161,60 +148,47 @@ export function ExpenseScreen() {
               disabled={addMut.isPending}
             />
 
-            <Button
+            <GradientButton
               title={t('common.cancel')}
               variant="secondary"
               onPress={() => setShowModal(false)}
-              style={{ marginTop: Spacing.md, marginHorizontal: Spacing.md }}
+              style={{ marginTop: Space.md, marginHorizontal: Space.md }}
             />
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg, paddingBottom: Spacing.md },
-  title: { ...Typography.display, color: Colors.text },
-  row: {
+  header: { paddingHorizontal: Space.xl, paddingTop: Space.lg, paddingBottom: Space.md },
+  title: { ...Type.displayMd },
+  row: { marginBottom: Space.sm },
+  rowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.white,
-    minHeight: TouchTarget.min,
   },
-  rowBody: { flex: 1, marginLeft: Spacing.md },
-  rowDate: { ...Typography.caption, color: Colors.textSec },
-  rowAmount: { ...Typography.title, color: Colors.text },
-  sep: { height: 1, backgroundColor: Colors.border },
-  emptyTitle: { ...Typography.body, color: Colors.textSec },
-  fab: { position: 'absolute', left: Spacing.xl, right: Spacing.xl, bottom: Spacing.xl },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  rowDate: { ...Type.bodySm, color: EL.onSurfaceMuted, flex: 1, marginLeft: Space.md },
+  rowAmount: { ...Type.titleMd, fontWeight: '700' },
+
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end' },
   modalSheet: {
-    backgroundColor: Colors.bg,
-    borderTopLeftRadius: Radius.card * 2,
-    borderTopRightRadius: Radius.card * 2,
-    padding: Spacing.xl,
-    paddingBottom: Spacing.xxl,
+    borderTopLeftRadius: Radii.xl + 4,
+    borderTopRightRadius: Radii.xl + 4,
+    padding: Space.xl,
+    paddingBottom: Space.xxxl,
   },
-  modalTitle: { ...Typography.display, color: Colors.text, marginBottom: Spacing.lg },
-  catRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: Spacing.md },
-  catChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.white,
-    marginRight: Spacing.sm,
-    marginBottom: Spacing.sm,
-    minHeight: TouchTarget.min,
+  modalTitle: { ...Type.displaySm, marginBottom: Space.lg },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.sm, marginBottom: Space.md },
+  chip: {
+    paddingHorizontal: Space.lg,
+    paddingVertical: 10,
+    borderRadius: Radii.pill,
+    minHeight: Touch.min,
     justifyContent: 'center',
   },
-  catChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  catLabel: { ...Typography.body, fontWeight: '600', color: Colors.text },
-  catLabelActive: { color: Colors.white },
+  chipActive: { backgroundColor: EL.primary },
+  chipInactive: { backgroundColor: EL.surfaceHigh },
+  chipLabel: { ...Type.labelMd, fontWeight: '600', color: EL.onSurface },
 });

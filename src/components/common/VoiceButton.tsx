@@ -2,8 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Colors } from '@/constants/colors';
-import { Radius, TouchTarget } from '@/constants/typography';
+import { EL, Radii, Space, Touch, Type } from '@/theme/emeraldLedger';
 
 interface Props {
   isListening: boolean;
@@ -25,12 +24,12 @@ export function VoiceButton({ isListening, onPress, lastText }: Props) {
         <MaterialCommunityIcons
           name={isListening ? 'microphone' : 'microphone-outline'}
           size={28}
-          color={isListening ? Colors.white : Colors.primary}
+          color={isListening ? EL.white : EL.primary}
         />
       </Pressable>
       {lastText ? (
         <Text style={styles.transcript} numberOfLines={1}>
-          "{lastText}"
+          &ldquo;{lastText}&rdquo;
         </Text>
       ) : (
         <Text style={styles.hint}>
@@ -45,32 +44,32 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    paddingHorizontal: Space.lg,
+    marginBottom: Space.sm,
   },
   button: {
-    width: TouchTarget.min,
-    height: TouchTarget.min,
-    borderRadius: Radius.pill,
+    width: Touch.min,
+    height: Touch.min,
+    borderRadius: Radii.pill,
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: EL.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: EL.surfaceCard,
   },
   buttonActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: EL.primary,
+    borderColor: EL.primary,
   },
   hint: {
-    marginLeft: 12,
-    fontSize: 13,
-    color: Colors.textMuted,
+    ...Type.bodySm,
+    marginLeft: Space.md,
+    color: EL.onSurfaceMuted,
   },
   transcript: {
-    marginLeft: 12,
-    fontSize: 13,
-    color: Colors.text,
+    ...Type.bodySm,
+    marginLeft: Space.md,
+    color: EL.onSurface,
     fontStyle: 'italic',
     flex: 1,
   },
