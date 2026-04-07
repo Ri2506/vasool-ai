@@ -1,17 +1,20 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
 
 import { AgentHomeScreen } from '@/screens/agent/AgentHomeScreen';
 import { AgentExpenseScreen } from '@/screens/agent/AgentExpenseScreen';
 import { AgentSummaryScreen } from '@/screens/agent/AgentSummaryScreen';
+import { AgentSuccessReceiptScreen } from '@/screens/agent/AgentSuccessReceiptScreen';
 import { EL, Shadows } from '@/theme/emeraldLedger';
 import { TabIcon } from '@/components/common/TabIcon';
-import type { AgentTabParamList } from './types';
+import type { AgentTabParamList, AgentStackParamList } from './types';
 
 const Tab = createBottomTabNavigator<AgentTabParamList>();
+const Stack = createNativeStackNavigator<AgentStackParamList>();
 
-export function AgentNavigator() {
+function AgentTabs() {
   const { t } = useTranslation();
   return (
     <Tab.Navigator
@@ -45,5 +48,14 @@ export function AgentNavigator() {
         options={{ title: t('nav.summary'), tabBarIcon: ({ color }) => <TabIcon name="summary" color={color} /> }}
       />
     </Tab.Navigator>
+  );
+}
+
+export function AgentNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="AgentTabs" component={AgentTabs} />
+      <Stack.Screen name="AgentReceipt" component={AgentSuccessReceiptScreen} />
+    </Stack.Navigator>
   );
 }

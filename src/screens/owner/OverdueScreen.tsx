@@ -91,7 +91,16 @@ export function OverdueScreen() {
   return (
     <SafeAreaView style={Common.screen}>
       <View style={styles.header}>
-        <Text style={styles.title}>Overdue</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={styles.title}>Overdue</Text>
+          <Pressable
+            style={styles.nippuLink}
+            onPress={() => navigation.navigate('NippuReport')}
+          >
+            <Text style={styles.nippuLinkText}>{'\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1'} Report</Text>
+            <MaterialCommunityIcons name="chevron-right" size={16} color={EL.nippu} />
+          </Pressable>
+        </View>
         <Text style={styles.sub}>Borrowers with missed payments</Text>
       </View>
 
@@ -199,5 +208,21 @@ const styles = StyleSheet.create({
     backgroundColor: EL.primaryFixed,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // Nippu link
+  nippuLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.xs,
+    backgroundColor: EL.nippuContainer,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
+    borderRadius: Radii.pill,
+  },
+  nippuLinkText: {
+    ...Type.labelMd,
+    color: EL.nippu,
+    fontWeight: '700',
   },
 });

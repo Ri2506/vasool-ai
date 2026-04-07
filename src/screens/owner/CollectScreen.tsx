@@ -24,6 +24,7 @@ import { useRecordCollection } from '@/hooks/useCollections';
 import { useBorrowerStatuses } from '@/hooks/useBorrowerStatus';
 import { useGps } from '@/hooks/useGps';
 import { useVoice } from '@/hooks/useVoice';
+import { useAuthStore } from '@/store/authStore';
 import { formatRupees } from '@/utils/format';
 import type { OwnerStackParamList } from '@/navigation/types';
 
@@ -36,6 +37,7 @@ export function CollectScreen({ route, navigation }: Props) {
   const { getLocation } = useGps();
   const { data: statuses } = useBorrowerStatuses();
   const voice = useVoice();
+  const orgId = useAuthStore((s) => s.user?.orgId ?? '');
 
   const st = statuses?.[item.borrower_id];
 
@@ -68,16 +70,19 @@ export function CollectScreen({ route, navigation }: Props) {
       });
       if (isPrincipalReturn) {
         const { recordPrincipalReturn } = await import('@/db/repos/principalReturns');
-        const orgId = item.loan_id;
         await recordPrincipalReturn(orgId, item.loan_id, numAmount - item.expected_amount, 'Principal return from collection');
       }
-      // Navigate to receipt screen
+      // Calculate remaining: principal - (installments already paid * emi) - this payment
+      const alreadyPaid = (item.installment_number - 1) * item.loan_emi;
+      const loanRemaining = Math.max(0, item.loan_principal - alreadyPaid - numAmount);
+      const totalDays = item.loan_emi > 0 ? Math.ceil(item.loan_principal / item.loan_emi) : 100;
+
       navigation.replace('SuccessReceipt', {
         borrowerName: item.borrower_name,
         amount: numAmount,
-        loanRemaining: Math.max(0, item.loan_principal - numAmount),
+        loanRemaining,
         daysPaid: item.installment_number,
-        totalDays: item.loan_principal > 0 ? Math.ceil(item.loan_principal / item.loan_emi) : 100,
+        totalDays,
         timestamp: Date.now(),
       });
     } catch (e: any) {

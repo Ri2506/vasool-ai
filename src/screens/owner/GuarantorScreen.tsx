@@ -10,13 +10,21 @@ import { GradientButton } from '@/components/common/GradientButton';
 import { EL, Common, Radii, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { createGuarantor } from '@/db/repos/guarantors';
 import { useAuthStore } from '@/store/authStore';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { OwnerStackParamList } from '@/navigation/types';
 
 interface Props {
   loanId: string;
   onDone: () => void;
 }
 
-export function GuarantorScreen({ loanId, onDone }: Props) {
+type NavProps = NativeStackScreenProps<OwnerStackParamList, 'Guarantor'>;
+
+export function GuarantorScreen(props: Props | NavProps) {
+  // Support both direct props (embedded) and navigation route params
+  const isNav = 'route' in props;
+  const loanId = isNav ? props.route.params.loanId : props.loanId;
+  const onDone = isNav ? () => props.navigation.goBack() : props.onDone;
   const orgId = useAuthStore((s) => s.user?.orgId ?? null);
   const qc = useQueryClient();
   const [name, setName] = useState('');

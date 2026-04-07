@@ -26,6 +26,7 @@ import { ReferralScreen } from '@/screens/owner/ReferralScreen';
 import { NippuReportScreen } from '@/screens/owner/NippuReportScreen';
 import { AgentSuccessReceiptScreen } from '@/screens/agent/AgentSuccessReceiptScreen';
 import { BorrowerRatingDetailScreen } from '@/screens/owner/BorrowerRatingDetailScreen';
+import { GuarantorScreen } from '@/screens/owner/GuarantorScreen';
 import { DepositScreen } from '@/screens/owner/DepositScreen';
 import { LoanCelebrationScreen } from '@/screens/owner/LoanCelebrationScreen';
 // Colors import removed — using Emerald Ledger theme inline
@@ -102,6 +103,7 @@ export function OwnerNavigator() {
       <Stack.Screen name="SuccessReceipt" component={AgentSuccessReceiptScreen} options={{ headerShown: false }} />
       <Stack.Screen name="BorrowerRating" component={BorrowerRatingDetailScreen} options={{ title: 'Borrower Rating' }} />
       <Stack.Screen name="Deposits" component={DepositScreen} options={{ title: 'Deposits' }} />
+      <Stack.Screen name="Guarantor" component={GuarantorScreen} options={{ title: 'Guarantor' }} />
       <Stack.Screen name="LoanCelebration" component={LoanCelebrationScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );

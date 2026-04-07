@@ -40,7 +40,10 @@ export function AgentExpenseScreen() {
   const addMut = useMutation({
     mutationFn: (input: { category: ExpenseCategory; amount: number }) =>
       createExpense({ orgId: orgId!, userId, ...input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agentExpenseTotal'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['agentExpenseTotal', orgId] });
+      qc.invalidateQueries({ queryKey: ['agentExpTotal', orgId] }); // AgentSummaryScreen
+    },
   });
 
   const [category, setCategory] = useState<ExpenseCategory>('petrol');

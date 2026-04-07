@@ -8,6 +8,16 @@ export type AuthStackParamList = {
   PinLogin: undefined;
 };
 
+export interface SuccessReceiptParams {
+  borrowerName: string;
+  amount: number;
+  loanRemaining: number;
+  daysPaid: number;
+  totalDays: number;
+  agentName?: string;
+  timestamp: number;
+}
+
 export type OwnerStackParamList = {
   Tabs: NavigatorScreenParams<OwnerTabParamList>;
   BorrowerDetail: { id: string };
@@ -28,7 +38,7 @@ export type OwnerStackParamList = {
   Documents: { borrowerId: string };
   Referral: undefined;
   NippuReport: undefined;
-  SuccessReceipt: { borrowerName: string; amount: number; loanRemaining: number; daysPaid: number; totalDays: number; agentName?: string; timestamp: number };
+  SuccessReceipt: SuccessReceiptParams;
   BorrowerRating: { id: string };
   Deposits: undefined;
   Guarantor: { loanId: string };
@@ -48,8 +58,13 @@ export type AgentTabParamList = {
   Summary: undefined;
 };
 
+export type AgentStackParamList = {
+  AgentTabs: NavigatorScreenParams<AgentTabParamList>;
+  AgentReceipt: SuccessReceiptParams;
+};
+
 export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
   Owner: NavigatorScreenParams<OwnerStackParamList>;
-  Agent: NavigatorScreenParams<AgentTabParamList>;
+  Agent: NavigatorScreenParams<AgentStackParamList>;
 };

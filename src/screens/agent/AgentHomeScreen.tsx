@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
 import { ELCard } from '@/components/common/ELCard';
@@ -19,9 +21,13 @@ import { useDueToday, useRecordCollection, useTodaySummary } from '@/hooks/useCo
 import { useAuthStore } from '@/store/authStore';
 import { formatRupees } from '@/utils/format';
 import type { DueTodayItem } from '@/db/repos/collections';
+import type { AgentStackParamList } from '@/navigation/types';
+
+type Nav = NativeStackNavigationProp<AgentStackParamList>;
 
 export function AgentHomeScreen() {
   const { t } = useTranslation();
+  const navigation = useNavigation<Nav>();
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
   const { data: items = [] } = useDueToday();
@@ -40,6 +46,18 @@ export function AgentHomeScreen() {
         amount: item.expected_amount,
         expectedAmount: item.expected_amount,
         agentId: user?.id,
+      });
+      const alreadyPaid = (item.installment_number - 1) * item.loan_emi;
+      const loanRemaining = Math.max(0, item.loan_principal - alreadyPaid - item.expected_amount);
+      const totalDays = item.loan_emi > 0 ? Math.ceil(item.loan_principal / item.loan_emi) : 100;
+      navigation.navigate('AgentReceipt', {
+        borrowerName: item.borrower_name,
+        amount: item.expected_amount,
+        loanRemaining,
+        daysPaid: item.installment_number,
+        totalDays,
+        agentName: user?.name,
+        timestamp: Date.now(),
       });
     } catch (e: any) {
       Alert.alert(t('common.error_generic'), e?.message ?? '');

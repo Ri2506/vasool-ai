@@ -9,25 +9,16 @@ import {
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-
 import { GradientButton } from '@/components/common/GradientButton';
 import { ProgressBar } from '@/components/common/ProgressBar';
 import { EL, Common, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { formatRupees } from '@/utils/format';
-import type { OwnerStackParamList } from '@/navigation/types';
+import type { SuccessReceiptParams } from '@/navigation/types';
 
-export interface SuccessReceiptParams {
-  borrowerName: string;
-  amount: number;
-  loanRemaining: number;
-  daysPaid: number;
-  totalDays: number;
-  agentName?: string;
-  timestamp: number;
-}
-
-type Props = NativeStackScreenProps<OwnerStackParamList, 'SuccessReceipt'>;
+type Props = {
+  route: { params: SuccessReceiptParams };
+  navigation: { goBack: () => void };
+};
 
 export function AgentSuccessReceiptScreen({ route, navigation }: Props) {
   const {

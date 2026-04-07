@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Alert, FlatList, Modal, SafeAreaView, StyleSheet, Text, TextInput, View,
+  Alert, FlatList, Modal, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -78,12 +78,12 @@ export function DepositScreen() {
         ListHeaderComponent={<Text style={[Type.titleMd, { marginBottom: Space.lg }]}>Deposits</Text>}
       />
 
-      <View style={Common.fab}>
-        <MaterialCommunityIcons name="plus" size={28} color={EL.white} onPress={() => setShow(true)} />
-      </View>
+      <Pressable style={Common.fab} onPress={() => setShow(true)}>
+        <MaterialCommunityIcons name="plus" size={28} color={EL.white} />
+      </Pressable>
 
       <Modal visible={show} transparent animationType="slide" onRequestClose={() => setShow(false)}>
-        <View style={[Glass.dark, { flex: 1, justifyContent: 'flex-end' }]}>
+        <Pressable style={[Glass.dark, { flex: 1, justifyContent: 'flex-end' }]} onPress={() => setShow(false)}>
           <View style={[Glass.container, styles.sheet]}>
             <Text style={Type.displaySm}>Add Deposit</Text>
             <Input label="Depositor Name" value={name} onChange={setName} />
@@ -95,7 +95,7 @@ export function DepositScreen() {
               <GradientButton title="Save Deposit" onPress={handleAdd} loading={addMut.isPending} style={{ flex: 1, marginLeft: Space.sm }} />
             </View>
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
