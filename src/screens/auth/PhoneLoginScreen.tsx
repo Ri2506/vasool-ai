@@ -1,149 +1,138 @@
 import React, { useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+  Alert, KeyboardAvoidingView, Platform, Pressable,
+  SafeAreaView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
-import { useTranslation } from 'react-i18next';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-import { Button } from '@/components/common/Button';
-import { Colors } from '@/constants/colors';
-import { Spacing, TouchTarget, Typography, Radius } from '@/constants/typography';
+import { GradientButton } from '@/components/common/GradientButton';
+import { EL, Common, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { useAuthStore } from '@/store/authStore';
 import type { AuthStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'PhoneLogin'>;
 
 export function PhoneLoginScreen({ navigation }: Props) {
-  const { t } = useTranslation();
   const sendOwnerOtp = useAuthStore((s) => s.sendOwnerOtp);
   const devSetUser = useAuthStore((s) => s._devSetUser);
   const isBusy = useAuthStore((s) => s.isBusy);
   const [phone, setPhone] = useState('');
 
-  // Dev bypass: skip Supabase Phone OTP (which needs a paid SMS provider)
-  // and seed a local owner session pointing at a stable demo org. Removed
-  // before production ship — see Sprint 4.
-  const handleTryDemo = async () => {
-    await devSetUser({
-      id: 'demo-owner',
-      orgId: 'demo-org-local',
-      name: 'Demo Owner',
-      phone: '0000000000',
-      role: 'owner',
-    });
+  const handleSend = async () => {
+    if (!/^\d{10}$/.test(phone)) { Alert.alert('Please enter a valid 10-digit phone number'); return; }
+    try { await sendOwnerOtp(phone); navigation.navigate('Otp'); }
+    catch (e: any) { Alert.alert('Error', e?.message ?? ''); }
   };
 
-  const handleSend = async () => {
-    if (!/^\d{10}$/.test(phone)) {
-      Alert.alert(t('auth.invalid_phone'));
-      return;
-    }
-    try {
-      await sendOwnerOtp(phone);
-      navigation.navigate('Otp');
-    } catch (e: any) {
-      Alert.alert(t('common.error_generic'), e?.message ?? '');
-    }
+  const handleTryDemo = async () => {
+    await devSetUser({ id: 'demo-owner', orgId: 'demo-org-local', name: 'Demo Owner', phone: '0000000000', role: 'owner' });
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <Text style={styles.title}>{t('auth.welcome')}</Text>
-        <Text style={styles.subtitle}>{t('auth.owner_login')}</Text>
+    <SafeAreaView style={Common.screen}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.container}>
+          {/* Header */}
+          <Text style={styles.logo}>VasoolAI</Text>
+          <Text style={styles.title}>Welcome back</Text>
+          <Text style={styles.sub}>Enter your phone number to continue</Text>
 
-        <Text style={styles.label}>{t('auth.phone_label')}</Text>
-        <View style={styles.inputRow}>
-          <Text style={styles.prefix}>+91</Text>
-          <TextInput
-            style={styles.input}
-            value={phone}
-            onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
-            placeholder={t('auth.phone_placeholder') ?? ''}
-            placeholderTextColor={Colors.textMuted}
-            keyboardType="number-pad"
-            maxLength={10}
+          {/* Phone input */}
+          <View style={styles.inputCard}>
+            <Text style={Type.labelMd}>PHONE NUMBER</Text>
+            <View style={styles.inputRow}>
+              <View style={styles.prefixBox}>
+                <Text style={styles.flag}>🇮🇳</Text>
+                <Text style={styles.prefix}>+91</Text>
+              </View>
+              <TextInput
+                style={styles.input}
+                value={phone}
+                onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
+                placeholder="10-digit mobile number"
+                placeholderTextColor={EL.onSurfaceMuted}
+                keyboardType="number-pad"
+                maxLength={10}
+              />
+            </View>
+          </View>
+
+          <GradientButton
+            title="Send OTP"
+            onPress={handleSend}
+            loading={isBusy}
+            style={styles.sendBtn}
+          />
+
+          <View style={{ flex: 1 }} />
+
+          {/* Agent link */}
+          <Pressable onPress={() => navigation.navigate('PinLogin')} style={styles.agentLink}>
+            <MaterialCommunityIcons name="shield-account" size={18} color={EL.primary} />
+            <Text style={styles.agentText}>  Are you a collection agent?</Text>
+          </Pressable>
+
+          {/* Demo */}
+          <GradientButton
+            title="Try as demo owner"
+            variant="secondary"
+            onPress={handleTryDemo}
+            style={{ marginTop: Space.md }}
           />
         </View>
-
-        <Button
-          title={t('auth.send_otp')}
-          onPress={handleSend}
-          loading={isBusy}
-          style={{ marginTop: Spacing.lg }}
-        />
-
-        <View style={styles.spacer} />
-
-        <Button
-          title={t('auth.pin_login_cta')}
-          variant="secondary"
-          onPress={() => navigation.navigate('PinLogin')}
-        />
-
-        <Button
-          title={t('auth.try_demo')}
-          variant="secondary"
-          onPress={handleTryDemo}
-          style={{ marginTop: Spacing.sm }}
-        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  container: {
-    flex: 1,
-    padding: Spacing.xl,
-    justifyContent: 'center',
-  },
-  title: {
-    ...Typography.display,
-    color: Colors.text,
-  },
-  subtitle: {
-    ...Typography.body,
-    color: Colors.textSec,
-    marginBottom: Spacing.xl,
-  },
-  label: {
-    ...Typography.caption,
-    color: Colors.textSec,
-    marginBottom: Spacing.sm,
+  flex: { flex: 1 },
+  container: { flex: 1, padding: Space.xl },
+  logo: { ...Type.displayLg, color: EL.primary, marginTop: Space.xxxl },
+  title: { ...Type.displayMd, marginTop: Space.xxl },
+  sub: { ...Type.bodyMd, color: EL.onSurfaceSec, marginTop: Space.xs, marginBottom: Space.xxl },
+  inputCard: {
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    padding: Space.xl,
+    ...Shadows.card,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: Radius.button,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: Spacing.md,
-    minHeight: TouchTarget.min,
+    marginTop: Space.md,
   },
-  prefix: {
-    ...Typography.title,
-    color: Colors.text,
-    marginRight: Spacing.sm,
+  prefixBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
+    marginRight: Space.md,
   },
+  flag: { fontSize: 18, marginRight: Space.xs },
+  prefix: { ...Type.titleMd, color: EL.onSurface },
   input: {
     flex: 1,
-    ...Typography.title,
-    color: Colors.text,
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.sm,
+    paddingHorizontal: Space.lg,
+    minHeight: Touch.min,
+    ...Type.titleMd,
+    color: EL.onSurface,
   },
-  spacer: {
-    flex: 1,
+  sendBtn: {
+    marginTop: Space.xl,
+    minHeight: Touch.comfortable,
+    borderRadius: Radii.md,
   },
+  agentLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Space.lg,
+  },
+  agentText: { ...Type.labelLg, color: EL.primary },
 });

@@ -26,7 +26,7 @@ import { ReferralScreen } from '@/screens/owner/ReferralScreen';
 import { BorrowerRatingDetailScreen } from '@/screens/owner/BorrowerRatingDetailScreen';
 import { DepositScreen } from '@/screens/owner/DepositScreen';
 import { LoanCelebrationScreen } from '@/screens/owner/LoanCelebrationScreen';
-import { Colors } from '@/constants/colors';
+// Colors import removed — using Emerald Ledger theme inline
 import { TabIcon } from '@/components/common/TabIcon';
 import type { OwnerStackParamList, OwnerTabParamList } from './types';
 
@@ -38,10 +38,20 @@ function OwnerTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
-        tabBarStyle: { borderTopColor: Colors.border, height: 56, paddingBottom: 4 },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarActiveTintColor: '#059669',
+        tabBarInactiveTintColor: '#8a9e93',
+        tabBarStyle: {
+          backgroundColor: 'rgba(250,252,251,0.9)',
+          borderTopWidth: 0,
+          height: 64,
+          paddingBottom: 8,
+          shadowColor: 'rgba(0,33,20,0.08)',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 1,
+          shadowRadius: 20,
+          elevation: 4,
+        },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
       }}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{
