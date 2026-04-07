@@ -23,6 +23,9 @@ import { SubscriptionScreen } from '@/screens/owner/SubscriptionScreen';
 import { AIChatScreen } from '@/screens/owner/AIChatScreen';
 import { ImportScreen } from '@/screens/owner/ImportScreen';
 import { ReferralScreen } from '@/screens/owner/ReferralScreen';
+import { BorrowerRatingDetailScreen } from '@/screens/owner/BorrowerRatingDetailScreen';
+import { DepositScreen } from '@/screens/owner/DepositScreen';
+import { LoanCelebrationScreen } from '@/screens/owner/LoanCelebrationScreen';
 import { Colors } from '@/constants/colors';
 import { TabIcon } from '@/components/common/TabIcon';
 import type { OwnerStackParamList, OwnerTabParamList } from './types';
@@ -83,6 +86,9 @@ export function OwnerNavigator() {
       <Stack.Screen name="AIChat" component={AIChatScreen} options={{ title: 'AI Assistant' }} />
       <Stack.Screen name="Import" component={ImportScreen} options={{ title: 'Import' }} />
       <Stack.Screen name="Referral" component={ReferralScreen} options={{ title: 'Refer & Earn' }} />
+      <Stack.Screen name="BorrowerRating" component={BorrowerRatingDetailScreen} options={{ title: 'Borrower Rating' }} />
+      <Stack.Screen name="Deposits" component={DepositScreen} options={{ title: 'Deposits' }} />
+      <Stack.Screen name="LoanCelebration" component={LoanCelebrationScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

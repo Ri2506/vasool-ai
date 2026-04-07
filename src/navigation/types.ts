@@ -27,6 +27,10 @@ export type OwnerStackParamList = {
   Import: undefined;
   Documents: { borrowerId: string };
   Referral: undefined;
+  BorrowerRating: { id: string };
+  Deposits: undefined;
+  Guarantor: { loanId: string };
+  LoanCelebration: { borrowerName: string; principal: number; totalPaid: number; installments: number; rating: number; borrowerId: string };
 };
 
 export type OwnerTabParamList = {
