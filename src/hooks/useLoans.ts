@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   createLoanWithPlan,
+  createLoanWithTerms,
   listActiveLoans,
   listLoansForBorrower,
   listPlanEntries,
   updateLoanStatus,
   type CreateLoanInput,
+  type CreateLoanWithTermsInput,
 } from '@/db/repos/loans';
 import type { LoanStatus } from '@/db/types';
 import { useAuthStore } from '@/store/authStore';
@@ -53,6 +55,31 @@ export function useCreateLoan() {
     onSuccess: (data) => {
       if (orgId) qc.invalidateQueries({ queryKey: KEYS.active(orgId) });
       qc.invalidateQueries({ queryKey: KEYS.byBorrower(data.loan.borrower_id) });
+    },
+  });
+}
+
+/**
+ * Month 1 Week 2 — create a loan from dynamic loan config.
+ * Target path for the refactored NewLoanScreen wizard.
+ */
+export function useCreateLoanFromTerms() {
+  const qc = useQueryClient();
+  const orgId = useAuthStore((s) => s.user?.orgId ?? null);
+  return useMutation({
+    mutationFn: (input: Omit<CreateLoanWithTermsInput, 'orgId'>) => {
+      if (!orgId) throw new Error('Not signed in');
+      return createLoanWithTerms({ ...input, orgId });
+    },
+    onSuccess: (data) => {
+      if (orgId) {
+        qc.invalidateQueries({ queryKey: KEYS.active(orgId) });
+        qc.invalidateQueries({ queryKey: ['dueToday', orgId] });
+        qc.invalidateQueries({ queryKey: ['todaySummary', orgId] });
+        qc.invalidateQueries({ queryKey: ['borrower-statuses', orgId] });
+      }
+      qc.invalidateQueries({ queryKey: KEYS.byBorrower(data.loan.borrower_id) });
+      qc.invalidateQueries({ queryKey: KEYS.plan(data.loan.id) });
     },
   });
 }

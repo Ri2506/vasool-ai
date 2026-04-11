@@ -44,6 +44,9 @@ export function MonthlySummaryScreen() {
   const collected = smart?.monthCollected ?? 0;
   const lent = smart?.monthLent ?? 0;
   const expenses = smart?.monthExpenses ?? 0;
+  const interestEarned = smart?.monthInterestEarned ?? 0;
+  const principalRecovered = smart?.monthPrincipalRecovered ?? 0;
+  const capitalAtRisk = smart?.capitalAtRisk ?? 0;
 
   return (
     <SafeAreaView style={Common.screen}>
@@ -62,11 +65,25 @@ export function MonthlySummaryScreen() {
 
         {/* Stats Grid (2x2) */}
         <View style={styles.statsGrid}>
-          <StatCard label="Collected" value={formatRupees(collected)} color={EL.primary} barColor={EL.primary} />
-          <StatCard label="Lent out" value={formatRupees(lent)} color={EL.secondary} barColor={EL.secondary} />
+          <StatCard label="Interest earned" value={formatRupees(interestEarned)} color={EL.primary} barColor={EL.primary} />
+          <StatCard label="Principal recovered" value={formatRupees(principalRecovered)} color={EL.secondary} barColor={EL.secondary} />
           <StatCard label="Expenses" value={formatRupees(expenses)} color={EL.tertiaryContainer} barColor={EL.tertiaryContainer} />
-          <StatCard label="Profit" value={formatRupees(profit)} color={EL.primary} barColor={EL.primaryContainer} />
+          <StatCard label="Lent out" value={formatRupees(lent)} color={EL.onSurfaceSec} barColor={EL.onSurfaceSec} />
         </View>
+
+        {/* Capital at Risk — only show if there's interest-only principal outstanding */}
+        {capitalAtRisk > 0 ? (
+          <View style={styles.carCard}>
+            <View style={styles.carHeader}>
+              <MaterialCommunityIcons name="shield-alert-outline" size={18} color={EL.warn} />
+              <Text style={styles.carLabel}>Capital at Risk</Text>
+            </View>
+            <Text style={styles.carValue}>{formatRupees(capitalAtRisk)}</Text>
+            <Text style={styles.carHint}>
+              Outstanding principal on active interest-only loans
+            </Text>
+          </View>
+        ) : null}
 
         {/* Performance Highlights */}
         <Text style={styles.sectionTitle}>Performance Highlights</Text>
@@ -254,6 +271,38 @@ const styles = StyleSheet.create({
     width: 32,
     borderRadius: 2,
     marginTop: Space.md,
+  },
+
+  // Capital at Risk card
+  carCard: {
+    backgroundColor: 'rgba(217, 119, 6, 0.08)',
+    borderRadius: Radii.lg,
+    padding: Space.xl,
+    marginBottom: Space.xl,
+  },
+  carHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.sm,
+  },
+  carLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: EL.warn,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  carValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: EL.warn,
+    letterSpacing: -0.5,
+    marginTop: Space.xs,
+  },
+  carHint: {
+    fontSize: 12,
+    color: EL.onSurfaceMuted,
+    marginTop: Space.xs,
   },
 
   // Section

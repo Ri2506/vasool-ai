@@ -47,8 +47,20 @@ export function LoanPlanScreen({ route }: Props) {
 
   const handleSharePlan = async () => {
     if (!plan || plan.length === 0) return;
-    const html = generatePlanHtml('Borrower', 0, plan[0]?.expected_amount ?? 0,
-      plan.map((p) => ({ number: p.installment_number, date: p.due_date, amount: p.expected_amount, status: p.status })));
+    const html = generatePlanHtml(
+      'Borrower',
+      0,
+      plan[0]?.expected_amount ?? 0,
+      plan.map((p) => ({
+        number: p.installment_number,
+        date: p.due_date,
+        amount: p.expected_amount,
+        status: p.status,
+        // Schema v3 — pass the split so the PDF shows principal vs interest columns
+        principalPortion: p.principal_portion,
+        interestPortion: p.interest_portion,
+      })),
+    );
     await sharePdf(html, 'VasoolAI-Repayment-Plan');
   };
 

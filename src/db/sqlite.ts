@@ -10,7 +10,7 @@
 // getFirstAsync / withTransactionAsync — the expo-sqlite subset we rely on.
 
 import * as SQLite from 'expo-sqlite';
-import { DDL, SCHEMA_VERSION } from './schema';
+import { DDL, MIGRATIONS, SCHEMA_VERSION } from './schema';
 
 export type Db = SQLite.SQLiteDatabase;
 
@@ -30,9 +30,40 @@ async function migrate(db: Db): Promise<void> {
   } catch {
     // ignore
   }
+
+  // Create all tables (idempotent — IF NOT EXISTS). This covers fresh installs.
   for (const stmt of DDL) {
     await db.execAsync(stmt);
   }
+
+  // Read the stored version. Default to 0 if first run (no row yet).
+  const row = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM _meta WHERE key = 'schema_version'`
+  );
+  const storedVersion = row ? Number(row.value) : 0;
+
+  // Run each migration whose target version is greater than what's stored.
+  // Each ALTER is wrapped in try/catch so "duplicate column" from a partial
+  // prior migration does not block the rest.
+  for (const [versionStr, statements] of Object.entries(MIGRATIONS)) {
+    const targetVersion = Number(versionStr);
+    if (storedVersion >= targetVersion) continue;
+    for (const stmt of statements) {
+      try {
+        await db.execAsync(stmt);
+      } catch (e) {
+        const msg = (e as Error)?.message ?? '';
+        if (/duplicate column/i.test(msg) || /already exists/i.test(msg)) {
+          // column already present — safe to skip
+          continue;
+        }
+        // eslint-disable-next-line no-console
+        console.warn(`[db/migrate] statement failed (v${targetVersion}):`, msg);
+      }
+    }
+  }
+
+  // Persist the current version.
   await db.runAsync(
     `INSERT OR REPLACE INTO _meta (key, value) VALUES ('schema_version', ?)`,
     [String(SCHEMA_VERSION)]

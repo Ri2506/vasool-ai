@@ -3,8 +3,15 @@
 // for dates (SQLite has no TIMESTAMPTZ). Every table carries server_id
 // (nullable — populated after first successful push) and `dirty` (1 if the
 // row has local changes not yet pushed to Supabase).
+//
+// Schema history:
+//  v1 — initial tables
+//  v2 — added guarantors, deposits, principal_returns
+//  v3 — added dynamic loan config (repayment_type, interest_type,
+//       interest_rate, disbursed_amount on loans; principal_portion,
+//       interest_portion on plan_entries)
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export const DDL = [
   `CREATE TABLE IF NOT EXISTS organizations (
@@ -79,6 +86,10 @@ export const DDL = [
     product_description TEXT,
     penalty_type TEXT,
     penalty_amount REAL NOT NULL DEFAULT 0,
+    repayment_type TEXT NOT NULL DEFAULT 'principal_plus_interest',
+    interest_type TEXT NOT NULL DEFAULT 'front_loaded',
+    interest_rate REAL NOT NULL DEFAULT 0,
+    disbursed_amount REAL,
     created_at INTEGER NOT NULL,
     dirty INTEGER NOT NULL DEFAULT 0
   )`,
@@ -93,6 +104,8 @@ export const DDL = [
     installment_number INTEGER NOT NULL,
     due_date INTEGER NOT NULL,
     expected_amount REAL NOT NULL,
+    principal_portion REAL NOT NULL DEFAULT 0,
+    interest_portion REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
     dirty INTEGER NOT NULL DEFAULT 0
   )`,
@@ -227,3 +240,34 @@ export const DDL = [
     value TEXT NOT NULL
   )`,
 ];
+
+/**
+ * Versioned ALTER statements for upgrading existing databases.
+ * Each entry's SQL runs when the stored schema_version is less than the key.
+ * Statements should be idempotent where possible; the migrate() runner
+ * wraps each in a try/catch so "duplicate column" errors are tolerated —
+ * that makes it safe to re-run on already-migrated databases.
+ */
+export const MIGRATIONS: Record<number, string[]> = {
+  3: [
+    // Dynamic loan config — add to loans table
+    `ALTER TABLE loans ADD COLUMN repayment_type TEXT NOT NULL DEFAULT 'principal_plus_interest'`,
+    `ALTER TABLE loans ADD COLUMN interest_type TEXT NOT NULL DEFAULT 'front_loaded'`,
+    `ALTER TABLE loans ADD COLUMN interest_rate REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE loans ADD COLUMN disbursed_amount REAL`,
+    // Principal/interest split — add to plan_entries
+    `ALTER TABLE plan_entries ADD COLUMN principal_portion REAL NOT NULL DEFAULT 0`,
+    `ALTER TABLE plan_entries ADD COLUMN interest_portion REAL NOT NULL DEFAULT 0`,
+    // Backfill: existing loans linked to *_interest lines become interest_only
+    `UPDATE loans
+       SET repayment_type = 'interest_only'
+     WHERE line_id IN (
+       SELECT id FROM lines
+        WHERE type = 'daily_interest'
+           OR type = 'weekly_interest'
+           OR type = 'monthly_interest'
+     )`,
+    // Backfill: disbursed_amount defaults to principal for old rows
+    `UPDATE loans SET disbursed_amount = principal WHERE disbursed_amount IS NULL`,
+  ],
+};

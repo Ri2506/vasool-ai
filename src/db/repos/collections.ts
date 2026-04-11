@@ -1,6 +1,12 @@
 import { openDb, uuid, now } from '@/db';
 import type { CollectionRow } from '@/db/types';
 
+// Module-level set tracking loan IDs that need their interest-only plan
+// extended after the current recordCollection transaction commits.
+// Can't extend inside the same transaction because extendInterestOnlyPlan
+// opens its own (expo-sqlite doesn't allow nested transactions).
+const _pendingExtensions = new Set<string>();
+
 export interface DueTodayItem {
   plan_entry_id: string;
   loan_id: string;
@@ -153,38 +159,74 @@ export async function recordCollection(
       }
     }
 
-    // Auto loan closure: check if all plan entries are paid/advance_covered.
-    // For interest-only loans, also verify principal is fully returned.
+    // Auto loan closure (schema v3 — uses loans.repayment_type directly,
+    // no more fragile line_type string matching).
+    //
+    //   principal_plus_interest → close when all plan entries paid
+    //   interest_only           → extend plan if principal not returned,
+    //                             close only when all entries paid AND
+    //                             principal fully returned via principal_returns
     const remaining = await db.getFirstAsync<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM plan_entries
        WHERE loan_id = ? AND status IN ('pending', 'partial')`,
       [input.loanId]
     );
+
     if (remaining && remaining.cnt === 0) {
-      // Check if this is an interest-only loan
-      const loan = await db.getFirstAsync<{ status: string; principal: number; line_id: string }>(
-        `SELECT l.status, l.principal, ln.type AS line_type FROM loans l
-         LEFT JOIN lines ln ON ln.id = l.line_id WHERE l.id = ?`,
+      const loan = await db.getFirstAsync<{
+        repayment_type: string;
+        principal: number;
+      }>(
+        `SELECT repayment_type, principal FROM loans WHERE id = ?`,
         [input.loanId]
       );
-      const isInterestOnly = loan && ['daily_interest', 'weekly_interest', 'monthly_interest'].includes((loan as any).line_type);
 
-      if (isInterestOnly) {
-        // Only close if principal is fully returned
+      if (loan?.repayment_type === 'interest_only') {
+        // Check whether principal has been fully returned via principal_returns
         const returned = await db.getFirstAsync<{ total: number }>(
           `SELECT COALESCE(SUM(amount), 0) AS total FROM principal_returns
            WHERE loan_id = ? AND amount > 0`,
           [input.loanId]
         );
-        const principal = loan?.principal ?? 0;
-        if ((returned?.total ?? 0) >= principal) {
-          await db.runAsync(`UPDATE loans SET status = 'closed', dirty = 1 WHERE id = ?`, [input.loanId]);
+        const principalReturned = returned?.total ?? 0;
+        const principalOwed = loan.principal ?? 0;
+
+        if (principalReturned >= principalOwed) {
+          // Principal fully returned AND no more scheduled entries → close.
+          await db.runAsync(
+            `UPDATE loans SET status = 'closed', dirty = 1 WHERE id = ?`,
+            [input.loanId]
+          );
+        } else {
+          // Rolling interest-only loan — principal still outstanding, so
+          // extend the plan with another window of interest collections.
+          // We flag the loan for extension; the actual extension runs
+          // post-transaction via extendInterestOnlyPlan() (called from
+          // the repo wrapper below so it doesn't nest transactions).
+          _pendingExtensions.add(input.loanId);
         }
       } else {
-        await db.runAsync(`UPDATE loans SET status = 'closed', dirty = 1 WHERE id = ?`, [input.loanId]);
+        // principal_plus_interest (or null for legacy rows) → close immediately
+        await db.runAsync(
+          `UPDATE loans SET status = 'closed', dirty = 1 WHERE id = ?`,
+          [input.loanId]
+        );
       }
     }
   });
+
+  // Run any interest-only plan extensions outside the transaction.
+  // extendInterestOnlyPlan() opens its own transaction so nesting is forbidden.
+  if (_pendingExtensions.has(input.loanId)) {
+    _pendingExtensions.delete(input.loanId);
+    try {
+      const { extendInterestOnlyPlan } = await import('@/db/repos/loans');
+      await extendInterestOnlyPlan(input.loanId);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[recordCollection] extendInterestOnlyPlan failed:', e);
+    }
+  }
 
   return collection;
 }

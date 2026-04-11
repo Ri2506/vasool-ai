@@ -111,37 +111,78 @@ export function HomeScreen() {
 
             {/* Two-column metric cards */}
             {smart ? (
-              <View style={styles.metricsRow}>
-                <ELCard style={styles.metricCard}>
-                  <Text style={styles.metricLabel}>This month profit</Text>
-                  <Text style={[
-                    styles.metricValue,
-                    { color: smart.monthProfit >= 0 ? EL.primary : EL.nippu },
-                  ]}>
-                    {formatRupees(smart.monthProfit)}
-                  </Text>
-                  <View style={styles.trendRow}>
-                    <MaterialCommunityIcons
-                      name={smart.monthProfit >= 0 ? 'trending-up' : 'trending-down'}
-                      size={14}
-                      color={smart.monthProfit >= 0 ? EL.primary : EL.nippu}
-                    />
-                    <Text style={[styles.trendText, { color: smart.monthProfit >= 0 ? EL.primary : EL.nippu }]}>
-                      {smart.monthProfit >= 0 ? 'Profitable month' : 'Loss this month'}
+              <>
+                <View style={styles.metricsRow}>
+                  <ELCard style={styles.metricCard}>
+                    <Text style={styles.metricLabel}>This month profit</Text>
+                    <Text style={[
+                      styles.metricValue,
+                      { color: smart.monthProfit >= 0 ? EL.primary : EL.nippu },
+                    ]}>
+                      {formatRupees(smart.monthProfit)}
                     </Text>
-                  </View>
-                </ELCard>
-
-                <Pressable onPress={() => setShowBreakdown(true)} style={{ flex: 1 }}>
-                  <ELCard style={[styles.metricCard, { flex: undefined }]}>
-                    <Text style={styles.metricLabel}>Available to lend</Text>
-                    <Text style={styles.metricValueDark}>
-                      {formatRupees(smart.availableToLend)}
-                    </Text>
-                    <Text style={styles.metricHint}>Ready to disburse</Text>
+                    <View style={styles.trendRow}>
+                      <MaterialCommunityIcons
+                        name={smart.monthProfit >= 0 ? 'trending-up' : 'trending-down'}
+                        size={14}
+                        color={smart.monthProfit >= 0 ? EL.primary : EL.nippu}
+                      />
+                      <Text style={[styles.trendText, { color: smart.monthProfit >= 0 ? EL.primary : EL.nippu }]}>
+                        Interest - expenses
+                      </Text>
+                    </View>
                   </ELCard>
-                </Pressable>
-              </View>
+
+                  <Pressable onPress={() => setShowBreakdown(true)} style={{ flex: 1 }}>
+                    <ELCard style={[styles.metricCard, { flex: undefined }]}>
+                      <Text style={styles.metricLabel}>Available to lend</Text>
+                      <Text style={styles.metricValueDark}>
+                        {formatRupees(smart.availableToLend)}
+                      </Text>
+                      <Text style={styles.metricHint}>Ready to disburse</Text>
+                    </ELCard>
+                  </Pressable>
+                </View>
+
+                {/* Principal vs Interest split */}
+                <View style={styles.metricsRow}>
+                  <ELCard style={styles.metricCard}>
+                    <Text style={styles.metricLabel}>Interest earned</Text>
+                    <Text style={[styles.metricValue, { color: EL.primary }]}>
+                      {formatRupees(smart.monthInterestEarned)}
+                    </Text>
+                    <Text style={styles.metricHint}>This month</Text>
+                  </ELCard>
+
+                  <ELCard style={styles.metricCard}>
+                    <Text style={styles.metricLabel}>Principal recovered</Text>
+                    <Text style={styles.metricValueDark}>
+                      {formatRupees(smart.monthPrincipalRecovered)}
+                    </Text>
+                    <Text style={styles.metricHint}>Capital returning</Text>
+                  </ELCard>
+                </View>
+
+                {/* Capital at Risk — only show if > 0 (interest-only loans outstanding) */}
+                {smart.capitalAtRisk > 0 ? (
+                  <View style={styles.carSection}>
+                    <ELCard style={styles.carCard}>
+                      <View style={styles.carHeader}>
+                        <MaterialCommunityIcons
+                          name="shield-alert-outline"
+                          size={18}
+                          color={EL.warn}
+                        />
+                        <Text style={styles.carLabel}>Capital at Risk</Text>
+                      </View>
+                      <Text style={styles.carValue}>{formatRupees(smart.capitalAtRisk)}</Text>
+                      <Text style={styles.carHint}>
+                        Outstanding principal on interest-only loans
+                      </Text>
+                    </ELCard>
+                  </View>
+                ) : null}
+              </>
             ) : null}
 
             {/* Today's Progress section */}
@@ -324,6 +365,43 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.body,
     fontSize: 11,
     fontWeight: '500',
+    color: EL.onSurfaceMuted,
+    marginTop: Space.xs,
+  },
+
+  /* ── Capital at Risk ── */
+  carSection: {
+    paddingHorizontal: Space.lg,
+    marginTop: Space.md,
+  },
+  carCard: {
+    padding: Space.lg,
+    backgroundColor: 'rgba(217, 119, 6, 0.08)',
+  },
+  carHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.sm,
+  },
+  carLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    fontWeight: '600',
+    color: EL.warn,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  carValue: {
+    fontFamily: Fonts.headline,
+    fontSize: 24,
+    fontWeight: '800',
+    color: EL.warn,
+    letterSpacing: -0.48,
+    marginTop: Space.xs,
+  },
+  carHint: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
     color: EL.onSurfaceMuted,
     marginTop: Space.xs,
   },

@@ -39,13 +39,58 @@ export function generateReportHtml(
 
 /**
  * Generate HTML for a loan repayment plan (Thittam).
+ *
+ * Each plan entry can optionally carry principal/interest portion — when
+ * present they are shown as separate columns and totaled in the footer so
+ * the owner can see exactly how much of each installment is profit vs
+ * capital recovery. Falls back to the old 4-column layout when the
+ * portions are missing (legacy calls).
  */
+export interface PlanHtmlEntry {
+  number: number;
+  date: number;
+  amount: number;
+  status: string;
+  principalPortion?: number;
+  interestPortion?: number;
+}
+
 export function generatePlanHtml(
   borrowerName: string,
   principal: number,
   emiAmount: number,
-  plan: Array<{ number: number; date: number; amount: number; status: string }>
+  plan: Array<PlanHtmlEntry>
 ): string {
+  const hasSplit = plan.some(
+    (p) => typeof p.principalPortion === 'number' && typeof p.interestPortion === 'number',
+  );
+
+  if (hasSplit) {
+    const rows = plan.map((p) => [
+      String(p.number),
+      formatDateShort(new Date(p.date)),
+      formatRupees(p.principalPortion ?? 0),
+      formatRupees(p.interestPortion ?? 0),
+      formatRupees(p.amount),
+      p.status,
+    ]);
+
+    const totalPrincipal = plan.reduce((s, p) => s + (p.principalPortion ?? 0), 0);
+    const totalInterest = plan.reduce((s, p) => s + (p.interestPortion ?? 0), 0);
+    const totalAmount = plan.reduce((s, p) => s + p.amount, 0);
+
+    return generateReportHtml(
+      `Repayment Plan \u2014 ${borrowerName}`,
+      ['#', 'Date', 'Principal', 'Interest', 'Total', 'Status'],
+      rows,
+      `Disbursed: ${formatRupees(principal)} \u2022 `
+        + `Principal total: ${formatRupees(totalPrincipal)} \u2022 `
+        + `Interest total: ${formatRupees(totalInterest)} \u2022 `
+        + `Grand total: ${formatRupees(totalAmount)}`,
+    );
+  }
+
+  // Legacy layout — no split available
   const rows = plan.map((p) => [
     String(p.number),
     formatDateShort(new Date(p.date)),
@@ -53,10 +98,10 @@ export function generatePlanHtml(
     p.status,
   ]);
   return generateReportHtml(
-    `Repayment Plan — ${borrowerName}`,
+    `Repayment Plan \u2014 ${borrowerName}`,
     ['#', 'Date', 'Amount', 'Status'],
     rows,
-    `Principal: ${formatRupees(principal)} • EMI: ${formatRupees(emiAmount)} • Total: ${formatRupees(emiAmount * plan.length)}`
+    `Principal: ${formatRupees(principal)} \u2022 EMI: ${formatRupees(emiAmount)} \u2022 Total: ${formatRupees(emiAmount * plan.length)}`,
   );
 }
 

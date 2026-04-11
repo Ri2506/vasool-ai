@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -45,6 +46,9 @@ export function CollectScreen({ route, navigation }: Props) {
   const [showAdvance, setShowAdvance] = useState(false);
   const [advancePeriods, setAdvancePeriods] = useState(0);
   const [gpsStatus, setGpsStatus] = useState<'pending' | 'captured' | 'unavailable'>('pending');
+  const [showReturnPrincipal, setShowReturnPrincipal] = useState(false);
+  const [principalReturnAmount, setPrincipalReturnAmount] = useState('');
+  const [principalReturning, setPrincipalReturning] = useState(false);
 
   useEffect(() => {
     getLocation()
@@ -116,6 +120,31 @@ export function CollectScreen({ route, navigation }: Props) {
       await doRecord(false);
     } catch (e: any) {
       Alert.alert(t('common.error_generic'), e?.message ?? '');
+    }
+  };
+
+  // ── Return Principal (interest-only loans only) ──
+  const handleReturnPrincipal = async () => {
+    const amt = Number(principalReturnAmount);
+    if (amt <= 0) {
+      Alert.alert('Invalid amount', 'Please enter a positive principal return amount.');
+      return;
+    }
+    setPrincipalReturning(true);
+    try {
+      const { recordPrincipalReturn } = await import('@/db/repos/principalReturns');
+      await recordPrincipalReturn(orgId, item.loan_id, amt, 'Principal return');
+      setShowReturnPrincipal(false);
+      setPrincipalReturnAmount('');
+      Alert.alert(
+        'Principal returned',
+        `${formatRupees(amt)} recorded as principal return. The outstanding principal has been reduced.`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    } catch (e: any) {
+      Alert.alert(t('common.error_generic'), e?.message ?? 'Failed to record principal return');
+    } finally {
+      setPrincipalReturning(false);
     }
   };
 
@@ -318,6 +347,18 @@ export function CollectScreen({ route, navigation }: Props) {
           </Text>
           <MaterialCommunityIcons name="check-circle" size={20} color={EL.white} />
         </Pressable>
+        {isInterestOnlyLoan && (
+          <Pressable
+            style={styles.returnPrincipalBtn}
+            onPress={() => {
+              setPrincipalReturnAmount('');
+              setShowReturnPrincipal(true);
+            }}
+          >
+            <MaterialCommunityIcons name="cash-refund" size={18} color={EL.primary} />
+            <Text style={styles.returnPrincipalText}>Return Principal</Text>
+          </Pressable>
+        )}
         <View style={styles.footerIndicators}>
           <View style={styles.indicator}>
             <MaterialCommunityIcons
@@ -407,6 +448,81 @@ export function CollectScreen({ route, navigation }: Props) {
               style={{ marginTop: Space.xl }}
             />
           </View>
+        </Pressable>
+      </Modal>
+
+      {/* ── Return Principal Bottom Sheet (interest-only loans) ── */}
+      <Modal
+        visible={showReturnPrincipal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowReturnPrincipal(false)}
+      >
+        <Pressable
+          style={[Glass.dark, styles.sheetBackdrop]}
+          onPress={() => setShowReturnPrincipal(false)}
+        >
+          <Pressable style={[Glass.container, styles.returnSheet]} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.sheetHandle} />
+
+            <Text style={styles.advanceTitle}>Return Principal</Text>
+            <Text style={styles.advanceEmi}>
+              Borrower is returning part or all of the principal
+            </Text>
+
+            {/* Amount input */}
+            <View style={styles.returnAmountBox}>
+              <Text style={styles.returnAmountLabel}>AMOUNT TO RETURN</Text>
+              <View style={styles.returnAmountRow}>
+                <Text style={styles.returnCurrency}>{'\u20B9'}</Text>
+                <TextInput
+                  style={styles.returnAmountInput}
+                  value={principalReturnAmount}
+                  onChangeText={(v) => setPrincipalReturnAmount(v.replace(/\D/g, ''))}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={EL.outlineVariant}
+                  autoFocus
+                />
+              </View>
+            </View>
+
+            {/* Quick amount suggestions */}
+            <View style={styles.returnChipRow}>
+              {[
+                { label: '25%', value: Math.round(item.loan_principal * 0.25) },
+                { label: '50%', value: Math.round(item.loan_principal * 0.5) },
+                { label: '100%', value: item.loan_principal },
+              ].map((chip) => (
+                <Pressable
+                  key={chip.label}
+                  style={styles.returnChip}
+                  onPress={() => setPrincipalReturnAmount(String(chip.value))}
+                >
+                  <Text style={styles.returnChipLabel}>{chip.label}</Text>
+                  <Text style={styles.returnChipValue}>{formatRupees(chip.value)}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Info note */}
+            <View style={styles.advanceInfo}>
+              <MaterialCommunityIcons name="information-outline" size={16} color={EL.primary} />
+              <Text style={styles.advanceInfoText}>
+                Principal returns reduce the outstanding loan amount. Daily interest continues
+                until the full principal is returned.
+              </Text>
+            </View>
+
+            <GradientButton
+              title={`Record Return ${formatRupees(Number(principalReturnAmount) || 0)}`}
+              onPress={handleReturnPrincipal}
+              loading={principalReturning}
+              disabled={!(Number(principalReturnAmount) > 0)}
+              icon={<MaterialCommunityIcons name="cash-refund" size={20} color={EL.white} />}
+              style={{ marginTop: Space.xl }}
+            />
+          </Pressable>
         </Pressable>
       </Modal>
     </SafeAreaView>
@@ -654,6 +770,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: EL.white,
   },
+  returnPrincipalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.sm,
+    width: '100%',
+    paddingVertical: Space.md,
+    borderRadius: Radii.md,
+    borderWidth: 2,
+    borderColor: 'rgba(0, 105, 72, 0.3)',
+    backgroundColor: 'rgba(0, 105, 72, 0.05)',
+  },
+  returnPrincipalText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: EL.primary,
+    letterSpacing: 0.3,
+  },
   footerIndicators: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -752,5 +886,75 @@ const styles = StyleSheet.create({
     color: EL.onSurfaceSec,
     flex: 1,
     lineHeight: 20,
+  },
+
+  // Return principal sheet
+  returnSheet: {
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: Space.xl,
+    paddingBottom: Space.xxxl + 8,
+    ...Shadows.float,
+  },
+  returnAmountBox: {
+    width: '100%',
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.lg,
+    padding: Space.xl,
+    marginVertical: Space.xl,
+    alignItems: 'center',
+  },
+  returnAmountLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: EL.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: Space.sm,
+  },
+  returnAmountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  returnCurrency: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: 'rgba(19, 30, 25, 0.4)',
+  },
+  returnAmountInput: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: EL.onSurface,
+    letterSpacing: -1,
+    minWidth: 120,
+    textAlign: 'center',
+  },
+  returnChipRow: {
+    flexDirection: 'row',
+    gap: Space.md,
+    marginBottom: Space.lg,
+  },
+  returnChip: {
+    flex: 1,
+    paddingVertical: Space.md,
+    paddingHorizontal: Space.sm,
+    borderRadius: Radii.md,
+    backgroundColor: EL.surfaceCard,
+    alignItems: 'center',
+    ...Shadows.card,
+  },
+  returnChipLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: EL.primary,
+    letterSpacing: 0.5,
+  },
+  returnChipValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: EL.onSurfaceSec,
+    marginTop: 2,
   },
 });

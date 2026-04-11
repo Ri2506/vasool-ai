@@ -15,6 +15,12 @@ export type ExpenseCategory = 'petrol' | 'food' | 'travel' | 'phone' | 'other';
 export type PenaltyType = 'flat' | 'percentage';
 export type DepositStatus = 'active' | 'matured' | 'closed';
 
+// Dynamic loan config (Month 1 — schema v3)
+export type RepaymentType = 'principal_plus_interest' | 'interest_only';
+export type InterestType = 'front_loaded' | 'flat' | 'reducing' | 'none';
+export type CollectionFrequency = 'daily' | 'weekly' | 'monthly';
+export type InterestRatePeriod = 'day' | 'week' | 'month' | 'year';
+
 export interface BaseRow {
   id: string;          // local UUID (generated client-side)
   server_id: string | null;
@@ -72,6 +78,11 @@ export interface LoanRow extends BaseRow {
   product_description: string | null;
   penalty_type: PenaltyType | null;
   penalty_amount: number;
+  // Dynamic loan config (schema v3)
+  repayment_type: RepaymentType;
+  interest_type: InterestType;
+  interest_rate: number;
+  disbursed_amount: number | null;
 }
 
 export interface PlanEntryRow {
@@ -82,6 +93,8 @@ export interface PlanEntryRow {
   installment_number: number;
   due_date: number;
   expected_amount: number;
+  principal_portion: number;
+  interest_portion: number;
   status: PlanEntryStatus;
 }
 

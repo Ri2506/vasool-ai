@@ -12,7 +12,7 @@
 // IndexedDB via idb-keyval for multi-MB datasets.
 
 import initSqlJs, { type Database as SqlJsDatabase, type SqlJsStatic } from 'sql.js';
-import { DDL, SCHEMA_VERSION } from './schema';
+import { DDL, MIGRATIONS, SCHEMA_VERSION } from './schema';
 
 const STORAGE_KEY = 'vasool.sqlite.blob';
 
@@ -124,6 +124,14 @@ function makeDb(handle: SqlJsDatabase): Db {
   return wrap;
 }
 
+function runSql(handle: SqlJsDatabase, sql: string): void {
+  handle.exec(sql);
+}
+
+function querySql(handle: SqlJsDatabase, sql: string) {
+  return handle.exec(sql);
+}
+
 export async function openDb(): Promise<Db> {
   if (_db) return _db;
   const SQL = await loadSqlJs();
@@ -132,8 +140,39 @@ export async function openDb(): Promise<Db> {
 
   // Run schema DDL. CREATE TABLE IF NOT EXISTS makes this idempotent.
   for (const stmt of DDL) {
-    _handle.exec(stmt);
+    runSql(_handle, stmt);
   }
+
+  // Read stored version from _meta (default 0 for first run).
+  let storedVersion = 0;
+  try {
+    const res = querySql(_handle, `SELECT value FROM _meta WHERE key = 'schema_version'`);
+    if (res.length > 0 && res[0].values.length > 0) {
+      storedVersion = Number(res[0].values[0][0]);
+    }
+  } catch {
+    // _meta may not exist on first run — default to 0
+  }
+
+  // Apply versioned migrations in order. Each ALTER is try/wrapped so
+  // "duplicate column" errors from partial prior migrations don't block.
+  for (const [versionStr, statements] of Object.entries(MIGRATIONS)) {
+    const targetVersion = Number(versionStr);
+    if (storedVersion >= targetVersion) continue;
+    for (const stmt of statements) {
+      try {
+        runSql(_handle, stmt);
+      } catch (e) {
+        const msg = (e as Error)?.message ?? '';
+        if (/duplicate column/i.test(msg) || /already exists/i.test(msg)) {
+          continue;
+        }
+        // eslint-disable-next-line no-console
+        console.warn(`[sqlite.web/migrate] v${targetVersion} failed:`, msg);
+      }
+    }
+  }
+
   _handle.run(
     `INSERT OR REPLACE INTO _meta (key, value) VALUES ('schema_version', ?)`,
     [String(SCHEMA_VERSION)]

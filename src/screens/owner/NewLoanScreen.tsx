@@ -1,3 +1,20 @@
+// NewLoanScreen — dynamic loan config wizard (Month 1 Week 2)
+//
+// Five-step flow that lets the owner configure any loan structure:
+//   1. Disbursement  — amount + optional line
+//   2. Repayment type — principal+interest or interest-only
+//   3. Interest      — type (front_loaded/flat/reducing/none), rate, period
+//   4. Frequency     — daily/weekly/monthly, tenure count, start date, grace
+//   5. Preview       — live numbers via computeLoanTerms(), confirm + create
+//
+// All six loan structures supported by computeLoanTerms are reachable:
+//   - Thandal classic (P+I, front_loaded, daily)
+//   - Flat interest (P+I, flat, any freq)
+//   - Reducing EMI (P+I, reducing, monthly)
+//   - Interest-only rolling (I-only, flat)
+//   - Interest-only + upfront fee (I-only, front_loaded)
+//   - Zero interest (P+I, none)
+
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
@@ -19,383 +36,824 @@ import { Avatar } from '@/components/common/Avatar';
 import { GradientButton } from '@/components/common/GradientButton';
 import { EL, Common, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { useLines } from '@/hooks/useLines';
-import { useCreateLoan } from '@/hooks/useLoans';
+import { useCreateLoanFromTerms } from '@/hooks/useLoans';
 import { useBorrower } from '@/hooks/useBorrowers';
-import { computeLoan, suggestEmi } from '@/utils/loanCalc';
+import { computeLoanTerms, type ComputeLoanTermsInput } from '@/utils/loanCalc';
 import { formatDateShort, formatRupees } from '@/utils/format';
-import type { LineType } from '@/db/types';
+import type {
+  RepaymentType,
+  InterestType,
+  CollectionFrequency,
+  InterestRatePeriod,
+} from '@/db/types';
 import type { OwnerStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<OwnerStackParamList, 'NewLoan'>;
+
+// ─── Step config ───────────────────────────────────────────────────────
+
+const STEPS = [
+  { key: 'disbursement', label: 'Amount' },
+  { key: 'repayment', label: 'Repayment' },
+  { key: 'interest', label: 'Interest' },
+  { key: 'frequency', label: 'Schedule' },
+  { key: 'preview', label: 'Review' },
+] as const;
+
+type StepKey = (typeof STEPS)[number]['key'];
+
+// Quick presets for owner convenience
+const REPAYMENT_OPTIONS: Array<{ value: RepaymentType; label: string; sub: string }> = [
+  {
+    value: 'principal_plus_interest',
+    label: 'Principal + Interest',
+    sub: 'Loan closes when all installments paid',
+  },
+  {
+    value: 'interest_only',
+    label: 'Interest Only',
+    sub: 'Principal returned separately, loan rolls',
+  },
+];
+
+const INTEREST_OPTIONS: Array<{ value: InterestType; label: string; sub: string }> = [
+  { value: 'front_loaded', label: 'Front Loaded', sub: '"Write ₹X on top of disbursed"' },
+  { value: 'flat', label: 'Flat', sub: 'Rate × principal × time' },
+  { value: 'reducing', label: 'Reducing Balance', sub: 'Standard EMI amortization' },
+  { value: 'none', label: 'No Interest', sub: 'Zero markup, pay back exactly' },
+];
+
+const FREQUENCY_OPTIONS: Array<{ value: CollectionFrequency; label: string; sub: string }> = [
+  { value: 'daily', label: 'Daily', sub: 'Collect every day' },
+  { value: 'weekly', label: 'Weekly', sub: 'Collect once a week' },
+  { value: 'monthly', label: 'Monthly', sub: 'Collect once a month' },
+];
+
+const RATE_PERIOD_OPTIONS: Array<{ value: InterestRatePeriod; label: string }> = [
+  { value: 'day', label: '/ day' },
+  { value: 'week', label: '/ week' },
+  { value: 'month', label: '/ month' },
+  { value: 'year', label: '/ year' },
+];
+
+// ─── Main component ────────────────────────────────────────────────────
 
 export function NewLoanScreen({ route, navigation }: Props) {
   const { t } = useTranslation();
   const { borrowerId } = route.params;
   const { data: borrower } = useBorrower(borrowerId);
   const { data: lines } = useLines();
-  const createLoan = useCreateLoan();
+  const createLoan = useCreateLoanFromTerms();
 
-  const [principal, setPrincipal] = useState('');
-  const [emiAmount, setEmiAmount] = useState('');
-  const [emiTouched, setEmiTouched] = useState(false);
-  const [installments, setInstallments] = useState('');
+  const [stepIndex, setStepIndex] = useState(0);
+  const step: StepKey = STEPS[stepIndex].key;
+
+  // ── Form state ──
+  const [disbursedAmount, setDisbursedAmount] = useState('');
   const [lineId, setLineId] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [repaymentType, setRepaymentType] = useState<RepaymentType>('principal_plus_interest');
+  const [interestType, setInterestType] = useState<InterestType>('front_loaded');
+  const [interestRate, setInterestRate] = useState(''); // displayed as percent, e.g. "2" = 2%
+  const [interestRatePeriod, setInterestRatePeriod] = useState<InterestRatePeriod>('month');
+  const [upfrontFee, setUpfrontFee] = useState('');
+  const [frequency, setFrequency] = useState<CollectionFrequency>('daily');
+  const [tenureCount, setTenureCount] = useState('');
+  const [startDate, setStartDate] = useState<Date>(() => new Date());
   const [gracePeriod, setGracePeriod] = useState(0);
-  const [productDesc, setProductDesc] = useState('');
-  const [penaltyType, setPenaltyType] = useState<'none' | 'flat' | 'percentage'>('none');
-  const [penaltyAmount, setPenaltyAmount] = useState('');
 
-  const selectedLine = lines?.find((l) => l.id === lineId);
-  const lineType: LineType = selectedLine?.type ?? 'daily';
-  const isInterestOnly = lineType === 'daily_interest' || lineType === 'weekly_interest' || lineType === 'monthly_interest';
+  // ── Derived values ──
+  const disbursedNum = Number(disbursedAmount) || 0;
+  const rateDecimal = (Number(interestRate) || 0) / 100;
+  const tenureNum = Number(tenureCount) || 0;
 
-  const summary = useMemo(() => {
-    const p = Number(principal);
-    const e = Number(emiAmount);
-    const n = Number(installments);
-    if (p > 0 && e > 0 && n > 0) {
-      return computeLoan({ principal: p, emiAmount: e, totalInstallments: n, lineType, startDate });
+  const computeInput: ComputeLoanTermsInput | null = useMemo(() => {
+    if (disbursedNum <= 0 || tenureNum <= 0) return null;
+    return {
+      disbursedAmount: disbursedNum,
+      repaymentType,
+      interestType,
+      interestRate: interestType === 'none' ? 0 : rateDecimal,
+      interestRatePeriod,
+      frequency,
+      tenureCount: tenureNum,
+      startDate: startDate.getTime(),
+      upfrontFee:
+        repaymentType === 'interest_only' && interestType === 'front_loaded'
+          ? Number(upfrontFee) || 0
+          : undefined,
+    };
+  }, [
+    disbursedNum,
+    tenureNum,
+    repaymentType,
+    interestType,
+    rateDecimal,
+    interestRatePeriod,
+    frequency,
+    startDate,
+    upfrontFee,
+  ]);
+
+  const terms = useMemo(() => {
+    if (!computeInput) return null;
+    try {
+      return computeLoanTerms(computeInput);
+    } catch {
+      return null;
     }
-    return null;
-  }, [principal, emiAmount, installments, lineType, startDate]);
+  }, [computeInput]);
 
-  const handlePrincipalChange = (v: string) => {
-    const clean = v.replace(/\D/g, '');
-    setPrincipal(clean);
-    if (clean && installments && !emiTouched) {
-      setEmiAmount(String(suggestEmi(Number(clean), Number(installments), lineType)));
+  // ── Step validation ──
+  const canAdvance = (): boolean => {
+    if (step === 'disbursement') return disbursedNum > 0;
+    if (step === 'repayment') return true; // radio is always set
+    if (step === 'interest') {
+      if (interestType === 'none') return true;
+      return rateDecimal > 0;
     }
+    if (step === 'frequency') return tenureNum > 0;
+    return true;
   };
 
-  const handleInstallmentsChange = (v: string) => {
-    const clean = v.replace(/\D/g, '');
-    setInstallments(clean);
-    if (principal && clean && !emiTouched) {
-      setEmiAmount(String(suggestEmi(Number(principal), Number(clean), lineType)));
+  const goNext = () => {
+    if (!canAdvance()) {
+      Alert.alert('Incomplete', 'Please fill in the required fields to continue.');
+      return;
     }
+    if (stepIndex < STEPS.length - 1) setStepIndex(stepIndex + 1);
   };
 
-  const handleEmiChange = (v: string) => {
-    setEmiTouched(true);
-    setEmiAmount(v.replace(/\D/g, ''));
+  const goBack = () => {
+    if (stepIndex === 0) {
+      navigation.goBack();
+      return;
+    }
+    setStepIndex(stepIndex - 1);
   };
 
   const handleCreate = async () => {
-    if (!summary) {
-      Alert.alert(t('common.error_generic'), 'Fill principal, EMI, and installments');
+    if (!terms || !computeInput) {
+      Alert.alert('Incomplete', 'Please review all fields before creating the loan.');
       return;
     }
     try {
       const result = await createLoan.mutateAsync({
         borrowerId,
-        lineId: lineId || 'default',
-        principal: Number(principal),
-        emiAmount: Number(emiAmount),
-        totalInstallments: Number(installments),
-        lineType,
-        startDate,
+        lineId: lineId ?? undefined,
+        disbursedAmount: computeInput.disbursedAmount,
+        repaymentType: computeInput.repaymentType,
+        interestType: computeInput.interestType,
+        interestRate: computeInput.interestRate,
+        interestRatePeriod: computeInput.interestRatePeriod,
+        frequency: computeInput.frequency,
+        tenureCount: computeInput.tenureCount,
+        startDate: computeInput.startDate,
+        upfrontFee: computeInput.upfrontFee,
         gracePeriodDays: gracePeriod,
-        productDescription: productDesc.trim() || undefined,
-        penaltyType: penaltyType === 'none' ? undefined : penaltyType,
-        penaltyAmount: Number(penaltyAmount) || 0,
       });
-      // After creating the loan, offer to add a guarantor
-      Alert.alert(
-        'Loan created',
-        'Would you like to add a guarantor for this loan?',
-        [
-          { text: 'Skip', onPress: () => navigation.replace('LoanPlan', { loanId: result.loan.id }) },
-          { text: 'Add Guarantor', onPress: () => navigation.replace('Guarantor', { loanId: result.loan.id }) },
-        ]
-      );
+      Alert.alert('Loan created', 'Would you like to add a guarantor for this loan?', [
+        {
+          text: 'Skip',
+          onPress: () => navigation.replace('LoanPlan', { loanId: result.loan.id }),
+        },
+        {
+          text: 'Add Guarantor',
+          onPress: () => navigation.replace('Guarantor', { loanId: result.loan.id }),
+        },
+      ]);
     } catch (e: any) {
-      Alert.alert(t('common.error_generic'), e?.message ?? '');
+      Alert.alert(t('common.error_generic'), e?.message ?? 'Failed to create loan');
     }
   };
 
+  // ── Render helpers ──
   return (
     <SafeAreaView style={Common.screen}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* TopAppBar */}
+        {/* Top bar */}
         <View style={styles.appBar}>
-          <View style={styles.appBarLeft}>
-            <Pressable
-              style={styles.backBtn}
-              onPress={() => navigation.goBack()}
-            >
-              <MaterialCommunityIcons name="arrow-left" size={24} color={EL.onSurface} />
-            </Pressable>
-            <Text style={styles.appBarTitle}>New Loan</Text>
-          </View>
+          <Pressable style={styles.backBtn} onPress={goBack}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color={EL.onSurface} />
+          </Pressable>
+          <Text style={styles.appBarTitle}>New Loan</Text>
+          <View style={{ width: 40 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.content}>
-          {/* ── Borrower Selector ── */}
-          <Text style={styles.sectionLabel}>SELECT BORROWER</Text>
+        {/* Step indicator */}
+        <StepIndicator stepIndex={stepIndex} />
+
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Borrower card is always visible */}
           {borrower ? (
-            <Pressable style={styles.borrowerCard}>
-              <Avatar name={borrower.name} size={48} photoUri={borrower.photo_url} />
+            <View style={styles.borrowerCard}>
+              <Avatar name={borrower.name} size={44} photoUri={borrower.photo_url} />
               <View style={styles.borrowerInfo}>
                 <Text style={styles.borrowerName}>{borrower.name}</Text>
-                <Text style={styles.borrowerRating}>
+                <Text style={styles.borrowerSub}>
                   {borrower.phone ? `+91 ${borrower.phone}` : 'No phone'}
                 </Text>
               </View>
-              <MaterialCommunityIcons name="chevron-right" size={24} color={EL.outline} />
-            </Pressable>
+            </View>
           ) : null}
 
-          {/* ── Line Type ── */}
-          <Text style={styles.sectionLabel}>LINE TYPE</Text>
-          <View style={styles.chipWrap}>
-            {(lines ?? []).map((line) => {
-              const active = lineId === line.id;
-              return (
-                <Pressable
-                  key={line.id}
-                  onPress={() => setLineId(line.id)}
-                  style={[styles.lineChip, active ? styles.lineChipActive : styles.lineChipInactive]}
-                >
-                  <Text style={[styles.lineChipText, active && { color: EL.white }]}>
-                    {line.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {lines && lines.length === 0 ? (
-            <Text style={styles.hint}>No lines yet — create one in the Lines tab.</Text>
-          ) : null}
-
-          {/* ── Principal ── */}
-          <Text style={styles.sectionLabel}>PRINCIPAL ({'\u0B85\u0B9A\u0BB2\u0BCD'})</Text>
-          <View style={styles.bigInput}>
-            <Text style={styles.bigPrefix}>{'\u20B9'}</Text>
-            <TextInput
-              style={styles.bigInputText}
-              value={principal}
-              onChangeText={handlePrincipalChange}
-              keyboardType="number-pad"
-              placeholder="50,000"
-              placeholderTextColor={EL.outlineVariant}
+          {/* Step body */}
+          {step === 'disbursement' && (
+            <DisbursementStep
+              disbursedAmount={disbursedAmount}
+              setDisbursedAmount={setDisbursedAmount}
+              lines={lines ?? []}
+              lineId={lineId}
+              setLineId={setLineId}
             />
-          </View>
-
-          {/* ── EMI ── */}
-          <Text style={styles.sectionLabel}>
-            {isInterestOnly ? t('loan.interest_amount') : 'EMI AMOUNT'}
-          </Text>
-          <View style={styles.emiInput}>
-            <Text style={styles.emiPrefix}>{'\u20B9'}</Text>
-            <TextInput
-              style={styles.emiInputText}
-              value={emiAmount}
-              onChangeText={handleEmiChange}
-              keyboardType="number-pad"
-              placeholder="600"
-              placeholderTextColor={EL.outlineVariant}
+          )}
+          {step === 'repayment' && (
+            <RepaymentStep
+              repaymentType={repaymentType}
+              setRepaymentType={setRepaymentType}
             />
-          </View>
+          )}
+          {step === 'interest' && (
+            <InterestStep
+              interestType={interestType}
+              setInterestType={setInterestType}
+              interestRate={interestRate}
+              setInterestRate={setInterestRate}
+              interestRatePeriod={interestRatePeriod}
+              setInterestRatePeriod={setInterestRatePeriod}
+              repaymentType={repaymentType}
+              upfrontFee={upfrontFee}
+              setUpfrontFee={setUpfrontFee}
+            />
+          )}
+          {step === 'frequency' && (
+            <FrequencyStep
+              frequency={frequency}
+              setFrequency={setFrequency}
+              tenureCount={tenureCount}
+              setTenureCount={setTenureCount}
+              startDate={startDate}
+              setStartDate={setStartDate}
+              gracePeriod={gracePeriod}
+              setGracePeriod={setGracePeriod}
+              repaymentType={repaymentType}
+            />
+          )}
+          {step === 'preview' && (
+            <PreviewStep
+              terms={terms}
+              disbursedNum={disbursedNum}
+              repaymentType={repaymentType}
+              interestType={interestType}
+              interestRate={Number(interestRate) || 0}
+              interestRatePeriod={interestRatePeriod}
+              frequency={frequency}
+              tenureCount={tenureNum}
+            />
+          )}
 
-          {/* ── Installments ── */}
-          <Text style={styles.sectionLabel}>NUMBER OF INSTALLMENTS</Text>
-          <View style={styles.stepperRow}>
-            <Pressable
-              style={styles.stepperBtn}
-              onPress={() => {
-                const n = Math.max(1, Number(installments) - 1);
-                handleInstallmentsChange(String(n));
-              }}
-            >
-              <MaterialCommunityIcons name="minus" size={24} color={EL.primary} />
-            </Pressable>
-            <View style={styles.stepperValue}>
-              <TextInput
-                style={styles.stepperText}
-                value={installments}
-                onChangeText={handleInstallmentsChange}
-                keyboardType="number-pad"
-                placeholder="100"
-                placeholderTextColor={EL.outlineVariant}
-                textAlign="center"
-              />
-            </View>
-            <Pressable
-              style={styles.stepperBtn}
-              onPress={() => handleInstallmentsChange(String(Number(installments || 0) + 1))}
-            >
-              <MaterialCommunityIcons name="plus" size={24} color={EL.primary} />
-            </Pressable>
-          </View>
-
-          {/* ── Start Date ── */}
-          <Text style={styles.sectionLabel}>START DATE ({'\u0BA4\u0BCA\u0B9F\u0B95\u0BCD\u0B95 \u0BA4\u0BC7\u0BA4\u0BBF'})</Text>
-          <Pressable style={styles.dateCard} onPress={() => setShowDatePicker(!showDatePicker)}>
-            <Text style={styles.dateText}>
-              {startDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </Text>
-            <MaterialCommunityIcons name="calendar" size={24} color={EL.primary} />
-          </Pressable>
-          {showDatePicker ? (
-            <View style={styles.chipWrap}>
-              {[0, 1, 2, 3, 7, 14].map((offset) => {
-                const d = new Date();
-                d.setDate(d.getDate() + offset);
-                const label = offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : `+${offset}d`;
-                const isSelected = startDate.toDateString() === d.toDateString();
-                return (
-                  <Pressable
-                    key={offset}
-                    style={[styles.lineChip, isSelected ? styles.lineChipActive : styles.lineChipInactive]}
-                    onPress={() => { setStartDate(d); setShowDatePicker(false); }}
-                  >
-                    <Text style={[styles.lineChipText, isSelected && { color: EL.white }]}>{label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
-
-          {/* ── Grace Period ── */}
-          <Text style={styles.sectionLabel}>GRACE PERIOD</Text>
-          <View style={styles.graceRow}>
-            {[0, 1, 2, 3].map((days) => {
-              const active = gracePeriod === days;
-              return (
-                <Pressable
-                  key={days}
-                  style={[styles.graceChip, active ? styles.graceChipActive : styles.graceChipInactive]}
-                  onPress={() => setGracePeriod(days)}
-                >
-                  <Text style={[styles.graceChipText, active && { color: EL.onSurface, fontWeight: '700' }]}>
-                    {days === 0 ? '0 days' : `${days} day${days > 1 ? 's' : ''}`}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          {/* ── Penalty ── */}
-          <Text style={styles.sectionLabel}>{t('loan.penalty_type')}</Text>
-          <View style={styles.chipWrap}>
-            {[
-              { val: 'none' as const, label: t('loan.penalty_none') },
-              { val: 'flat' as const, label: t('loan.penalty_flat') },
-              { val: 'percentage' as const, label: t('loan.penalty_pct') },
-            ].map((opt) => {
-              const active = penaltyType === opt.val;
-              return (
-                <Pressable
-                  key={opt.val}
-                  onPress={() => setPenaltyType(opt.val)}
-                  style={[styles.lineChip, active ? styles.lineChipActive : styles.lineChipInactive]}
-                >
-                  <Text style={[styles.lineChipText, active && { color: EL.white }]}>{opt.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {penaltyType !== 'none' ? (
-            <>
-              <Text style={styles.sectionLabel}>{t('loan.penalty_amount')}</Text>
-              <View style={styles.emiInput}>
-                <Text style={styles.emiPrefix}>{penaltyType === 'flat' ? '\u20B9' : '%'}</Text>
-                <TextInput
-                  style={styles.emiInputText}
-                  value={penaltyAmount}
-                  onChangeText={(v) => setPenaltyAmount(v.replace(/\D/g, ''))}
-                  keyboardType="number-pad"
-                  placeholderTextColor={EL.outlineVariant}
-                />
-              </View>
-            </>
-          ) : null}
-
-          {/* ── Product description (enterprise only) ── */}
-          {lineType === 'enterprise' ? (
-            <>
-              <Text style={styles.sectionLabel}>{t('loan.product_desc')}</Text>
-              <View style={styles.emiInput}>
-                <TextInput
-                  style={[styles.emiInputText, { flex: 1 }]}
-                  value={productDesc}
-                  onChangeText={setProductDesc}
-                  placeholderTextColor={EL.outlineVariant}
-                />
-              </View>
-            </>
-          ) : null}
-
-          {isInterestOnly ? (
-            <View style={styles.infoBanner}>
-              <MaterialCommunityIcons name="information-outline" size={16} color={EL.info} />
-              <Text style={styles.infoBannerText}>{t('loan.interest_only')}</Text>
-            </View>
-          ) : null}
-
-          {/* ── Preview Card ── */}
-          {summary ? (
-            <View style={styles.previewCard}>
-              <View style={styles.previewHeader}>
-                <MaterialCommunityIcons name="chart-line" size={14} color={EL.primary} />
-                <Text style={styles.previewTag}>LOAN PROJECTION</Text>
-              </View>
-              <View style={styles.previewGrid}>
-                <View>
-                  <Text style={styles.previewLabel}>Total repayment</Text>
-                  <Text style={styles.previewValue}>{formatRupees(summary.totalRepayment)}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.previewLabel}>Interest earned</Text>
-                  <Text style={[styles.previewValue, { color: EL.primary }]}>
-                    {formatRupees(summary.interest)}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.previewDateRow}>
-                <Text style={styles.previewLabel}>Completion Schedule</Text>
-                <View style={styles.previewDateInner}>
-                  <Text style={styles.previewDateText}>
-                    {formatDateShort(new Date(summary.expectedEndDate))}
-                  </Text>
-                  <View style={styles.previewDatePill}>
-                    <Text style={styles.previewDatePillText}>
-                      {Number(installments)} working days
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <Text style={[styles.viewPlanText, { paddingVertical: Space.sm }]}>
-                Full schedule available after creating the loan
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Spacer for fixed bottom */}
           <View style={{ height: 120 }} />
         </ScrollView>
 
-        {/* ── Fixed Bottom ── */}
+        {/* Bottom bar */}
         <View style={styles.bottomBar}>
-          <GradientButton
-            title="Create Loan"
-            onPress={handleCreate}
-            loading={createLoan.isPending}
-            icon={<MaterialCommunityIcons name="check-circle" size={20} color={EL.white} />}
-          />
+          {step === 'preview' ? (
+            <GradientButton
+              title="Create Loan"
+              onPress={handleCreate}
+              loading={createLoan.isPending}
+              disabled={!terms}
+              icon={<MaterialCommunityIcons name="check-circle" size={20} color={EL.white} />}
+            />
+          ) : (
+            <GradientButton
+              title="Next"
+              onPress={goNext}
+              disabled={!canAdvance()}
+              icon={<MaterialCommunityIcons name="arrow-right" size={20} color={EL.white} />}
+            />
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+// ─── Step components ───────────────────────────────────────────────────
+
+function StepIndicator({ stepIndex }: { stepIndex: number }) {
+  return (
+    <View style={styles.indicatorRow}>
+      {STEPS.map((s, i) => (
+        <View key={s.key} style={styles.indicatorItem}>
+          <View
+            style={[
+              styles.indicatorDot,
+              i <= stepIndex ? styles.indicatorDotActive : styles.indicatorDotInactive,
+            ]}
+          >
+            {i < stepIndex ? (
+              <MaterialCommunityIcons name="check" size={12} color={EL.white} />
+            ) : (
+              <Text
+                style={[
+                  styles.indicatorNumber,
+                  i === stepIndex ? { color: EL.white } : null,
+                ]}
+              >
+                {i + 1}
+              </Text>
+            )}
+          </View>
+          <Text style={styles.indicatorLabel}>{s.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+interface DisbursementStepProps {
+  disbursedAmount: string;
+  setDisbursedAmount: (v: string) => void;
+  lines: Array<{ id: string; name: string; type: string }>;
+  lineId: string | null;
+  setLineId: (v: string | null) => void;
+}
+
+function DisbursementStep(props: DisbursementStepProps) {
+  const { disbursedAmount, setDisbursedAmount, lines, lineId, setLineId } = props;
+  return (
+    <View>
+      <Text style={styles.stepTitle}>How much are you giving?</Text>
+      <Text style={styles.stepSub}>The actual amount handed to the borrower.</Text>
+
+      <Text style={styles.sectionLabel}>DISBURSED AMOUNT</Text>
+      <View style={styles.bigInput}>
+        <Text style={styles.bigPrefix}>{'\u20B9'}</Text>
+        <TextInput
+          style={styles.bigInputText}
+          value={disbursedAmount}
+          onChangeText={(v) => setDisbursedAmount(v.replace(/\D/g, ''))}
+          keyboardType="number-pad"
+          placeholder="10,000"
+          placeholderTextColor={EL.outlineVariant}
+        />
+      </View>
+
+      <Text style={styles.sectionLabel}>ASSIGN TO LINE (optional)</Text>
+      <View style={styles.chipWrap}>
+        <Pressable
+          onPress={() => setLineId(null)}
+          style={[
+            styles.chipBtn,
+            lineId === null ? styles.chipBtnActive : styles.chipBtnInactive,
+          ]}
+        >
+          <Text style={[styles.chipText, lineId === null && { color: EL.white }]}>
+            No line
+          </Text>
+        </Pressable>
+        {lines.map((line) => {
+          const active = lineId === line.id;
+          return (
+            <Pressable
+              key={line.id}
+              onPress={() => setLineId(line.id)}
+              style={[styles.chipBtn, active ? styles.chipBtnActive : styles.chipBtnInactive]}
+            >
+              <Text style={[styles.chipText, active && { color: EL.white }]}>{line.name}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {lines.length === 0 ? (
+        <Text style={styles.hint}>No lines yet — you can create one later in the Lines tab.</Text>
+      ) : null}
+    </View>
+  );
+}
+
+interface RepaymentStepProps {
+  repaymentType: RepaymentType;
+  setRepaymentType: (v: RepaymentType) => void;
+}
+
+function RepaymentStep(props: RepaymentStepProps) {
+  const { repaymentType, setRepaymentType } = props;
+  return (
+    <View>
+      <Text style={styles.stepTitle}>How will the loan be repaid?</Text>
+      <Text style={styles.stepSub}>Choose the repayment structure.</Text>
+
+      <View style={{ gap: Space.md, marginTop: Space.lg }}>
+        {REPAYMENT_OPTIONS.map((opt) => {
+          const active = repaymentType === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => setRepaymentType(opt.value)}
+              style={[styles.optionCard, active ? styles.optionCardActive : null]}
+            >
+              <View style={styles.optionRadio}>
+                {active ? <View style={styles.optionRadioInner} /> : null}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionLabel}>{opt.label}</Text>
+                <Text style={styles.optionSub}>{opt.sub}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+interface InterestStepProps {
+  interestType: InterestType;
+  setInterestType: (v: InterestType) => void;
+  interestRate: string;
+  setInterestRate: (v: string) => void;
+  interestRatePeriod: InterestRatePeriod;
+  setInterestRatePeriod: (v: InterestRatePeriod) => void;
+  repaymentType: RepaymentType;
+  upfrontFee: string;
+  setUpfrontFee: (v: string) => void;
+}
+
+function InterestStep(props: InterestStepProps) {
+  const {
+    interestType,
+    setInterestType,
+    interestRate,
+    setInterestRate,
+    interestRatePeriod,
+    setInterestRatePeriod,
+    repaymentType,
+    upfrontFee,
+    setUpfrontFee,
+  } = props;
+
+  // For interest_only, "reducing" doesn't really make sense — hide it
+  const visibleOptions =
+    repaymentType === 'interest_only'
+      ? INTEREST_OPTIONS.filter((o) => o.value !== 'reducing')
+      : INTEREST_OPTIONS;
+
+  return (
+    <View>
+      <Text style={styles.stepTitle}>How is interest calculated?</Text>
+      <Text style={styles.stepSub}>Pick the interest model.</Text>
+
+      <View style={{ gap: Space.md, marginTop: Space.lg }}>
+        {visibleOptions.map((opt) => {
+          const active = interestType === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => setInterestType(opt.value)}
+              style={[styles.optionCard, active ? styles.optionCardActive : null]}
+            >
+              <View style={styles.optionRadio}>
+                {active ? <View style={styles.optionRadioInner} /> : null}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionLabel}>{opt.label}</Text>
+                <Text style={styles.optionSub}>{opt.sub}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {interestType !== 'none' ? (
+        <>
+          <Text style={styles.sectionLabel}>INTEREST RATE</Text>
+          <View style={styles.rateRow}>
+            <View style={[styles.emiInput, { flex: 1 }]}>
+              <TextInput
+                style={styles.emiInputText}
+                value={interestRate}
+                onChangeText={(v) => setInterestRate(v.replace(/[^0-9.]/g, ''))}
+                keyboardType="decimal-pad"
+                placeholder="2"
+                placeholderTextColor={EL.outlineVariant}
+              />
+              <Text style={styles.emiPrefix}>%</Text>
+            </View>
+            <View style={styles.periodPickerRow}>
+              {RATE_PERIOD_OPTIONS.map((opt) => {
+                const active = interestRatePeriod === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => setInterestRatePeriod(opt.value)}
+                    style={[
+                      styles.periodChip,
+                      active ? styles.periodChipActive : styles.periodChipInactive,
+                    ]}
+                  >
+                    <Text style={[styles.periodChipText, active && { color: EL.white }]}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </>
+      ) : null}
+
+      {/* Optional upfront fee — only for interest_only + front_loaded */}
+      {repaymentType === 'interest_only' && interestType === 'front_loaded' ? (
+        <>
+          <Text style={styles.sectionLabel}>UPFRONT FEE (optional)</Text>
+          <Text style={styles.hint}>
+            One-time fee collected at disbursement, recorded as a paid day-0 entry.
+          </Text>
+          <View style={styles.emiInput}>
+            <Text style={styles.emiPrefix}>{'\u20B9'}</Text>
+            <TextInput
+              style={styles.emiInputText}
+              value={upfrontFee}
+              onChangeText={(v) => setUpfrontFee(v.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+              placeholder="500"
+              placeholderTextColor={EL.outlineVariant}
+            />
+          </View>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+interface FrequencyStepProps {
+  frequency: CollectionFrequency;
+  setFrequency: (v: CollectionFrequency) => void;
+  tenureCount: string;
+  setTenureCount: (v: string) => void;
+  startDate: Date;
+  setStartDate: (d: Date) => void;
+  gracePeriod: number;
+  setGracePeriod: (n: number) => void;
+  repaymentType: RepaymentType;
+}
+
+function FrequencyStep(props: FrequencyStepProps) {
+  const {
+    frequency,
+    setFrequency,
+    tenureCount,
+    setTenureCount,
+    startDate,
+    setStartDate,
+    gracePeriod,
+    setGracePeriod,
+    repaymentType,
+  } = props;
+
+  const tenureLabel = {
+    daily: 'DAYS',
+    weekly: 'WEEKS',
+    monthly: 'MONTHS',
+  }[frequency];
+
+  const tenureHelper =
+    repaymentType === 'interest_only'
+      ? 'Window for initial plan generation. The loan rolls until principal is returned.'
+      : 'Number of installments.';
+
+  return (
+    <View>
+      <Text style={styles.stepTitle}>When and how often?</Text>
+      <Text style={styles.stepSub}>Collection schedule and start date.</Text>
+
+      <Text style={styles.sectionLabel}>COLLECTION FREQUENCY</Text>
+      <View style={{ gap: Space.md }}>
+        {FREQUENCY_OPTIONS.map((opt) => {
+          const active = frequency === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => setFrequency(opt.value)}
+              style={[styles.optionCard, active ? styles.optionCardActive : null]}
+            >
+              <View style={styles.optionRadio}>
+                {active ? <View style={styles.optionRadioInner} /> : null}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.optionLabel}>{opt.label}</Text>
+                <Text style={styles.optionSub}>{opt.sub}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={styles.sectionLabel}>TENURE ({tenureLabel})</Text>
+      <Text style={styles.hint}>{tenureHelper}</Text>
+      <View style={styles.stepperRow}>
+        <Pressable
+          style={styles.stepperBtn}
+          onPress={() => {
+            const n = Math.max(1, (Number(tenureCount) || 0) - 1);
+            setTenureCount(String(n));
+          }}
+        >
+          <MaterialCommunityIcons name="minus" size={24} color={EL.primary} />
+        </Pressable>
+        <View style={styles.stepperValue}>
+          <TextInput
+            style={styles.stepperText}
+            value={tenureCount}
+            onChangeText={(v) => setTenureCount(v.replace(/\D/g, ''))}
+            keyboardType="number-pad"
+            placeholder={frequency === 'daily' ? '100' : frequency === 'weekly' ? '20' : '12'}
+            placeholderTextColor={EL.outlineVariant}
+            textAlign="center"
+          />
+        </View>
+        <Pressable
+          style={styles.stepperBtn}
+          onPress={() => setTenureCount(String((Number(tenureCount) || 0) + 1))}
+        >
+          <MaterialCommunityIcons name="plus" size={24} color={EL.primary} />
+        </Pressable>
+      </View>
+
+      <Text style={styles.sectionLabel}>START DATE</Text>
+      <View style={styles.chipWrap}>
+        {[0, 1, 2, 7].map((offset) => {
+          const d = new Date();
+          d.setDate(d.getDate() + offset);
+          d.setHours(0, 0, 0, 0);
+          const label = offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : `+${offset}d`;
+          const active = startDate.toDateString() === d.toDateString();
+          return (
+            <Pressable
+              key={offset}
+              onPress={() => setStartDate(d)}
+              style={[styles.chipBtn, active ? styles.chipBtnActive : styles.chipBtnInactive]}
+            >
+              <Text style={[styles.chipText, active && { color: EL.white }]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <Text style={styles.sectionLabel}>GRACE PERIOD</Text>
+      <View style={styles.graceRow}>
+        {[0, 1, 3, 7].map((days) => {
+          const active = gracePeriod === days;
+          return (
+            <Pressable
+              key={days}
+              onPress={() => setGracePeriod(days)}
+              style={[styles.graceChip, active ? styles.graceChipActive : styles.graceChipInactive]}
+            >
+              <Text style={[styles.graceChipText, active && { fontWeight: '700' }]}>
+                {days === 0 ? '0 days' : `${days}d`}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+interface PreviewStepProps {
+  terms: ReturnType<typeof computeLoanTerms> | null;
+  disbursedNum: number;
+  repaymentType: RepaymentType;
+  interestType: InterestType;
+  interestRate: number;
+  interestRatePeriod: InterestRatePeriod;
+  frequency: CollectionFrequency;
+  tenureCount: number;
+}
+
+function PreviewStep(props: PreviewStepProps) {
+  const {
+    terms,
+    disbursedNum,
+    repaymentType,
+    interestType,
+    interestRate,
+    interestRatePeriod,
+    frequency,
+    tenureCount,
+  } = props;
+
+  if (!terms) {
+    return (
+      <View>
+        <Text style={styles.stepTitle}>Review</Text>
+        <Text style={styles.stepSub}>Something is missing — please go back and complete earlier steps.</Text>
+      </View>
+    );
+  }
+
+  const isInterestOnly = repaymentType === 'interest_only';
+  const interestTypeLabel = INTEREST_OPTIONS.find((o) => o.value === interestType)?.label ?? '';
+  const endLabel = terms.endDate
+    ? formatDateShort(new Date(terms.endDate))
+    : 'Rolling (no fixed end)';
+
+  return (
+    <View>
+      <Text style={styles.stepTitle}>Review loan terms</Text>
+      <Text style={styles.stepSub}>Check the numbers before creating.</Text>
+
+      {/* Headline card */}
+      <View style={styles.previewHero}>
+        <Text style={styles.previewHeroLabel}>
+          {isInterestOnly ? 'Total interest (rolling)' : 'Total repayment'}
+        </Text>
+        <Text style={styles.previewHeroAmount}>{formatRupees(terms.totalRepayment)}</Text>
+        <View style={styles.previewHeroRow}>
+          <Text style={styles.previewHeroSub}>
+            {formatRupees(terms.emiAmount)} / installment
+          </Text>
+          <Text style={styles.previewHeroSub}>
+            {terms.installments} installments
+          </Text>
+        </View>
+      </View>
+
+      {/* Key-value rows */}
+      <View style={styles.previewRows}>
+        <PreviewRow label="Disbursed" value={formatRupees(disbursedNum)} />
+        <PreviewRow
+          label="Repayment type"
+          value={isInterestOnly ? 'Interest Only' : 'Principal + Interest'}
+        />
+        <PreviewRow label="Interest model" value={interestTypeLabel} />
+        {interestType !== 'none' ? (
+          <PreviewRow
+            label="Rate"
+            value={`${interestRate}% per ${interestRatePeriod}`}
+          />
+        ) : null}
+        <PreviewRow label="Frequency" value={frequency} />
+        <PreviewRow label="Tenure" value={`${tenureCount} ${frequency === 'daily' ? 'days' : frequency === 'weekly' ? 'weeks' : 'months'}`} />
+        <PreviewRow
+          label="End"
+          value={endLabel}
+          highlight={!terms.endDate ? EL.info : undefined}
+        />
+        <PreviewRow
+          label="Total interest"
+          value={formatRupees(terms.totalInterest)}
+          highlight={EL.primary}
+        />
+      </View>
+
+      {isInterestOnly ? (
+        <View style={styles.infoBanner}>
+          <MaterialCommunityIcons name="information-outline" size={16} color={EL.info} />
+          <Text style={styles.infoBannerText}>
+            Principal ₹{disbursedNum.toLocaleString('en-IN')} is returned separately — use "Return Principal" on the collection screen.
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function PreviewRow({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  highlight?: string;
+}) {
+  return (
+    <View style={styles.previewRow}>
+      <Text style={styles.previewRowLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.previewRowValue,
+          highlight ? { color: highlight, fontWeight: '700' } : null,
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+// ─── Styles ────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  // AppBar
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -403,35 +861,61 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.xl,
     paddingVertical: Space.lg,
   },
-  appBarLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.lg,
-  },
   backBtn: {
-    padding: Space.sm,
-    marginLeft: -Space.sm,
+    width: 40,
+    height: 40,
     borderRadius: Radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   appBarTitle: {
-    ...Type.displaySm,
+    ...Type.titleLg,
     fontSize: 20,
     fontWeight: '700',
   },
 
-  content: { paddingHorizontal: Space.xl, paddingBottom: Space.xxl },
-
-  // Section labels — stitch uppercase tracking
-  sectionLabel: {
-    fontFamily: Type.labelSm.fontFamily,
+  // Step indicator
+  indicatorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: Space.xl,
+    marginBottom: Space.xl,
+  },
+  indicatorItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  indicatorDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  indicatorDotActive: {
+    backgroundColor: EL.primary,
+  },
+  indicatorDotInactive: {
+    backgroundColor: EL.surfaceHighest,
+  },
+  indicatorNumber: {
     fontSize: 12,
     fontWeight: '700',
     color: EL.onSurfaceSec,
+  },
+  indicatorLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: EL.onSurfaceSec,
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: Space.md,
-    marginTop: Space.xxl,
-    opacity: 0.7,
+    letterSpacing: 0.4,
+  },
+
+  content: {
+    paddingHorizontal: Space.xl,
+    paddingBottom: Space.xxl,
   },
 
   // Borrower card
@@ -440,32 +924,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: EL.surfaceCard,
     borderRadius: Radii.lg,
-    padding: Space.lg,
-    gap: Space.lg,
+    padding: Space.md,
+    gap: Space.md,
+    marginBottom: Space.xl,
     ...Shadows.card,
   },
   borrowerInfo: { flex: 1 },
-  borrowerName: { ...Type.titleLg, fontWeight: '700', fontSize: 18 },
-  borrowerRating: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: 2 },
+  borrowerName: { ...Type.titleMd, fontWeight: '700' },
+  borrowerSub: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: 2 },
 
-  // Line type chips
-  chipWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Space.sm,
+  // Step title
+  stepTitle: {
+    ...Type.displaySm,
+    fontSize: 22,
+    fontWeight: '800',
   },
-  lineChip: {
-    paddingHorizontal: Space.xl,
-    paddingVertical: Space.md,
-    borderRadius: Radii.md,
-    minHeight: Touch.min,
-    justifyContent: 'center',
+  stepSub: {
+    ...Type.bodySm,
+    color: EL.onSurfaceSec,
+    marginTop: Space.xs,
+    marginBottom: Space.lg,
   },
-  lineChipActive: { backgroundColor: EL.primaryContainer },
-  lineChipInactive: { backgroundColor: EL.surfaceCard, ...Shadows.card },
-  lineChipText: { ...Type.labelMd, fontWeight: '600', color: EL.onSurfaceSec, fontSize: 14 },
 
-  // Big input (principal)
+  // Section label
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: EL.onSurfaceSec,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: Space.sm,
+    marginTop: Space.xl,
+    opacity: 0.7,
+  },
+
+  hint: {
+    ...Type.labelSm,
+    color: EL.onSurfaceMuted,
+    marginBottom: Space.sm,
+  },
+
+  // Big input for disbursement
   bigInput: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -483,32 +982,117 @@ const styles = StyleSheet.create({
   },
   bigInputText: {
     flex: 1,
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: '800',
     color: EL.onSurface,
   },
 
-  // EMI input
+  // Medium input
   emiInput: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: EL.surfaceCard,
     borderRadius: Radii.lg,
     paddingHorizontal: Space.lg,
-    paddingVertical: Space.xl,
+    paddingVertical: Space.lg,
     ...Shadows.card,
-  },
-  emiPrefix: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: EL.onSurfaceSec,
-    marginRight: Space.sm,
   },
   emiInputText: {
     flex: 1,
     fontSize: 22,
     fontWeight: '700',
     color: EL.onSurface,
+  },
+  emiPrefix: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: EL.onSurfaceSec,
+  },
+
+  // Rate row
+  rateRow: {
+    gap: Space.md,
+  },
+  periodPickerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Space.sm,
+  },
+  periodChip: {
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.sm,
+    borderRadius: Radii.pill,
+    minHeight: 36,
+    justifyContent: 'center',
+  },
+  periodChipActive: {
+    backgroundColor: EL.primary,
+  },
+  periodChipInactive: {
+    backgroundColor: EL.surfaceCard,
+    ...Shadows.card,
+  },
+  periodChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: EL.onSurfaceSec,
+  },
+
+  // Chip buttons
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Space.sm,
+  },
+  chipBtn: {
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.md,
+    borderRadius: Radii.md,
+    minHeight: Touch.min,
+    justifyContent: 'center',
+  },
+  chipBtnActive: { backgroundColor: EL.primary },
+  chipBtnInactive: { backgroundColor: EL.surfaceCard, ...Shadows.card },
+  chipText: { fontSize: 14, fontWeight: '600', color: EL.onSurfaceSec },
+
+  // Option card (radio list)
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    padding: Space.lg,
+    gap: Space.md,
+    ...Shadows.card,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  optionCardActive: {
+    borderColor: EL.primary,
+  },
+  optionRadio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: EL.outline,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionRadioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: EL.primary,
+  },
+  optionLabel: {
+    ...Type.titleMd,
+    fontWeight: '700',
+  },
+  optionSub: {
+    ...Type.bodySm,
+    color: EL.onSurfaceSec,
+    marginTop: 2,
   },
 
   // Stepper
@@ -539,20 +1123,7 @@ const styles = StyleSheet.create({
     color: EL.onSurface,
   },
 
-  // Date
-  dateCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: EL.surfaceCard,
-    borderRadius: Radii.lg,
-    paddingHorizontal: Space.xl,
-    paddingVertical: Space.xl,
-    ...Shadows.card,
-  },
-  dateText: { fontSize: 18, fontWeight: '600', color: EL.onSurface },
-
-  // Grace period
+  // Grace row
   graceRow: {
     flexDirection: 'row',
     gap: Space.sm,
@@ -566,9 +1137,66 @@ const styles = StyleSheet.create({
   },
   graceChipActive: { backgroundColor: EL.primaryFixed },
   graceChipInactive: { backgroundColor: EL.surfaceCard, ...Shadows.card },
-  graceChipText: { ...Type.labelMd, fontWeight: '500', color: EL.onSurfaceSec, fontSize: 14 },
+  graceChipText: {
+    ...Type.labelMd,
+    fontSize: 14,
+    color: EL.onSurfaceSec,
+  },
 
-  hint: { ...Type.labelSm, color: EL.onSurfaceMuted, marginTop: Space.xs },
+  // Preview hero
+  previewHero: {
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.xxl,
+    padding: Space.xl,
+    marginTop: Space.lg,
+  },
+  previewHeroLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: EL.onSurfaceSec,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  previewHeroAmount: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: EL.primary,
+    marginTop: Space.xs,
+  },
+  previewHeroRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: Space.md,
+  },
+  previewHeroSub: {
+    ...Type.bodySm,
+    color: EL.onSurfaceSec,
+    fontWeight: '600',
+  },
+
+  previewRows: {
+    marginTop: Space.xl,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    paddingHorizontal: Space.lg,
+    ...Shadows.card,
+  },
+  previewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Space.md,
+  },
+  previewRowLabel: {
+    ...Type.bodyMd,
+    color: EL.onSurfaceSec,
+    textTransform: 'capitalize',
+  },
+  previewRowValue: {
+    ...Type.bodyMd,
+    fontWeight: '600',
+    color: EL.onSurface,
+  },
 
   // Info banner
   infoBanner: {
@@ -577,90 +1205,21 @@ const styles = StyleSheet.create({
     backgroundColor: EL.infoContainer,
     borderRadius: Radii.md,
     padding: Space.md,
-    marginVertical: Space.md,
-    gap: Space.sm,
-  },
-  infoBannerText: { ...Type.bodySm, color: EL.info, fontWeight: '600', flex: 1 },
-
-  // Preview card
-  previewCard: {
-    marginTop: Space.xxl,
-    padding: Space.xl,
-    borderRadius: Radii.xxl,
-    backgroundColor: EL.surfaceLow,
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.sm,
-    marginBottom: Space.lg,
-  },
-  previewTag: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: EL.primary,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    opacity: 0.6,
-  },
-  previewGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  previewLabel: { fontSize: 12, color: EL.onSurfaceSec },
-  previewValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: EL.onSurface,
-    marginTop: Space.xs,
-  },
-  previewDateRow: {
     marginTop: Space.lg,
-    paddingTop: Space.md,
-  },
-  previewDateInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Space.sm,
-    marginTop: Space.xs,
   },
-  previewDateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: EL.onSurface,
-  },
-  previewDatePill: {
-    backgroundColor: EL.secondaryContainer,
-    paddingHorizontal: Space.sm,
-    paddingVertical: Space.xs,
-    borderRadius: Radii.sm,
-  },
-  previewDatePillText: {
-    fontSize: 12,
-    color: EL.secondary,
-    fontWeight: '600',
-  },
-  viewPlanBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Space.sm,
-    paddingTop: Space.lg,
-    marginTop: Space.md,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,105,72,0.1)',
-  },
-  viewPlanText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: EL.primary,
+  infoBannerText: {
+    ...Type.bodySm,
+    color: EL.info,
+    fontWeight: '500',
+    flex: 1,
   },
 
-  // Bottom
+  // Bottom bar
   bottomBar: {
     paddingHorizontal: Space.xl,
     paddingVertical: Space.lg,
     paddingBottom: Space.xxxl,
-    backgroundColor: 'rgba(240, 253, 244, 0.8)',
+    backgroundColor: 'rgba(240, 253, 244, 0.95)',
   },
 });
