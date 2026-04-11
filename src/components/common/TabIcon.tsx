@@ -4,13 +4,13 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 // Map tab names to MaterialCommunityIcons glyph names.
 // Full icon list: https://oblador.github.io/react-native-vector-icons/
 const ICON_MAP: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
-  home: 'home',
-  borrowers: 'account-group',
-  reports: 'chart-bar',
-  settings: 'cog',
-  collect: 'cash-fast',
-  expenses: 'wallet',
-  summary: 'clipboard-text',
+  home: 'view-grid',
+  borrowers: 'account-multiple',
+  reports: 'file-document-outline',
+  settings: 'cog-outline',
+  collect: 'wallet-outline',
+  expenses: 'receipt',
+  summary: 'clipboard-text-outline',
   lines: 'map-marker-path',
 };
 

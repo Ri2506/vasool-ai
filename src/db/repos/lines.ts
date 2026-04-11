@@ -47,5 +47,13 @@ export async function createLine(input: NewLineInput): Promise<LineRow> {
 
 export async function deleteLine(id: string): Promise<void> {
   const db = await openDb();
+  // Guard against deleting a line that has active loans
+  const active = await db.getFirstAsync<{ cnt: number }>(
+    `SELECT COUNT(*) AS cnt FROM loans WHERE line_id = ? AND status = 'active'`,
+    [id]
+  );
+  if (active && active.cnt > 0) {
+    throw new Error(`Cannot delete line — ${active.cnt} active loan${active.cnt > 1 ? 's' : ''} still using it`);
+  }
   await db.runAsync(`DELETE FROM lines WHERE id = ?`, [id]);
 }

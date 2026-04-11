@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -12,7 +14,6 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { ELCard } from '@/components/common/ELCard';
 import { GradientButton } from '@/components/common/GradientButton';
 import { EL, Common, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { applyReferralCode, getReferralStats } from '@/db/repos/referrals';
@@ -40,13 +41,20 @@ export function ReferralScreen() {
     });
   };
 
-  const handleCopy = () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(code);
-      Alert.alert('Copied!', `${code} copied to clipboard`);
-    } else {
-      Alert.alert('Your code', code);
+  const handleCopy = async () => {
+    // Web: use clipboard API; native: fall back to Share sheet for copy+share
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(code);
+        Alert.alert('Copied!', `${code} copied to clipboard`);
+        return;
+      } catch {}
     }
+    // Native fallback: show code in alert for manual copy
+    Alert.alert('Your referral code', code, [
+      { text: 'Share instead', onPress: handleShare },
+      { text: 'OK', style: 'default' },
+    ]);
   };
 
   const handleApply = async () => {
@@ -64,96 +72,186 @@ export function ReferralScreen() {
 
   return (
     <SafeAreaView style={Common.screen}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Refer & Earn</Text>
-        <Text style={styles.sub}>Share your code. When they sign up, you BOTH get 1 month free.</Text>
+        {/* Illustration section */}
+        <View style={styles.heroSection}>
+          <Text style={styles.heroTitle}>Grow the Ledger Community</Text>
+          <Text style={styles.heroSub}>
+            Share your unique code with fellow lenders. When they subscribe, both of you unlock premium benefits.
+          </Text>
+        </View>
 
-        {/* Your referral code */}
-        <ELCard style={[styles.card, { backgroundColor: EL.primaryFixed }]}>
-          <Text style={styles.codeLabel}>Your referral code</Text>
-          <View style={styles.codeRow}>
+        {/* Referral Code Card */}
+        <View style={styles.codeCard}>
+          <Text style={styles.codeLabel}>YOUR REFERRAL CODE</Text>
+          <View style={styles.codePill}>
             <Text style={styles.codeText}>{code}</Text>
-            <Pressable onPress={handleCopy} style={styles.copyBtn}>
-              <MaterialCommunityIcons name="content-copy" size={20} color={EL.primary} />
+          </View>
+          <View style={styles.codeActions}>
+            <GradientButton
+              title="Copy"
+              onPress={handleCopy}
+              icon={<MaterialCommunityIcons name="content-copy" size={18} color={EL.white} />}
+              style={{ flex: 1 }}
+            />
+            <Pressable style={styles.shareBtn} onPress={handleShare}>
+              <MaterialCommunityIcons name="share-variant" size={18} color={EL.primary} />
+              <Text style={styles.shareBtnText}>Share</Text>
             </Pressable>
           </View>
-          <GradientButton title="Share with WhatsApp" onPress={handleShare} style={{ marginTop: Space.md }} />
-        </ELCard>
+        </View>
 
-        {/* Stats */}
-        <ELCard style={styles.card}>
-          <View style={styles.statRow}>
-            <View style={styles.stat}>
-              <Text style={styles.statNum}>{stats.completedCount}</Text>
-              <Text style={styles.statLabel}>Friends joined</Text>
-            </View>
-            <View style={styles.stat}>
-              <Text style={styles.statNum}>{stats.freeMonthsEarned}</Text>
-              <Text style={styles.statLabel}>Free months earned</Text>
-            </View>
+        {/* Stats Bento Grid */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Text style={styles.statNum}>{stats.completedCount}</Text>
+            <Text style={styles.statLabel}>friends joined</Text>
           </View>
-        </ELCard>
-
-        {/* How it works */}
-        <ELCard style={styles.card}>
-          <Text style={styles.sectionTitle}>How it works</Text>
-          {[
-            'Share your code with a fellow financier',
-            'They sign up and enter your code',
-            'You both get 1 month of Pro plan free',
-            'No limit \u2014 refer 10 friends, get 10 free months!',
-          ].map((text, i) => (
-            <View key={i} style={styles.stepRow}>
-              <View style={styles.stepCircle}>
-                <Text style={styles.stepNum}>{i + 1}</Text>
-              </View>
-              <Text style={styles.stepText}>{text}</Text>
-            </View>
-          ))}
-        </ELCard>
-
-        {/* Apply a code */}
-        <ELCard style={styles.card}>
-          <Text style={styles.sectionTitle}>Have a referral code?</Text>
-          <View style={styles.applyRow}>
-            <TextInput
-              style={styles.applyInput}
-              value={applyCode}
-              onChangeText={(v) => setApplyCode(v.toUpperCase())}
-              placeholder="VASOOL-XXXXXX"
-              placeholderTextColor={EL.onSurfaceMuted}
-              autoCapitalize="characters"
-            />
-            <GradientButton title="Apply" onPress={handleApply} loading={loading} style={{ marginLeft: Space.sm }} />
+          <View style={styles.statCard}>
+            <Text style={styles.statNum}>{stats.freeMonthsEarned}</Text>
+            <Text style={styles.statLabel}>free months earned</Text>
           </View>
-        </ELCard>
+        </View>
+
+        {/* Apply Code Section */}
+        <View style={styles.applySection}>
+          <Text style={styles.applySectionTitle}>Have a referral code?</Text>
+          <TextInput
+            style={styles.applyInput}
+            value={applyCode}
+            onChangeText={(v) => setApplyCode(v.toUpperCase())}
+            placeholder="Enter code here"
+            placeholderTextColor={EL.outline}
+            autoCapitalize="characters"
+          />
+          <GradientButton
+            title="Apply"
+            onPress={handleApply}
+            loading={loading}
+            style={{ marginTop: Space.lg, alignSelf: 'flex-end' }}
+          />
+        </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Space.xl, paddingBottom: Space.xxxl },
-  title: { ...Type.displayMd },
-  sub: { ...Type.bodyMd, color: EL.onSurfaceSec, marginBottom: Space.lg },
-  card: { marginBottom: Space.lg },
-  codeLabel: { ...Type.labelMd, color: EL.onPrimaryFixed },
-  codeRow: { flexDirection: 'row', alignItems: 'center', marginTop: Space.sm },
-  codeText: { fontSize: 28, fontWeight: '800', color: EL.primaryDark, letterSpacing: 2, flex: 1 },
-  copyBtn: { padding: Space.md },
-  statRow: { flexDirection: 'row' },
-  stat: { flex: 1, alignItems: 'center' },
-  statNum: { fontSize: 32, fontWeight: '800', color: EL.primary },
-  statLabel: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: Space.xs },
-  sectionTitle: { ...Type.titleMd, marginBottom: Space.md },
-  stepRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Space.md },
-  stepCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: EL.primary, alignItems: 'center', justifyContent: 'center', marginRight: Space.md },
-  stepNum: { ...Type.labelMd, color: EL.white, fontWeight: '700' },
-  stepText: { ...Type.bodyMd, color: EL.onSurface, flex: 1 },
-  applyRow: { flexDirection: 'row', alignItems: 'center' },
+  content: { padding: Space.xl, paddingBottom: Space.xxxl, gap: Space.xxl },
+
+  // Hero
+  heroSection: {
+    backgroundColor: EL.surfaceLow,
+    borderRadius: 32,
+    padding: Space.xxl,
+    alignItems: 'center',
+  },
+  heroTitle: {
+    ...Type.displaySm,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: Space.sm,
+  },
+  heroSub: {
+    ...Type.bodyMd,
+    color: EL.onSurfaceSec,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
+  // Code card
+  codeCard: {
+    backgroundColor: EL.surfaceCard,
+    borderRadius: 32,
+    padding: Space.xxl,
+    alignItems: 'center',
+    ...Shadows.card,
+  },
+  codeLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: EL.outline,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: Space.lg,
+  },
+  codePill: {
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.md,
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.lg,
+    marginBottom: Space.xxl,
+  },
+  codeText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: EL.primary,
+    letterSpacing: 3,
+  },
+  codeActions: {
+    flexDirection: 'row',
+    gap: Space.md,
+    width: '100%',
+  },
+  shareBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.sm,
+    backgroundColor: EL.surfaceHighest,
+    paddingVertical: Space.lg,
+    borderRadius: Radii.md,
+  },
+  shareBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: EL.primary,
+  },
+
+  // Stats
+  statsGrid: {
+    flexDirection: 'row',
+    gap: Space.md,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.xxl,
+    padding: Space.xl,
+    alignItems: 'center',
+    gap: Space.xs,
+  },
+  statNum: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: EL.primaryContainer,
+  },
+  statLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: EL.onSurfaceSec,
+  },
+
+  // Apply
+  applySection: {
+    backgroundColor: EL.surfaceMid,
+    borderRadius: 32,
+    padding: Space.xxl,
+  },
+  applySectionTitle: {
+    ...Type.titleLg,
+    fontWeight: '700',
+    marginBottom: Space.lg,
+  },
   applyInput: {
-    flex: 1, backgroundColor: EL.surfaceCard, borderRadius: Radii.sm + 2,
-    paddingHorizontal: Space.lg, minHeight: Touch.min, ...Type.bodyMd, color: EL.onSurface,
-    letterSpacing: 1, ...Shadows.card,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.md,
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.lg,
+    ...Type.bodyMd,
+    color: EL.onSurface,
   },
 });

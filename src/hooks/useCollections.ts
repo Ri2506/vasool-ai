@@ -51,10 +51,16 @@ export function useRecordCollection() {
       if (!orgId) throw new Error('Not signed in');
       return recordCollection({ ...input, orgId });
     },
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       if (orgId) {
         qc.invalidateQueries({ queryKey: KEYS.dueToday(orgId) });
         qc.invalidateQueries({ queryKey: KEYS.summary(orgId) });
+        qc.invalidateQueries({ queryKey: ['borrower-statuses', orgId] });
+        qc.invalidateQueries({ queryKey: ['loans', orgId] });
+      }
+      if (input.loanId) {
+        qc.invalidateQueries({ queryKey: KEYS.forLoan(input.loanId) });
+        qc.invalidateQueries({ queryKey: ['plan', input.loanId] });
       }
     },
   });

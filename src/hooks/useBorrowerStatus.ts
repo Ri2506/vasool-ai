@@ -7,6 +7,10 @@ export interface BorrowerStatus {
   is_nippu: boolean;
   days_overdue: number;
   rating: number; // 0-5
+  emi: number;
+  line_type: string;
+  days_paid: number;
+  total_days: number;
 }
 
 /**
@@ -56,6 +60,26 @@ async function getAllBorrowerStatuses(orgId: string): Promise<Record<string, Bor
     [orgId]
   );
 
+  // Loan info (EMI, line type, progress)
+  const loanInfoRows = await db.getAllAsync<{
+    borrower_id: string;
+    emi: number;
+    line_type: string;
+    days_paid: number;
+    total_days: number;
+  }>(
+    `SELECT l.borrower_id,
+       l.emi_amount AS emi,
+       COALESCE(ln.type, 'daily') AS line_type,
+       (SELECT COUNT(*) FROM plan_entries pe2 WHERE pe2.loan_id = l.id AND pe2.status IN ('paid','advance_covered')) AS days_paid,
+       l.total_installments AS total_days
+     FROM loans l
+     LEFT JOIN lines ln ON ln.id = l.line_id
+     WHERE l.org_id = ? AND l.status = 'active'
+     GROUP BY l.borrower_id`,
+    [orgId]
+  );
+
   const result: Record<string, BorrowerStatus> = {};
 
   // Process overdue
@@ -67,6 +91,10 @@ async function getAllBorrowerStatuses(orgId: string): Promise<Record<string, Bor
       is_nippu: days > grace,
       days_overdue: days,
       rating: 0,
+      emi: 0,
+      line_type: 'daily',
+      days_paid: 0,
+      total_days: 0,
     };
   }
 
@@ -89,9 +117,34 @@ async function getAllBorrowerStatuses(orgId: string): Promise<Record<string, Bor
         is_nippu: false,
         days_overdue: 0,
         rating,
+        emi: 0,
+        line_type: 'daily',
+        days_paid: 0,
+        total_days: 0,
       };
     } else {
       result[row.borrower_id].rating = rating;
+    }
+  }
+
+  // Process loan info
+  for (const row of loanInfoRows) {
+    if (!result[row.borrower_id]) {
+      result[row.borrower_id] = {
+        borrower_id: row.borrower_id,
+        is_nippu: false,
+        days_overdue: 0,
+        rating: 0,
+        emi: Number(row.emi) || 0,
+        line_type: row.line_type || 'daily',
+        days_paid: Number(row.days_paid) || 0,
+        total_days: Number(row.total_days) || 0,
+      };
+    } else {
+      result[row.borrower_id].emi = Number(row.emi) || 0;
+      result[row.borrower_id].line_type = row.line_type || 'daily';
+      result[row.borrower_id].days_paid = Number(row.days_paid) || 0;
+      result[row.borrower_id].total_days = Number(row.total_days) || 0;
     }
   }
 

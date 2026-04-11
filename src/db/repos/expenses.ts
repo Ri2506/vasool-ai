@@ -10,6 +10,7 @@ export interface NewExpenseInput {
 }
 
 export async function createExpense(input: NewExpenseInput): Promise<ExpenseRow> {
+  if (input.amount <= 0) throw new Error('Amount must be positive');
   const db = await openDb();
   const row: ExpenseRow = {
     id: uuid(),

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from 'react-i18next';
@@ -27,9 +28,9 @@ import { NippuReportScreen } from '@/screens/owner/NippuReportScreen';
 import { AgentSuccessReceiptScreen } from '@/screens/agent/AgentSuccessReceiptScreen';
 import { BorrowerRatingDetailScreen } from '@/screens/owner/BorrowerRatingDetailScreen';
 import { GuarantorScreen } from '@/screens/owner/GuarantorScreen';
+import { DocumentScreen } from '@/screens/owner/DocumentScreen';
 import { DepositScreen } from '@/screens/owner/DepositScreen';
 import { LoanCelebrationScreen } from '@/screens/owner/LoanCelebrationScreen';
-// Colors import removed — using Emerald Ledger theme inline
 import { TabIcon } from '@/components/common/TabIcon';
 import type { OwnerStackParamList, OwnerTabParamList } from './types';
 
@@ -41,18 +42,20 @@ function OwnerTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#059669',
-        tabBarInactiveTintColor: '#8a9e93',
+        tabBarActiveTintColor: '#006948',
+        tabBarInactiveTintColor: 'rgba(109, 122, 114, 0.4)',
+        tabBarShowLabel: false,
         tabBarStyle: {
-          backgroundColor: 'rgba(250,252,251,0.9)',
+          backgroundColor: 'rgba(240, 253, 244, 0.9)',
           borderTopWidth: 0,
-          height: 64,
-          paddingBottom: 8,
           shadowColor: 'rgba(0,33,20,0.08)',
-          shadowOffset: { width: 0, height: -4 },
+          shadowOffset: { width: 0, height: -10 },
           shadowOpacity: 1,
-          shadowRadius: 20,
+          shadowRadius: 40,
           elevation: 4,
+          ...(Platform.OS === 'web'
+            ? ({ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' } as any)
+            : {}),
         },
         tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
       }}
@@ -105,6 +108,7 @@ export function OwnerNavigator() {
       <Stack.Screen name="Deposits" component={DepositScreen} options={{ title: 'Deposits' }} />
       <Stack.Screen name="Guarantor" component={GuarantorScreen} options={{ title: 'Guarantor' }} />
       <Stack.Screen name="LoanCelebration" component={LoanCelebrationScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Documents" component={DocumentScreen} options={{ title: 'Documents' }} />
     </Stack.Navigator>
   );
 }

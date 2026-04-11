@@ -3,6 +3,7 @@ import {
   Alert,
   FlatList,
   Pressable,
+  RefreshControl,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -11,14 +12,15 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
+import { useQuery } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
-import { ELCard } from '@/components/common/ELCard';
-import { ProgressBar } from '@/components/common/ProgressBar';
 import { EL, Common, Glass, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { useDueToday, useRecordCollection, useTodaySummary } from '@/hooks/useCollections';
+import { useAuthStore } from '@/store/authStore';
 import { formatRupees } from '@/utils/format';
+import { getTodayCollections } from '@/db/repos/collections';
 import type { DueTodayItem } from '@/db/repos/collections';
 import type { OwnerStackParamList } from '@/navigation/types';
 
@@ -27,7 +29,8 @@ type Nav = NativeStackNavigationProp<OwnerStackParamList>;
 export function BatchCollectScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
-  const { data: items = [] } = useDueToday();
+  const orgId = useAuthStore((s) => s.user?.orgId ?? null);
+  const { data: items = [], refetch: refetchDue } = useDueToday();
   const { data: summary } = useTodaySummary();
   const recordMut = useRecordCollection();
 
@@ -48,17 +51,45 @@ export function BatchCollectScreen() {
     }
   };
 
+  // Fetch today's collected items
+  const { data: collectedItems = [] } = useQuery({
+    queryKey: ['today-collections', orgId],
+    enabled: !!orgId,
+    queryFn: () => getTodayCollections(orgId!),
+  });
+  const collectedCount = collectedItems.length;
+
+  const renderCollectedItem = (c: { borrower_name: string; amount: number }, index: number) => (
+    <View key={`collected-${index}`} style={styles.collectedRow}>
+      <View style={styles.collectedLeft}>
+        <View style={styles.checkCircle}>
+          <MaterialCommunityIcons name="check" size={18} color={EL.primary} />
+        </View>
+        <View>
+          <Text style={styles.rowName}>{c.borrower_name}</Text>
+          <Text style={styles.rowSub}>{formatRupees(c.amount)}</Text>
+        </View>
+      </View>
+      <Text style={styles.collectedAmount}>{'\u2713'} {formatRupees(c.amount)}</Text>
+    </View>
+  );
+
   const renderItem = ({ item }: { item: DueTodayItem }) => (
     <Pressable
-      style={styles.row}
+      style={({ pressed }) => [
+        styles.remainingRow,
+        pressed && { transform: [{ scale: 0.98 }] },
+      ]}
       onPress={() => navigation.navigate('Collect', { item })}
     >
-      <Avatar name={item.borrower_name} size={36} />
-      <View style={styles.rowBody}>
-        <Text style={styles.rowName}>{item.borrower_name}</Text>
-        <Text style={styles.rowSub}>
-          {formatRupees(item.expected_amount)} {item.line_name ? `\u2022 ${item.line_name}` : 'daily'}
-        </Text>
+      <View style={styles.remainingLeft}>
+        <Avatar name={item.borrower_name} size={36} />
+        <View>
+          <Text style={styles.rowName}>{item.borrower_name}</Text>
+          <Text style={styles.rowSub}>
+            {formatRupees(item.expected_amount)} {item.line_name ? item.line_name : 'daily'}
+          </Text>
+        </View>
       </View>
       <Pressable
         onPress={() => handleQuickCollect(item)}
@@ -78,15 +109,35 @@ export function BatchCollectScreen() {
 
   return (
     <SafeAreaView style={Common.screen}>
+      {/* ── Fixed Header ── */}
+      <View style={[Glass.container, styles.header]}>
+        <View style={styles.headerLeft}>
+          <Pressable
+            style={styles.headerBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={24} color={EL.onSurface} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Batch Collect</Text>
+        </View>
+        <Pressable
+          style={styles.headerBtn}
+          onPress={() => refetchDue()}
+        >
+          <MaterialCommunityIcons name="refresh" size={22} color={EL.onSurface} />
+        </Pressable>
+      </View>
+
       <FlatList
         data={items}
         keyExtractor={(item) => item.plan_entry_id}
         renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: 120 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
+        refreshControl={<RefreshControl refreshing={false} onRefresh={refetchDue} tintColor={EL.primary} />}
         ListHeaderComponent={
           <>
-            {/* Progress card */}
-            <ELCard style={styles.progressCard}>
+            {/* ── Progress Card ── */}
+            <View style={styles.progressCard}>
               <View style={styles.progressTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.progressLabel}>Daily Collection Progress</Text>
@@ -95,16 +146,28 @@ export function BatchCollectScreen() {
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[Type.labelLg, { color: EL.primary }]}>
+                  <Text style={styles.progressCount}>
                     {done} of {total}
                   </Text>
-                  <Text style={Type.labelSm}>collected</Text>
+                  <Text style={styles.progressCountSub}>collected</Text>
                 </View>
               </View>
-              <ProgressBar progress={progress} />
-            </ELCard>
+              {/* Gradient progress bar */}
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
+              </View>
+            </View>
 
-            {/* Section header for remaining */}
+            {/* ── Collected Items ── */}
+            {collectedCount > 0 ? (
+              <View style={styles.collectedSection}>
+                {collectedItems.map((c, idx) =>
+                  renderCollectedItem(c, idx)
+                )}
+              </View>
+            ) : null}
+
+            {/* ── Remaining section header ── */}
             {items.length > 0 ? (
               <Text style={styles.sectionLabel}>Remaining Today</Text>
             ) : null}
@@ -121,20 +184,20 @@ export function BatchCollectScreen() {
         }
       />
 
-      {/* Bottom summary bar */}
-      <View style={[Glass.container, styles.bottomBar]}>
+      {/* ── Bottom Summary Bar ── */}
+      <View style={styles.bottomBar}>
         <View style={styles.bottomLeft}>
           <View style={styles.pulseDot} />
           <View>
-            <Text style={Type.labelSm}>Session Total</Text>
+            <Text style={styles.bottomLabel}>Session Total</Text>
             <Text style={styles.bottomAmount}>
               {formatRupees(summary?.totalCollected ?? 0)} collected
             </Text>
           </View>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={Type.labelSm}>Pending</Text>
-          <Text style={[Type.titleMd, { color: EL.onSurfaceMuted }]}>
+          <Text style={styles.bottomLabel}>Pending</Text>
+          <Text style={styles.bottomPending}>
             {items.length} remaining
           </Text>
         </View>
@@ -144,66 +207,178 @@ export function BatchCollectScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Progress
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.lg,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.lg,
+  },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: EL.onSurface,
+    letterSpacing: -0.2,
+  },
+
+  // Progress card
   progressCard: {
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    padding: Space.xxl,
     marginHorizontal: Space.lg,
     marginTop: Space.md,
-    marginBottom: Space.lg,
+    marginBottom: Space.xl,
+    ...Shadows.card,
   },
   progressTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    marginBottom: Space.md,
+    marginBottom: Space.sm,
   },
   progressLabel: {
-    ...Type.bodySm,
+    fontSize: 14,
+    fontWeight: '500',
     color: EL.onSurfaceMuted,
   },
   progressAmount: {
-    ...Type.displaySm,
-    color: EL.primary,
+    fontSize: 28,
     fontWeight: '800',
+    color: EL.primary,
     letterSpacing: -0.5,
   },
-
-  // Section
-  sectionLabel: {
-    ...Type.labelSm,
-    color: EL.onSurfaceMuted,
+  progressCount: {
+    fontSize: 14,
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    paddingHorizontal: Space.xl,
-    marginBottom: Space.md,
+    color: EL.primary,
+  },
+  progressCountSub: {
+    fontSize: 12,
+    color: EL.onSurfaceMuted,
+  },
+  progressTrack: {
+    height: 12,
+    backgroundColor: EL.surfaceHighest,
+    borderRadius: Radii.pill,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: EL.primary,
+    borderRadius: Radii.pill,
   },
 
-  // Row
-  row: {
+  // Collected items
+  collectedSection: {
+    paddingHorizontal: Space.lg,
+    gap: Space.sm,
+  },
+  collectedRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 60,
+    backgroundColor: EL.surface,
+    borderRadius: Radii.md,
+    paddingHorizontal: Space.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: EL.primaryContainer,
+  },
+  collectedLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+    flex: 1,
+  },
+  checkCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: EL.primaryFixed,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  collectedAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: EL.primary,
+  },
+
+  // Section label
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: EL.onSurfaceMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    paddingHorizontal: Space.xl + 4,
+    marginBottom: Space.md,
+    marginTop: Space.sm,
+  },
+
+  // Remaining rows
+  remainingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 60,
     backgroundColor: EL.surfaceCard,
     borderRadius: Radii.md,
-    marginHorizontal: Space.lg,
-    marginBottom: Space.sm,
     paddingHorizontal: Space.lg,
-    height: 64,
-    ...Shadows.card,
+    marginHorizontal: Space.lg,
+    marginBottom: Space.md,
   },
-  rowBody: { flex: 1, marginLeft: Space.md },
-  rowName: { ...Type.labelLg, color: EL.onSurface },
-  rowSub: { ...Type.labelSm, color: EL.onSurfaceMuted, marginTop: 1 },
+  remainingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+    flex: 1,
+  },
+  rowName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: EL.onSurface,
+  },
+  rowSub: {
+    fontSize: 12,
+    color: EL.onSurfaceMuted,
+    marginTop: 1,
+  },
   collectBtn: {
     backgroundColor: EL.primary,
     borderRadius: Radii.md,
-    paddingHorizontal: Space.xl,
+    paddingHorizontal: Space.xxl,
     paddingVertical: Space.sm,
     ...Shadows.card,
   },
-  collectBtnLabel: { ...Type.labelLg, color: EL.white },
+  collectBtnLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: EL.white,
+  },
 
-  // Empty
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Space.xl, marginTop: Space.xxxl },
+  // Empty state
+  emptyWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Space.xl,
+    marginTop: Space.xxxl,
+  },
   emptyIcon: {
     width: 80,
     height: 80,
@@ -213,10 +388,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: Space.lg,
   },
-  emptyTitle: { ...Type.displaySm, color: EL.primary },
-  emptySub: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: Space.xs },
+  emptyTitle: {
+    ...Type.displaySm,
+    color: EL.primary,
+  },
+  emptySub: {
+    ...Type.bodySm,
+    color: EL.onSurfaceSec,
+    marginTop: Space.xs,
+  },
 
-  // Bottom bar
+  // Bottom summary bar
   bottomBar: {
     position: 'absolute',
     bottom: 0,
@@ -225,11 +407,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Space.xxl,
-    paddingVertical: Space.xl,
+    paddingHorizontal: Space.xxxl,
+    paddingVertical: Space.xxl,
     paddingBottom: Space.xxxl,
-    borderTopLeftRadius: Radii.xl + 12,
-    borderTopRightRadius: Radii.xl + 12,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    backgroundColor: 'rgba(240, 253, 244, 0.9)',
     ...Shadows.float,
   },
   bottomLeft: {
@@ -243,9 +426,21 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: EL.primary,
   },
+  bottomLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: EL.onSurfaceMuted,
+  },
   bottomAmount: {
-    ...Type.titleLg,
+    fontSize: 18,
     fontWeight: '800',
     color: EL.onSurface,
+    lineHeight: 22,
+  },
+  bottomPending: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: EL.onSurfaceMuted,
+    lineHeight: 22,
   },
 });

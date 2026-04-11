@@ -101,9 +101,20 @@ export async function updateBorrower(input: UpdateBorrowerInput): Promise<void> 
 
 export async function deleteBorrower(id: string): Promise<void> {
   const db = await openDb();
-  // Hard delete locally; Sprint 3 will switch to soft delete + tombstone
-  // for sync. OK for now because borrowers can be freely re-added.
-  await db.runAsync(`DELETE FROM borrowers WHERE id = ?`, [id]);
+  // Cascade delete child records to prevent orphans.
+  // Wrapped in a transaction so partial failures don't leave dangling data.
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `DELETE FROM collections WHERE loan_id IN (SELECT id FROM loans WHERE borrower_id = ?)`,
+      [id]
+    );
+    await db.runAsync(
+      `DELETE FROM plan_entries WHERE loan_id IN (SELECT id FROM loans WHERE borrower_id = ?)`,
+      [id]
+    );
+    await db.runAsync(`DELETE FROM loans WHERE borrower_id = ?`, [id]);
+    await db.runAsync(`DELETE FROM borrowers WHERE id = ?`, [id]);
+  });
 }
 
 export async function searchBorrowers(

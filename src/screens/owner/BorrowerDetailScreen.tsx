@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Alert,
   Linking,
   Pressable,
   SafeAreaView,
@@ -14,12 +15,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 
 import { Avatar } from '@/components/common/Avatar';
-import { Badge } from '@/components/common/Badge';
-import { ELCard } from '@/components/common/ELCard';
 import { GradientButton } from '@/components/common/GradientButton';
-import { ProgressBar } from '@/components/common/ProgressBar';
 import { StarRating } from '@/components/common/StarRating';
-import { EL, Common, Radii, Space, Type } from '@/theme/emeraldLedger';
+import { EL, Common, Glass, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { openDb } from '@/db';
 import { useBorrower } from '@/hooks/useBorrowers';
 import { useBorrowerStatuses } from '@/hooks/useBorrowerStatus';
@@ -78,6 +76,14 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
     ? generateBorrowerTip({ loans, planEntries: tipData.planEntries, collections: tipData.collections })
     : null;
 
+  // Recent payments from collections
+  const recentPayments = React.useMemo(() => {
+    if (!tipData?.collections) return [];
+    return [...tipData.collections]
+      .sort((a, b) => b.created_at - a.created_at)
+      .slice(0, 5);
+  }, [tipData?.collections]);
+
   if (!borrower) {
     return (
       <SafeAreaView style={Common.screen}>
@@ -90,9 +96,28 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={Common.screen}>
+      {/* ── Sticky Header ── */}
+      <View style={[Glass.container, styles.header]}>
+        <View style={styles.headerLeft}>
+          <Pressable
+            style={styles.headerBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={24} color={EL.onSurface} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Borrower Profile</Text>
+        </View>
+        <Pressable
+          style={styles.headerBtn}
+          onPress={() => navigation.navigate('BorrowerEdit', { id: borrower.id })}
+        >
+          <MaterialCommunityIcons name="pencil" size={22} color={EL.onSurface} />
+        </Pressable>
+      </View>
+
       <ScrollView contentContainerStyle={styles.content}>
         {/* ── Profile Header Card ── */}
-        <ELCard style={styles.profileCard}>
+        <View style={styles.profileCard}>
           <View style={styles.profileTop}>
             <View style={styles.profileLeft}>
               <View style={styles.avatarWrap}>
@@ -111,9 +136,12 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
                   </Pressable>
                 ) : null}
                 {st?.rating ? (
-                  <View style={{ marginTop: Space.xs }}>
-                    <StarRating rating={st.rating} size={16} />
-                  </View>
+                  <Pressable
+                    style={{ marginTop: 4 }}
+                    onPress={() => navigation.navigate('BorrowerRating', { id })}
+                  >
+                    <StarRating rating={st.rating} size={18} />
+                  </Pressable>
                 ) : null}
               </View>
             </View>
@@ -125,13 +153,13 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
                     style={styles.actionCircle}
                     onPress={() => Linking.openURL(`tel:${borrower.phone}`)}
                   >
-                    <MaterialCommunityIcons name="phone" size={20} color={EL.primary} />
+                    <MaterialCommunityIcons name="phone" size={22} color={EL.primary} />
                   </Pressable>
                   <Pressable
                     style={styles.actionCircle}
                     onPress={() => Linking.openURL(`https://wa.me/91${borrower.phone}`)}
                   >
-                    <MaterialCommunityIcons name="whatsapp" size={20} color="#25D366" />
+                    <MaterialCommunityIcons name="whatsapp" size={22} color="#25D366" />
                   </Pressable>
                 </>
               ) : null}
@@ -143,33 +171,28 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
             <View style={styles.statusRow}>
               <View style={[styles.statusPill, {
                 backgroundColor: borrowerStatus === 'nadapu'
-                  ? 'rgba(5, 150, 105, 0.12)'
+                  ? 'rgba(133, 248, 196, 0.3)'
                   : 'rgba(220, 38, 38, 0.12)',
               }]}>
                 <View style={[styles.pulseDot, {
                   backgroundColor: borrowerStatus === 'nadapu' ? EL.primary : EL.nippu,
                 }]} />
                 <Text style={[styles.statusPillText, {
-                  color: borrowerStatus === 'nadapu' ? EL.primary : EL.nippu,
+                  color: borrowerStatus === 'nadapu' ? EL.onPrimaryFixed : EL.nippu,
                 }]}>
                   {borrowerStatus === 'nadapu' ? '\u0BA8\u0B9F\u0BAA\u0BCD\u0BAA\u0BC1 / On Schedule' : '\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1 / Overdue'}
                 </Text>
               </View>
             </View>
           ) : null}
-
-          {/* Address */}
-          {borrower.address ? (
-            <Text style={styles.profileAddress}>{borrower.address}</Text>
-          ) : null}
-        </ELCard>
+        </View>
 
         {/* ── AI Contextual Tip ── */}
         {tip ? (
-          <View style={[styles.tipCard, { backgroundColor: TIP_BG[tip.variant] }]}>
+          <View style={[styles.tipCard, { backgroundColor: TIP_BG[tip.variant] + '1A' }]}>
             <MaterialCommunityIcons
               name="head-lightbulb-outline"
-              size={18}
+              size={20}
               color={TIP_FG[tip.variant]}
             />
             <Text style={[styles.tipText, { color: TIP_FG[tip.variant] }]}>
@@ -178,33 +201,31 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
           </View>
         ) : null}
 
-        {/* ── Edit button ── */}
-        <GradientButton
-          title={t('borrowers.edit')}
-          variant="secondary"
-          onPress={() => navigation.navigate('BorrowerEdit', { id: borrower.id })}
-          icon={<MaterialCommunityIcons name="pencil-outline" size={18} color={EL.primary} />}
-          style={{ marginHorizontal: Space.xl, marginBottom: Space.lg }}
-        />
-
         {/* ── Active Loans Section ── */}
         <View style={styles.sectionHeader}>
-          <Text style={Type.titleLg}>
+          <Text style={styles.sectionTitle}>
             {t('borrowers.loans')} {loans ? `(${loans.length})` : ''}
           </Text>
         </View>
 
         {loans && loans.length > 0 ? (
-          loans.map((loan) => {
+          loans.map((loan, index) => {
             // Compute paid count from collections
             const loanCollections = tipData?.collections.filter(c => c.loan_id === loan.id) ?? [];
             const paidDays = loanCollections.length;
             const progress = loan.total_installments > 0
               ? Math.min(1, paidDays / loan.total_installments)
               : 0;
+            const isSecondary = index > 0;
 
             return (
-              <ELCard key={loan.id} style={styles.loanCard}>
+              <View
+                key={loan.id}
+                style={[
+                  styles.loanCard,
+                  isSecondary && styles.loanCardSecondary,
+                ]}
+              >
                 <View style={styles.loanTop}>
                   <View>
                     <Text style={styles.loanType}>
@@ -213,25 +234,27 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
                     <Text style={styles.loanAmount}>{formatRupees(loan.principal)}</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.loanDueLabel}>
-                      DAILY DUE
-                    </Text>
+                    <Text style={styles.loanDueLabel}>DAILY DUE</Text>
                     <Text style={styles.loanDueAmount}>{formatRupees(loan.emi_amount)}</Text>
                   </View>
                 </View>
 
                 {/* Progress */}
-                <View style={styles.loanProgress}>
-                  <View style={styles.loanProgressHeader}>
-                    <Text style={Type.bodySm}>
-                      Day {paidDays}/{loan.total_installments}
-                    </Text>
-                    <Text style={[Type.bodySm, { color: EL.primary }]}>
-                      {formatRupees(loan.emi_amount * Math.max(0, loan.total_installments - paidDays))} remaining
-                    </Text>
+                {!isSecondary ? (
+                  <View style={styles.loanProgress}>
+                    <View style={styles.loanProgressHeader}>
+                      <Text style={styles.progressDayText}>
+                        Day {paidDays}/{loan.total_installments}
+                      </Text>
+                      <Text style={[styles.progressDayText, { color: EL.primary }]}>
+                        {formatRupees(loan.emi_amount * Math.max(0, loan.total_installments - paidDays))} remaining
+                      </Text>
+                    </View>
+                    <View style={styles.progressTrack}>
+                      <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
+                    </View>
                   </View>
-                  <ProgressBar progress={progress} />
-                </View>
+                ) : null}
 
                 {/* Actions row */}
                 <View style={styles.loanActions}>
@@ -239,19 +262,12 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
                     onPress={() => navigation.navigate('LoanPlan', { loanId: loan.id })}
                     style={styles.loanLink}
                   >
-                    <Text style={styles.loanLinkText}>
-                      View Plan
-                    </Text>
+                    <Text style={styles.loanLinkText}>View Plan</Text>
                     <MaterialCommunityIcons name="chevron-right" size={16} color={EL.primary} />
                   </Pressable>
-                  <Badge
-                    label={loan.status}
-                    variant={
-                      loan.status === 'active' ? 'success'
-                        : loan.status === 'overdue' ? 'danger'
-                          : 'neutral'
-                    }
-                  />
+                  {!isSecondary ? (
+                    <Text style={styles.nextDueText}>Next due: {st?.days_overdue ? `${st.days_overdue}d overdue` : 'On schedule'}</Text>
+                  ) : null}
                 </View>
 
                 {loan.status === 'closed' ? (
@@ -261,53 +277,109 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
                     style={{ marginTop: Space.md }}
                   />
                 ) : null}
-              </ELCard>
+              </View>
             );
           })
         ) : (
-          <ELCard style={{ marginHorizontal: Space.xl }}>
+          <View style={styles.emptyLoanCard}>
             <Text style={Type.bodySm}>{t('borrowers.no_loans')}</Text>
-          </ELCard>
+          </View>
         )}
 
+        {/* ── Recent Payments Timeline ── */}
+        {recentPayments.length > 0 ? (
+          <View style={styles.paymentsSection}>
+            <Text style={styles.sectionTitle}>Recent Payments</Text>
+            <View style={styles.timeline}>
+              {/* Vertical connector line */}
+              <View style={styles.timelineConnector} />
+
+              {recentPayments.map((payment, index) => {
+                const isMissed = payment.amount === 0;
+                const date = new Date(payment.created_at);
+                const dateStr = `${date.toLocaleString('en', { month: 'short' })} ${date.getDate()}`;
+
+                return (
+                  <View key={payment.id ?? index} style={styles.timelineItem}>
+                    <View style={[
+                      styles.timelineDot,
+                      {
+                        backgroundColor: isMissed ? '#ba1a1a' : EL.primary,
+                      },
+                      index === 0 && !isMissed && styles.timelineDotGlow,
+                      index === 0 && isMissed && styles.timelineDotGlowError,
+                    ]} />
+                    <View style={styles.timelineContent}>
+                      <View style={styles.timelineRow}>
+                        <Text style={[
+                          styles.timelineAmount,
+                          isMissed && { color: '#ba1a1a' },
+                        ]}>
+                          {isMissed ? 'Missed' : formatRupees(payment.amount)}
+                        </Text>
+                        <Text style={styles.timelineDate}>{dateStr}</Text>
+                      </View>
+                      {payment.amount > 0 && index === 0 && (payment as any).collected_by ? (
+                        <Text style={styles.timelineAgent}>Agent: {(payment as any).collected_by}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
         {/* Spacer for bottom buttons */}
-        <View style={{ height: 160 }} />
+        <View style={{ height: 180 }} />
       </ScrollView>
 
       {/* ── Bottom Fixed Actions ── */}
       <View style={styles.bottomActions}>
-        <GradientButton
-          title="Record Payment"
-          onPress={() => {
-            if (loans?.[0]) {
-              navigation.navigate('Collect', {
-                item: {
-                  plan_entry_id: '',
-                  loan_id: loans[0].id,
-                  borrower_id: borrower.id,
-                  borrower_name: borrower.name,
-                  borrower_phone: borrower.phone ?? null,
-                  line_name: null,
-                  line_type: null,
-                  expected_amount: loans[0].emi_amount,
-                  installment_number: 0,
-                  due_date: Date.now(),
-                  loan_principal: loans[0].principal,
-                  loan_emi: loans[0].emi_amount,
-                  loan_status: loans[0].status,
-                },
-              });
-            }
-          }}
-          icon={<MaterialCommunityIcons name="plus-circle" size={20} color={EL.white} />}
-        />
-        <GradientButton
-          title={'+ ' + t('borrowers.new_loan')}
-          variant="secondary"
-          onPress={() => navigation.navigate('NewLoan', { borrowerId: borrower.id })}
-          icon={<MaterialCommunityIcons name="receipt" size={18} color={EL.primary} />}
-          style={{ marginTop: Space.sm }}
-        />
+        <View style={styles.bottomBtnGroup}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.recordPaymentBtn,
+              pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] },
+            ]}
+            onPress={() => {
+              if (loans?.[0]) {
+                navigation.navigate('Collect', {
+                  item: {
+                    plan_entry_id: '',
+                    loan_id: loans[0].id,
+                    borrower_id: borrower.id,
+                    borrower_name: borrower.name,
+                    borrower_phone: borrower.phone ?? null,
+                    line_name: null,
+                    line_type: null,
+                    expected_amount: loans[0].emi_amount,
+                    installment_number: 0,
+                    due_date: Date.now(),
+                    loan_principal: loans[0].principal,
+                    loan_emi: loans[0].emi_amount,
+                    loan_status: loans[0].status,
+                  },
+                });
+              } else {
+                Alert.alert('No active loan', 'Create a loan first to record payments.');
+              }
+            }}
+          >
+            <MaterialCommunityIcons name="plus-circle" size={20} color={EL.white} />
+            <Text style={styles.recordPaymentLabel}>Record Payment</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.newLoanBtn,
+              pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] },
+            ]}
+            onPress={() => navigation.navigate('NewLoan', { borrowerId: borrower.id })}
+          >
+            <MaterialCommunityIcons name="receipt" size={18} color={EL.primary} />
+            <Text style={styles.newLoanLabel}>New Loan</Text>
+          </Pressable>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -315,7 +387,8 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
 
 const styles = StyleSheet.create({
   content: {
-    paddingTop: Space.md,
+    paddingTop: Space.lg,
+    paddingHorizontal: Space.xl,
   },
   loadingWrap: {
     flex: 1,
@@ -323,12 +396,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.lg,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.lg,
+  },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: EL.onSurface,
+    letterSpacing: -0.3,
+  },
+
   // Profile card
   profileCard: {
-    marginHorizontal: Space.xl,
-    marginBottom: Space.lg,
-    borderRadius: Radii.xl,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.xxl,
     padding: Space.xxl,
+    marginBottom: Space.xl,
+    ...Shadows.card,
   },
   profileTop: {
     flexDirection: 'row',
@@ -344,8 +445,8 @@ const styles = StyleSheet.create({
   },
   verifiedBadge: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
+    bottom: -4,
+    right: -4,
     width: 24,
     height: 24,
     borderRadius: 12,
@@ -357,17 +458,18 @@ const styles = StyleSheet.create({
   },
   profileInfo: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
   profileName: {
-    ...Type.displaySm,
     fontSize: 20,
     fontWeight: '700',
+    color: EL.onSurface,
+    lineHeight: 24,
   },
   profilePhone: {
-    ...Type.bodyMd,
-    color: EL.primary,
+    fontSize: 15,
     fontWeight: '500',
+    color: EL.primary,
   },
   profileActions: {
     gap: Space.sm,
@@ -376,7 +478,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: EL.surfaceHigh,
+    backgroundColor: EL.surfaceHighest,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -388,7 +490,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     paddingHorizontal: Space.md,
-    paddingVertical: Space.sm,
+    paddingVertical: 6,
     borderRadius: Radii.pill,
     gap: Space.sm,
   },
@@ -398,28 +500,22 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statusPillText: {
-    ...Type.labelMd,
-    fontWeight: '600',
     fontSize: 13,
-  },
-  profileAddress: {
-    ...Type.bodySm,
-    color: EL.onSurfaceMuted,
-    marginTop: Space.md,
+    fontWeight: '600',
+    lineHeight: 13,
   },
 
   // AI tip
   tipCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginHorizontal: Space.xl,
-    marginBottom: Space.lg,
+    marginBottom: Space.xl,
     padding: Space.lg,
     borderRadius: Radii.lg,
-    gap: Space.sm,
+    gap: Space.md,
   },
   tipText: {
-    ...Type.bodySm,
+    fontSize: 13,
     fontWeight: '500',
     flex: 1,
     lineHeight: 18,
@@ -427,14 +523,26 @@ const styles = StyleSheet.create({
 
   // Section
   sectionHeader: {
-    paddingHorizontal: Space.xl,
-    marginBottom: Space.md,
+    marginBottom: Space.lg,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: EL.onSurface,
   },
 
   // Loan card
   loanCard: {
-    marginHorizontal: Space.xl,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    padding: Space.xl,
     marginBottom: Space.md,
+    ...Shadows.card,
+  },
+  loanCardSecondary: {
+    borderLeftWidth: 4,
+    borderLeftColor: EL.primaryContainer,
   },
   loanTop: {
     flexDirection: 'row',
@@ -442,27 +550,28 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   loanType: {
-    ...Type.labelSm,
+    fontSize: 12,
+    fontWeight: '600',
     color: EL.onSurfaceMuted,
     letterSpacing: 1,
     textTransform: 'uppercase',
-    fontWeight: '600',
   },
   loanAmount: {
-    ...Type.titleLg,
+    fontSize: 18,
     fontWeight: '700',
-    marginTop: Space.xs,
+    color: EL.onSurface,
+    marginTop: 4,
   },
   loanDueLabel: {
-    ...Type.labelSm,
+    fontSize: 12,
+    fontWeight: '500',
     color: EL.onSurfaceMuted,
-    letterSpacing: 0.5,
   },
   loanDueAmount: {
-    ...Type.titleMd,
-    color: EL.primary,
+    fontSize: 16,
     fontWeight: '700',
-    marginTop: Space.xs,
+    color: EL.primary,
+    marginTop: 4,
   },
   loanProgress: {
     marginTop: Space.lg,
@@ -472,19 +581,118 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
+  progressDayText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: EL.onSurfaceSec,
+  },
+  progressTrack: {
+    height: 8,
+    backgroundColor: EL.surfaceHighest,
+    borderRadius: Radii.pill,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: EL.primary,
+    borderRadius: Radii.pill,
+  },
   loanActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: Space.lg,
+    paddingTop: Space.sm,
   },
   loanLink: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 2,
   },
   loanLinkText: {
-    ...Type.labelLg,
+    fontSize: 14,
+    fontWeight: '700',
     color: EL.primary,
+  },
+  nextDueText: {
+    fontSize: 12,
+    color: EL.onSurfaceMuted,
+    fontStyle: 'italic',
+  },
+  emptyLoanCard: {
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    padding: Space.xl,
+    ...Shadows.card,
+  },
+
+  // Recent payments timeline
+  paymentsSection: {
+    marginTop: Space.xl,
+    paddingBottom: Space.lg,
+  },
+  timeline: {
+    position: 'relative',
+    marginLeft: Space.md,
+    marginTop: Space.lg,
+  },
+  timelineConnector: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 7,
+    width: 2,
+    backgroundColor: EL.surfaceHighest,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Space.lg,
+    marginBottom: Space.xxl,
+  },
+  timelineDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginTop: 4,
+    zIndex: 1,
+  },
+  timelineDotGlow: {
+    shadowColor: 'rgba(0, 105, 72, 0.4)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  timelineDotGlowError: {
+    shadowColor: 'rgba(186, 26, 26, 0.3)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  timelineContent: {
+    flex: 1,
+    marginTop: 0,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  timelineAmount: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: EL.onSurface,
+  },
+  timelineDate: {
+    fontSize: 12,
+    color: EL.onSurfaceMuted,
+  },
+  timelineAgent: {
+    fontSize: 13,
+    color: EL.onSurfaceSec,
+    marginTop: 2,
   },
 
   // Bottom actions
@@ -493,9 +701,40 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: Space.xl,
+    paddingHorizontal: Space.xxl,
     paddingTop: Space.lg,
-    paddingBottom: Space.xxxl,
-    backgroundColor: 'rgba(250, 252, 251, 0.92)',
+    paddingBottom: Space.xxxl + 16,
+  },
+  bottomBtnGroup: {
+    gap: Space.md,
+  },
+  recordPaymentBtn: {
+    height: 56,
+    borderRadius: Radii.lg,
+    backgroundColor: EL.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.sm,
+    ...Shadows.float,
+  },
+  recordPaymentLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: EL.white,
+  },
+  newLoanBtn: {
+    height: 56,
+    borderRadius: Radii.lg,
+    backgroundColor: EL.surfaceCard,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.sm,
+  },
+  newLoanLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: EL.primary,
   },
 });

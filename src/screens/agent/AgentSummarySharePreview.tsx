@@ -21,7 +21,6 @@ export function AgentSummarySharePreview() {
   const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
 
   const collected = summary?.totalCollected ?? 0;
-  const expected = collected + (summary?.totalExpected ?? 0);
   const done = summary?.collectionCount ?? 0;
   const total = done + (summary?.dueCount ?? 0);
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -38,7 +37,9 @@ export function AgentSummarySharePreview() {
       `— Sent from VasoolAI`,
     ].join('\n');
 
-    await Share.share({ message: text, title: 'Daily Summary' });
+    try {
+      await Share.share({ message: text, title: 'Daily Summary' });
+    } catch {}
   };
 
   return (

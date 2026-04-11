@@ -12,6 +12,7 @@ export interface NewDepositInput {
 }
 
 export async function createDeposit(input: NewDepositInput): Promise<DepositRow> {
+  if (input.amount <= 0) throw new Error('Amount must be positive');
   const db = await openDb();
   const row: DepositRow = {
     id: uuid(), server_id: null, org_id: input.orgId,

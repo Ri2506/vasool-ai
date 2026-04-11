@@ -61,6 +61,8 @@ export type AgentTabParamList = {
 export type AgentStackParamList = {
   AgentTabs: NavigatorScreenParams<AgentTabParamList>;
   AgentReceipt: SuccessReceiptParams;
+  AgentSharePreview: undefined;
+  BatchCollect: undefined;
 };
 
 export type RootStackParamList = {

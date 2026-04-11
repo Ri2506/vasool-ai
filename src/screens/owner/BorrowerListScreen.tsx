@@ -21,10 +21,12 @@ import { StarRating } from '@/components/common/StarRating';
 import { StatusBadge, type BorrowerStatusType } from '@/components/common/StatusBadge';
 import { VoiceButton } from '@/components/common/VoiceButton';
 import { ELCard } from '@/components/common/ELCard';
-import { EL, Common, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
+import { EL, Common, Radii, Shadows, Space, Type, Fonts } from '@/theme/emeraldLedger';
+import { formatRupees } from '@/utils/format';
 import { useVoice } from '@/hooks/useVoice';
 import { useBorrowers } from '@/hooks/useBorrowers';
 import { useBorrowerStatuses } from '@/hooks/useBorrowerStatus';
+import { useDueToday } from '@/hooks/useCollections';
 import type { BorrowerRow } from '@/db/types';
 import type { OwnerStackParamList } from '@/navigation/types';
 
@@ -38,6 +40,8 @@ export function BorrowerListScreen() {
   const { t } = useTranslation();
   const { data: borrowers, isLoading, refetch, isRefetching } = useBorrowers();
   const { data: statuses } = useBorrowerStatuses();
+  const { data: dueItems = [] } = useDueToday();
+  const dueBorrowerIds = useMemo(() => new Set(dueItems.map((d) => d.borrower_id)), [dueItems]);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
 
@@ -52,7 +56,9 @@ export function BorrowerListScreen() {
     let list = borrowers;
 
     // Apply filter
-    if (activeFilter === 'nippu') {
+    if (activeFilter === 'due_today') {
+      list = list.filter((b) => dueBorrowerIds.has(b.id));
+    } else if (activeFilter === 'nippu') {
       list = list.filter((b) => statuses?.[b.id]?.is_nippu);
     } else if (activeFilter === 'completed') {
       list = list.filter((b) => {
@@ -81,12 +87,12 @@ export function BorrowerListScreen() {
       if (st?.is_nippu) nippu++;
       else if (st && !st.rating) completed++;
     }
-    return { all: borrowers.length, nippu, completed };
-  }, [borrowers, statuses]);
+    return { all: borrowers.length, nippu, completed, due_today: dueBorrowerIds.size };
+  }, [borrowers, statuses, dueBorrowerIds]);
 
   const filters: { key: FilterKey; label: string }[] = [
     { key: 'all', label: `All (${counts.all})` },
-    { key: 'due_today', label: 'Due Today' },
+    { key: 'due_today', label: `Due Today (${counts.due_today})` },
     { key: 'nippu', label: `\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1 (${counts.nippu})` },
     { key: 'completed', label: 'Completed' },
   ];
@@ -99,23 +105,28 @@ export function BorrowerListScreen() {
         onPress={() => navigation.navigate('BorrowerDetail', { id: item.id })}
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       >
+        {/* Left: avatar + info */}
         <View style={styles.cardLeft}>
           <Avatar name={item.name} photoUri={item.photo_url} size={44} />
           <View style={styles.cardBody}>
-            <Text style={styles.cardName}>{item.name}</Text>
-            {item.phone ? <Text style={styles.cardPhone}>{item.phone}</Text> : null}
-            {st?.rating ? (
+            <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+            {item.phone ? (
+              <Text style={styles.cardPhone}>{item.phone}</Text>
+            ) : null}
+            {st?.emi ? (
               <Text style={styles.cardEmi}>
-                {st.rating ? `\u2605 ${st.rating.toFixed(1)}` : ''}
+                {formatRupees(st.emi)}/{st.line_type === 'daily' ? 'day' : st.line_type === 'weekly' ? 'wk' : 'mo'} • {st.days_paid}/{st.total_days} days
               </Text>
             ) : null}
           </View>
         </View>
+
+        {/* Right: status badge + stars */}
         <View style={styles.cardRight}>
           <StatusBadge status={borrowerStatus} />
           {st?.rating ? (
-            <View style={{ marginTop: Space.sm }}>
-              <StarRating rating={st.rating} size={11} />
+            <View style={styles.cardStars}>
+              <StarRating rating={st.rating} size={12} />
             </View>
           ) : null}
         </View>
@@ -140,25 +151,27 @@ export function BorrowerListScreen() {
         }
         ListHeaderComponent={
           <>
-            {/* Header */}
+            {/* Top App Bar */}
             <View style={styles.header}>
-              <Text style={styles.title}>{t('borrowers.title')}</Text>
-              <Pressable
-                style={styles.headerIcon}
-                onPress={() => { /* search focus handled by input below */ }}
-              >
+              <View style={styles.headerLeft}>
+                <Pressable style={styles.menuBtn}>
+                  <MaterialCommunityIcons name="menu" size={24} color={EL.onSurface} />
+                </Pressable>
+                <Text style={styles.headerTitle}>Borrowers</Text>
+              </View>
+              <Pressable style={styles.menuBtn}>
                 <MaterialCommunityIcons name="magnify" size={24} color={EL.onSurface} />
               </Pressable>
             </View>
 
-            {/* Search bar */}
-            <View style={styles.searchWrap}>
+            {/* Search Bar */}
+            <View style={styles.searchSection}>
               <View style={styles.searchBar}>
-                <MaterialCommunityIcons name="magnify" size={20} color={EL.onSurfaceMuted} />
+                <MaterialCommunityIcons name="magnify" size={22} color={EL.onSurfaceMuted} />
                 <TextInput
                   style={styles.searchInput}
                   placeholder={t('borrowers.search_placeholder') ?? 'Search borrowers...'}
-                  placeholderTextColor={EL.onSurfaceMuted}
+                  placeholderTextColor={EL.outlineVariant}
                   value={query}
                   onChangeText={setQuery}
                 />
@@ -170,7 +183,7 @@ export function BorrowerListScreen() {
               </View>
             </View>
 
-            {/* Filter chips */}
+            {/* Filter Chips */}
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -188,10 +201,12 @@ export function BorrowerListScreen() {
                       isActive ? styles.chipActive : styles.chipInactive,
                     ]}
                   >
-                    <Text style={[
-                      styles.chipText,
-                      isActive ? styles.chipTextActive : styles.chipTextInactive,
-                    ]}>
+                    <Text
+                      style={[
+                        styles.chipText,
+                        isActive ? styles.chipTextActive : styles.chipTextInactive,
+                      ]}
+                    >
                       {f.label}
                     </Text>
                   </Pressable>
@@ -201,13 +216,13 @@ export function BorrowerListScreen() {
 
             {/* Loading / Empty states */}
             {isLoading ? (
-              <View style={{ marginTop: Space.md, paddingHorizontal: Space.xl }}>
+              <View style={{ marginTop: Space.md, paddingHorizontal: Space.xxl }}>
                 <SkeletonRow />
                 <SkeletonRow />
                 <SkeletonRow />
               </View>
             ) : filtered.length === 0 ? (
-              <ELCard style={{ margin: Space.xl }}>
+              <ELCard style={{ margin: Space.xxl }}>
                 <Text style={Type.titleMd}>{t('borrowers.empty_title')}</Text>
                 <Text style={[Type.bodySm, { marginTop: Space.xs }]}>
                   {t('borrowers.empty_sub')}
@@ -230,31 +245,39 @@ export function BorrowerListScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Header
+  /* ── Header ── */
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Space.xl,
+    paddingHorizontal: Space.xxl,
     paddingTop: Space.lg,
-    paddingBottom: Space.md,
+    paddingBottom: Space.lg,
   },
-  title: {
-    ...Type.displayMd,
-    color: EL.onSurface,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.lg,
   },
-  headerIcon: {
-    width: Touch.min,
-    height: Touch.min,
+  menuBtn: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Radii.pill,
+    borderRadius: 20,
+  },
+  headerTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 24,
+    fontWeight: '700',
+    color: EL.onSurface,
+    letterSpacing: -0.48,
   },
 
-  // Search
-  searchWrap: {
-    paddingHorizontal: Space.xl,
-    paddingBottom: Space.md,
+  /* ── Search ── */
+  searchSection: {
+    paddingHorizontal: Space.xxl,
+    marginTop: Space.lg,
   },
   searchBar: {
     flexDirection: 'row',
@@ -262,24 +285,27 @@ const styles = StyleSheet.create({
     backgroundColor: EL.surfaceCard,
     borderRadius: Radii.lg,
     paddingHorizontal: Space.lg,
-    minHeight: Touch.min,
+    paddingVertical: Space.lg,
     ...Shadows.card,
   },
   searchInput: {
     flex: 1,
-    ...Type.bodyMd,
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    fontWeight: '500',
     color: EL.onSurface,
-    marginLeft: Space.sm,
-    paddingVertical: Space.sm,
+    marginLeft: Space.md,
+    paddingVertical: 0,
   },
 
-  // Filter chips
+  /* ── Filter Chips ── */
   filterScroll: {
-    marginBottom: Space.lg,
+    marginTop: Space.xxl,
+    marginBottom: Space.xxl,
   },
   filterRow: {
-    paddingHorizontal: Space.xl,
-    gap: Space.sm,
+    paddingHorizontal: Space.xxl,
+    gap: Space.md,
   },
   chip: {
     paddingHorizontal: Space.xl,
@@ -288,13 +314,18 @@ const styles = StyleSheet.create({
   },
   chipActive: {
     backgroundColor: EL.primary,
-    ...Shadows.card,
+    shadowColor: 'rgba(0, 105, 72, 0.2)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 3,
   },
   chipInactive: {
-    backgroundColor: EL.surfaceHigh,
+    backgroundColor: EL.surfaceHighest,
   },
   chipText: {
-    ...Type.labelMd,
+    fontFamily: Fonts.body,
+    fontSize: 14,
     fontWeight: '600',
   },
   chipTextActive: {
@@ -304,7 +335,7 @@ const styles = StyleSheet.create({
     color: EL.onSurfaceSec,
   },
 
-  // Borrower card
+  /* ── Borrower Card ── */
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -312,8 +343,8 @@ const styles = StyleSheet.create({
     backgroundColor: EL.surfaceCard,
     borderRadius: Radii.lg,
     padding: Space.lg,
-    marginHorizontal: Space.xl,
-    marginBottom: Space.md,
+    marginHorizontal: Space.xxl,
+    marginBottom: Space.lg,
     ...Shadows.card,
   },
   cardPressed: {
@@ -323,34 +354,58 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    gap: Space.lg,
   },
   cardBody: {
     flex: 1,
-    marginLeft: Space.lg,
   },
   cardName: {
-    ...Type.titleMd,
-    color: EL.onSurface,
+    fontFamily: Fonts.body,
+    fontSize: 16,
     fontWeight: '700',
+    color: EL.onSurface,
+    lineHeight: 20,
   },
   cardPhone: {
-    ...Type.bodySm,
-    color: EL.onSurfaceMuted,
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    fontWeight: '500',
+    color: EL.outlineVariant,
     marginTop: 2,
   },
   cardEmi: {
-    ...Type.labelSm,
+    fontSize: 13,
+    fontWeight: '500',
     color: EL.primary,
-    fontWeight: '600',
-    marginTop: Space.xs,
+    marginTop: 2,
   },
   cardRight: {
     alignItems: 'flex-end',
     gap: Space.sm,
   },
+  cardStars: {
+    // star-glow effect approximation
+    shadowColor: EL.starAmber,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 2,
+  },
 
-  // FAB
+  /* ── FAB ── */
   fab: {
-    ...Common.fab,
+    position: 'absolute',
+    right: Space.xxl,
+    bottom: 112,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: EL.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: 'rgba(0, 105, 72, 0.4)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 16,
+    elevation: 6,
   },
 });

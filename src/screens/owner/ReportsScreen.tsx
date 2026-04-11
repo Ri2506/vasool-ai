@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import {
-  FlatList,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,20 +13,12 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 
-import { Avatar } from '@/components/common/Avatar';
-import { Badge } from '@/components/common/Badge';
-import { ELCard } from '@/components/common/ELCard';
-import { GradientButton } from '@/components/common/GradientButton';
-import { ProgressBar } from '@/components/common/ProgressBar';
-import { EL, Common, Radii, Space, Touch, Type } from '@/theme/emeraldLedger';
+import { EL, Common, Radii, Shadows, Space, Fonts } from '@/theme/emeraldLedger';
 import type { OwnerStackParamList } from '@/navigation/types';
 import {
   getDailySummaries,
   getLineSummary,
   getOutstandingReport,
-  type DailySummaryRow,
-  type LineSummaryRow,
-  type OutstandingRow,
 } from '@/db/repos/reports';
 import { useAuthStore } from '@/store/authStore';
 import { formatDateShort, formatRupees } from '@/utils/format';
@@ -36,8 +28,17 @@ type Tab = 'daily' | 'lines' | 'outstanding';
 
 type Nav = NativeStackNavigationProp<OwnerStackParamList>;
 
+const REPORT_CARDS = [
+  { key: 'daily', icon: 'calendar-today' as const, label: 'Daily Summary', sub: "Today's collections & pending", bgColor: 'primaryFixed' as const, iconColor: 'primary' as const },
+  { key: 'patti', icon: 'table-large' as const, label: 'Patti Note', sub: 'Tabular collection register', bgColor: 'secondaryContainer' as const, iconColor: 'secondary' as const },
+  { key: 'outstanding', icon: 'format-list-bulleted' as const, label: 'Outstanding', sub: 'Borrower-wise balance due', bgColor: 'primaryFixed' as const, iconColor: 'primary' as const },
+  { key: 'expenses', icon: 'wallet-outline' as const, label: 'Expenses', sub: 'By category & date', bgColor: 'secondaryContainer' as const, iconColor: 'secondary' as const },
+  { key: 'investment', icon: 'trending-up' as const, label: 'Investment', sub: 'Capital tracking', bgColor: 'primaryFixed' as const, iconColor: 'primary' as const },
+  { key: 'nippu', icon: 'alert-outline' as const, label: 'Nippu Report', sub: 'Overdue borrowers', bgColor: 'tertiaryFixed' as const, iconColor: 'tertiary' as const },
+];
+
 export function ReportsScreen() {
-  const { t } = useTranslation();
+  useTranslation();
   const navigation = useNavigation<Nav>();
   const orgId = useAuthStore((s) => s.user?.orgId ?? null);
   const [tab, setTab] = useState<Tab>('daily');
@@ -73,194 +74,292 @@ export function ReportsScreen() {
     if (html) await sharePdf(html, `VasoolAI-${tab}-report`);
   };
 
+  const handleCardPress = async (key: string) => {
+    switch (key) {
+      case 'daily':
+        setTab('daily');
+        await handleSharePdf();
+        break;
+      case 'patti':
+        setTab('lines');
+        setTimeout(() => handleSharePdf(), 50);
+        break;
+      case 'outstanding':
+        setTab('outstanding');
+        setTimeout(() => handleSharePdf(), 50);
+        break;
+      case 'expenses': navigation.navigate('Expenses'); break;
+      case 'investment': navigation.navigate('Investments'); break;
+      case 'nippu': navigation.navigate('NippuReport'); break;
+    }
+  };
+
+  // Summary values
+  const totalCollected = daily?.reduce((s, r) => s + r.total_collected, 0) ?? 0;
+  const totalProfit = daily?.reduce((s, r) => s + (r.total_collected - r.total_expenses), 0) ?? 0;
+
   return (
     <SafeAreaView style={Common.screen}>
-      <View style={styles.header}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={styles.title}>{t('nav.reports')}</Text>
-          <GradientButton
-            title={t('common.share_pdf')}
-            variant="secondary"
-            onPress={handleSharePdf}
-            icon={<MaterialCommunityIcons name="file-pdf-box" size={16} color={EL.primary} />}
-          />
-        </View>
-      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Monthly Summary Banner */}
+        <View style={styles.summaryBanner}>
+          {/* Decorative blurred circle */}
+          <View style={styles.decorCircle} />
 
-      {/* Nippu Report link */}
-      <Pressable
-        style={styles.nippuLink}
-        onPress={() => navigation.navigate('NippuReport')}
-      >
-        <MaterialCommunityIcons name="alert-circle-outline" size={16} color={EL.nippu} />
-        <Text style={styles.nippuLinkText}>{'\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1'} Report</Text>
-        <MaterialCommunityIcons name="chevron-right" size={16} color={EL.nippu} />
-      </Pressable>
-
-      {/* Tab selector */}
-      <View style={styles.tabs}>
-        {(['daily', 'lines', 'outstanding'] as Tab[]).map((t) => {
-          const active = tab === t;
-          return (
+          <View style={styles.bannerTopRow}>
+            <View>
+              <View style={styles.reportReadyPill}>
+                <Text style={styles.reportReadyText}>Report Ready</Text>
+              </View>
+              <Text style={styles.bannerTitle}>Monthly Summary</Text>
+            </View>
             <Pressable
-              key={t}
-              onPress={() => setTab(t)}
-              style={[styles.tab, active && styles.tabActive]}
+              onPress={() => navigation.navigate('MonthlySummary')}
+              style={styles.viewBtn}
             >
-              <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                {t === 'daily' ? 'Daily' : t === 'lines' ? 'Lines' : 'Outstanding'}
-              </Text>
+              <Text style={styles.viewBtnText}>View</Text>
+              <MaterialCommunityIcons name="arrow-right" size={14} color={EL.white} />
             </Pressable>
-          );
-        })}
-      </View>
+          </View>
 
-      {tab === 'daily' && <DailyTab data={daily ?? []} />}
-      {tab === 'lines' && <LinesTab data={lines ?? []} />}
-      {tab === 'outstanding' && <OutstandingTab data={outstanding ?? []} />}
+          <View style={styles.statsGrid}>
+            <View style={styles.statBox}>
+              <Text style={styles.statLabel}>PROFIT</Text>
+              <Text style={styles.statValue}>{formatRupees(totalProfit)}</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statLabel}>COLLECTED</Text>
+              <Text style={styles.statValue}>{formatRupees(totalCollected)}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Reports Grid Section */}
+        <View style={styles.gridSection}>
+          <Text style={styles.sectionHeader}>DETAILED ANALYTICS</Text>
+          <View style={styles.reportGrid}>
+            {REPORT_CARDS.map((card) => {
+              const bgColors = {
+                primaryFixed: 'rgba(133, 248, 196, 0.3)',
+                secondaryContainer: EL.secondaryContainer,
+                tertiaryFixed: EL.tertiaryFixed,
+              };
+              const iconColors = {
+                primary: EL.primary,
+                secondary: EL.secondary,
+                tertiary: EL.tertiary,
+              };
+              return (
+                <Pressable
+                  key={card.key}
+                  style={styles.reportCard}
+                  onPress={() => handleCardPress(card.key)}
+                >
+                  <View style={[styles.reportCardIcon, { backgroundColor: bgColors[card.bgColor] }]}>
+                    <MaterialCommunityIcons
+                      name={card.icon as any}
+                      size={22}
+                      color={iconColors[card.iconColor]}
+                    />
+                  </View>
+                  <View>
+                    <Text style={styles.reportCardTitle}>{card.label}</Text>
+                    <Text style={styles.reportCardSub}>{card.sub}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Bilingual Insight Section */}
+        <View style={styles.insightSection}>
+          <View style={styles.insightContent}>
+            <MaterialCommunityIcons name="lightbulb-on-outline" size={20} color={EL.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.insightTitle}>System Insight / {'\u0B89\u0BA4\u0BB5\u0BBF\u0B95\u0BCD\u0B95\u0BC1\u0BB1\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1'}</Text>
+              <Text style={styles.insightBody}>
+                Track your daily 'Vasool' progress in the Patti Note section for real-time updates.
+                {'\n'}{'\u0B89\u0B99\u0BCD\u0B95\u0BB3\u0BBF\u0BA9\u0BCD'} {'\u0BA4\u0BBF\u0BA9\u0B9A\u0BB0\u0BBF'} {'\u0BB5\u0B9A\u0BC2\u0BB2\u0BCD'} {'\u0BA8\u0BBF\u0BB2\u0BB5\u0BB0\u0BA4\u0BCD\u0BA4\u0BC8'} {'\u0BAA\u0B9F\u0BCD\u0B9F\u0BBF'} {'\u0BA8\u0BCB\u0B9F\u0BCD\u0B9F\u0BBF\u0BB2\u0BCD'} {'\u0B9A\u0BB0\u0BBF\u0BAA\u0BBE\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BB5\u0BC1\u0BAE\u0BCD'}.
+              </Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-function DailyTab({ data }: { data: DailySummaryRow[] }) {
-  if (data.length === 0) return <EmptyCard text="No collection data yet. Start collecting to see daily summaries." />;
-  return (
-    <FlatList
-      data={data}
-      keyExtractor={(_, i) => String(i)}
-      contentContainerStyle={{ padding: Space.xl }}
-      renderItem={({ item }) => (
-        <ELCard style={styles.reportCard}>
-          <Text style={styles.cardDate}>{formatDateShort(new Date(item.date))}</Text>
-          <ReportRow label="Collected" value={formatRupees(item.total_collected)} />
-          <ReportRow label="Collections" value={String(item.collection_count)} />
-          {item.total_expenses > 0 ? (
-            <ReportRow label="Expenses" value={`-${formatRupees(item.total_expenses)}`} valueColor={EL.nippu} />
-          ) : null}
-          <ReportRow label="Net" value={formatRupees(item.total_collected - item.total_expenses)} valueColor={EL.primary} bold />
-        </ELCard>
-      )}
-    />
-  );
-}
-
-function LinesTab({ data }: { data: LineSummaryRow[] }) {
-  if (data.length === 0) return <EmptyCard text="No lines yet. Create lines to see the patti-note view." />;
-  return (
-    <FlatList
-      data={data}
-      keyExtractor={(item) => item.line_id}
-      contentContainerStyle={{ padding: Space.xl }}
-      renderItem={({ item }) => {
-        const pct = item.total_due > 0 ? item.total_collected / item.total_due : 0;
-        return (
-          <ELCard style={styles.reportCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.cardDate}>{item.line_name}</Text>
-              <Badge label={item.line_type} variant="info" />
-            </View>
-            <Text style={[Type.bodySm, { marginTop: Space.xs }]}>{item.borrower_count} borrowers</Text>
-            <ReportRow label="Due today" value={formatRupees(item.total_due)} />
-            <ReportRow label="Collected" value={formatRupees(item.total_collected)} />
-            <View style={{ marginTop: Space.sm }}>
-              <ProgressBar progress={pct} />
-            </View>
-          </ELCard>
-        );
-      }}
-    />
-  );
-}
-
-function OutstandingTab({ data }: { data: OutstandingRow[] }) {
-  if (data.length === 0) return <EmptyCard text="No active loans. Outstanding report will appear once loans are created." />;
-  return (
-    <FlatList
-      data={data}
-      keyExtractor={(item) => item.loan_id}
-      contentContainerStyle={{ padding: Space.xl }}
-      renderItem={({ item }) => {
-        const pct = item.total_repayment > 0 ? item.total_paid / item.total_repayment : 0;
-        return (
-          <ELCard style={styles.reportCard}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Avatar name={item.borrower_name} size={36} />
-              <View style={{ marginLeft: Space.md, flex: 1 }}>
-                <Text style={styles.cardDate}>{item.borrower_name}</Text>
-                {item.borrower_phone ? <Text style={Type.bodySm}>{item.borrower_phone}</Text> : null}
-              </View>
-              <Badge label={item.status} variant={item.status === 'overdue' ? 'danger' : 'success'} />
-            </View>
-            <View style={{ marginTop: Space.md }}>
-              <ReportRow label="Principal" value={formatRupees(item.principal)} />
-              <ReportRow label="Paid" value={formatRupees(item.total_paid)} />
-              <ReportRow label="Outstanding" value={formatRupees(item.outstanding)} valueColor={EL.nippu} bold />
-            </View>
-            <View style={{ marginTop: Space.sm }}>
-              <ProgressBar progress={pct} />
-            </View>
-          </ELCard>
-        );
-      }}
-    />
-  );
-}
-
-function ReportRow({ label, value, valueColor, bold }: { label: string; value: string; valueColor?: string; bold?: boolean }) {
-  return (
-    <View style={styles.cardRow}>
-      <Text style={[Type.bodyMd, { color: EL.onSurfaceSec }, bold && { fontWeight: '700' }]}>{label}</Text>
-      <Text style={[Type.bodyMd, bold && { fontWeight: '700' }, valueColor ? { color: valueColor } : null]}>{value}</Text>
-    </View>
-  );
-}
-
-function EmptyCard({ text }: { text: string }) {
-  return (
-    <ELCard style={{ margin: Space.xl }}>
-      <Text style={Type.bodySm}>{text}</Text>
-    </ELCard>
-  );
-}
-
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: Space.xl, paddingTop: Space.lg },
-  title: { ...Type.displayMd },
-  tabs: {
-    flexDirection: 'row',
+  scrollContent: {
     paddingHorizontal: Space.xl,
-    marginTop: Space.md,
-    marginBottom: Space.sm,
-    gap: Space.sm,
+    paddingTop: Space.lg,
+    paddingBottom: 100,
   },
-  tab: {
-    paddingHorizontal: Space.lg,
-    paddingVertical: Space.sm,
+
+  // Monthly Summary Banner
+  summaryBanner: {
+    backgroundColor: EL.surface,
+    borderRadius: Radii.xxl,
+    padding: Space.xxl,
+    position: 'relative',
+    overflow: 'hidden',
+    ...Shadows.card,
+  },
+  decorCircle: {
+    position: 'absolute',
+    top: -40,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(133, 248, 196, 0.3)',
+  },
+  bannerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    zIndex: 1,
+  },
+  reportReadyPill: {
+    backgroundColor: 'rgba(133, 248, 196, 0.4)',
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.xs,
     borderRadius: Radii.pill,
-    minHeight: Touch.min,
-    justifyContent: 'center',
-    backgroundColor: EL.surfaceHigh,
+    alignSelf: 'flex-start',
   },
-  tabActive: { backgroundColor: EL.primary },
-  tabLabel: { ...Type.labelMd, color: EL.onSurfaceSec, fontWeight: '600' },
-  tabLabelActive: { color: EL.white },
-  reportCard: { marginBottom: Space.md },
-  cardDate: { ...Type.titleMd, marginBottom: Space.xs },
-  cardRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: Space.sm },
-  nippuLink: {
+  reportReadyText: {
+    fontFamily: Fonts.headline,
+    fontSize: 11,
+    fontWeight: '600',
+    color: EL.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  bannerTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 24,
+    fontWeight: '700',
+    color: EL.onSurface,
+    marginTop: Space.sm,
+  },
+  viewBtn: {
+    backgroundColor: EL.primary,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Space.sm,
-    marginHorizontal: Space.xl,
-    marginTop: Space.md,
-    backgroundColor: EL.nippuContainer,
-    borderRadius: Radii.md,
     paddingHorizontal: Space.lg,
-    paddingVertical: Space.md,
+    paddingVertical: Space.sm,
+    borderRadius: Radii.md,
+    gap: Space.sm,
+    ...Shadows.card,
   },
-  nippuLinkText: {
-    ...Type.labelLg,
-    color: EL.nippu,
+  viewBtnText: {
+    fontFamily: Fonts.headline,
+    fontSize: 14,
+    fontWeight: '600',
+    color: EL.white,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: Space.lg,
+    marginTop: Space.lg,
+    zIndex: 1,
+  },
+  statBox: {
     flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    padding: Space.lg,
+    borderRadius: Radii.lg,
+  },
+  statLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 11,
+    fontWeight: '500',
+    color: EL.onSurfaceMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  statValue: {
+    fontFamily: Fonts.headline,
+    fontSize: 20,
+    fontWeight: '800',
+    color: EL.primary,
+    marginTop: Space.xs,
+  },
+
+  // Reports Grid
+  gridSection: {
+    marginTop: Space.xxl,
+  },
+  sectionHeader: {
+    fontFamily: Fonts.headline,
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(19, 30, 25, 0.6)',
+    textTransform: 'uppercase',
+    letterSpacing: 1.6,
+    paddingLeft: 2,
+    marginBottom: Space.lg,
+  },
+  reportGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Space.lg,
+  },
+  reportCard: {
+    width: '47%',
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    padding: Space.lg,
+    gap: Space.md,
+    ...Shadows.card,
+  },
+  reportCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportCardTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 14,
+    fontWeight: '700',
+    color: EL.onSurface,
+  },
+  reportCardSub: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: EL.onSurfaceMuted,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+
+  // Insight Section
+  insightSection: {
+    marginTop: Space.xxl,
+    backgroundColor: 'rgba(222, 235, 227, 0.3)',
+    borderRadius: Radii.lg,
+    padding: Space.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: EL.primary,
+  },
+  insightContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Space.md,
+  },
+  insightTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 14,
+    fontWeight: '700',
+    color: EL.onSurface,
+  },
+  insightBody: {
+    fontFamily: Fonts.body,
+    fontSize: 12,
+    color: EL.onSurfaceSec,
+    lineHeight: 18,
+    marginTop: Space.xs,
   },
 });

@@ -44,45 +44,42 @@ export async function topUpLoan(
   if (additionalAmount <= 0) return;
   const db = await openDb();
 
-  // Record as negative return (top-up)
-  await db.runAsync(
-    `INSERT INTO principal_returns (id, server_id, loan_id, org_id, amount, date, notes, created_at, dirty)
-     VALUES (?, NULL, ?, ?, ?, ?, ?, ?, 1)`,
-    [uuid(), loanId, orgId, -additionalAmount, now(), notes ?? 'Top-up', now()]
-  );
+  await db.withTransactionAsync(async () => {
+    // Read current loan BEFORE updating principal
+    const loan = await db.getFirstAsync<{ principal: number; emi_amount: number; line_type: string | null }>(
+      `SELECT l.principal, l.emi_amount, ln.type AS line_type FROM loans l
+       LEFT JOIN lines ln ON ln.id = l.line_id WHERE l.id = ?`,
+      [loanId]
+    );
+    if (!loan) throw new Error('Loan not found');
 
-  // Update loan principal
-  await db.runAsync(
-    `UPDATE loans SET principal = principal + ?, dirty = 1 WHERE id = ?`,
-    [additionalAmount, loanId]
-  );
+    const oldPrincipal = loan.principal;
+    const newPrincipal = oldPrincipal + additionalAmount;
 
-  // For interest-only loans: recalculate EMI based on new principal
-  const loan = await db.getFirstAsync<{ principal: number; emi_amount: number; line_id: string }>(
-    `SELECT l.principal, l.emi_amount, ln.type AS line_type FROM loans l
-     LEFT JOIN lines ln ON ln.id = l.line_id WHERE l.id = ?`,
-    [loanId]
-  );
-  if (loan) {
-    const lt = (loan as any).line_type;
-    if (lt === 'daily_interest') {
-      // Recalculate: 0.3% of new principal per day (same rate)
-      const oldRate = loan.emi_amount / (loan.principal - additionalAmount);
-      const newEmi = Math.max(1, Math.round(loan.principal * oldRate));
-      await db.runAsync(`UPDATE loans SET emi_amount = ?, dirty = 1 WHERE id = ?`, [newEmi, loanId]);
-      // Update future pending plan entries
-      await db.runAsync(
-        `UPDATE plan_entries SET expected_amount = ?, dirty = 1 WHERE loan_id = ? AND status = 'pending'`,
-        [newEmi, loanId]
-      );
-    } else if (lt === 'weekly_interest') {
-      const oldRate = loan.emi_amount / (loan.principal - additionalAmount);
-      const newEmi = Math.max(1, Math.round(loan.principal * oldRate));
+    // Record as negative return (top-up)
+    await db.runAsync(
+      `INSERT INTO principal_returns (id, server_id, loan_id, org_id, amount, date, notes, created_at, dirty)
+       VALUES (?, NULL, ?, ?, ?, ?, ?, ?, 1)`,
+      [uuid(), loanId, orgId, -additionalAmount, now(), notes ?? 'Top-up', now()]
+    );
+
+    // Update loan principal
+    await db.runAsync(
+      `UPDATE loans SET principal = ?, dirty = 1 WHERE id = ?`,
+      [newPrincipal, loanId]
+    );
+
+    // For interest-only loans: recalculate EMI based on new principal
+    const lt = loan.line_type;
+    if (lt === 'daily_interest' || lt === 'weekly_interest') {
+      if (oldPrincipal <= 0) throw new Error('Cannot compute rate: original principal is zero');
+      const rate = loan.emi_amount / oldPrincipal;
+      const newEmi = Math.max(1, Math.round(newPrincipal * rate));
       await db.runAsync(`UPDATE loans SET emi_amount = ?, dirty = 1 WHERE id = ?`, [newEmi, loanId]);
       await db.runAsync(
         `UPDATE plan_entries SET expected_amount = ?, dirty = 1 WHERE loan_id = ? AND status = 'pending'`,
         [newEmi, loanId]
       );
     }
-  }
+  });
 }

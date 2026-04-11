@@ -13,7 +13,6 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { ELCard } from '@/components/common/ELCard';
 import { GradientButton } from '@/components/common/GradientButton';
 import { EL, Common, Glass, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { createInvestment, listInvestments, getTotalInvested } from '@/db/repos/investments';
@@ -66,21 +65,56 @@ export function InvestmentScreen() {
   };
 
   const renderItem = ({ item }: { item: InvestmentRow }) => (
-    <ELCard style={styles.row}>
-      <View style={styles.rowHeader}>
-        <Text style={styles.rowAmount}>{formatRupees(item.amount)}</Text>
-        <Text style={styles.rowDate}>{formatDateShort(new Date(item.date))}</Text>
+    <View style={styles.txCard}>
+      <View style={styles.txLeft}>
+        <View style={styles.txIcon}>
+          <MaterialCommunityIcons
+            name={item.source?.toLowerCase().includes('bank') ? 'bank' : item.source?.toLowerCase().includes('personal') ? 'account' : 'handshake'}
+            size={24}
+            color={EL.primary}
+          />
+        </View>
+        <View>
+          <Text style={styles.txTitle}>{item.source || 'Investment'}</Text>
+          <Text style={styles.txSub}>{item.notes || 'Capital contribution'}</Text>
+        </View>
       </View>
-      {item.source ? <Text style={styles.rowSub}>{item.source}</Text> : null}
-      {item.notes ? <Text style={styles.rowSub}>{item.notes}</Text> : null}
-    </ELCard>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={styles.txAmount}>{formatRupees(item.amount)}</Text>
+        <Text style={styles.txDate}>{formatDateShort(new Date(item.date))}</Text>
+      </View>
+    </View>
   );
 
   return (
     <SafeAreaView style={Common.screen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Capital invested</Text>
-        <Text style={styles.total}>{formatRupees(totalInvested ?? 0)}</Text>
+      {/* Hero Section */}
+      <View style={styles.heroCard}>
+        <Text style={styles.heroLabel}>CURRENT ALLOCATION</Text>
+        <Text style={styles.heroTitle}>Capital Invested</Text>
+        <Text style={styles.heroAmount}>{formatRupees(totalInvested ?? 0)}</Text>
+        <Text style={styles.heroSub}>Total Portfolio</Text>
+
+        {/* Growth Stats */}
+        <View style={styles.heroStats}>
+          <View style={styles.heroStatCard}>
+            <Text style={styles.heroStatLabel}>Entries</Text>
+            <Text style={styles.heroStatValue}>{investments?.length ?? 0}</Text>
+          </View>
+          <View style={styles.heroStatCard}>
+            <Text style={styles.heroStatLabel}>Avg Size</Text>
+            <Text style={styles.heroStatValue}>
+              {investments && investments.length > 0
+                ? formatRupees(Math.round((totalInvested ?? 0) / investments.length))
+                : '\u20B90'}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Transaction History Header */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Transaction History</Text>
       </View>
 
       {investments && investments.length > 0 ? (
@@ -88,16 +122,16 @@ export function InvestmentScreen() {
           data={investments}
           keyExtractor={(i) => i.id}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: Space.xl, paddingBottom: 120 }}
+          contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: 120, gap: Space.md }}
         />
       ) : (
-        <ELCard style={{ margin: Space.xl }}>
+        <View style={styles.emptyCard}>
           <Text style={Type.bodySm}>No investments recorded yet</Text>
-        </ELCard>
+        </View>
       )}
 
       {/* FAB */}
-      <Pressable style={Common.fab} onPress={() => setShowModal(true)}>
+      <Pressable style={styles.fab} onPress={() => setShowModal(true)}>
         <MaterialCommunityIcons name="plus" size={28} color={EL.white} />
       </Pressable>
 
@@ -113,7 +147,7 @@ export function InvestmentScreen() {
               value={amount}
               onChangeText={(v) => setAmount(v.replace(/\D/g, ''))}
               keyboardType="number-pad"
-              placeholder="\u20B9"
+              placeholder={'\u20B9'}
               placeholderTextColor={EL.onSurfaceMuted}
             />
 
@@ -147,15 +181,143 @@ export function InvestmentScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { padding: Space.xl },
-  title: { ...Type.displaySm },
-  total: { ...Type.displayLg, color: EL.primary, marginTop: Space.sm },
-  row: { marginBottom: Space.md },
-  rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rowAmount: { ...Type.titleMd, fontWeight: '700' },
-  rowDate: { ...Type.labelSm, color: EL.onSurfaceMuted },
-  rowSub: { ...Type.bodySm, color: EL.onSurfaceSec, marginTop: Space.xs },
+  // Hero
+  heroCard: {
+    margin: Space.xxl,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: 32,
+    padding: Space.xxl,
+    ...Shadows.card,
+  },
+  heroLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: EL.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  heroTitle: {
+    ...Type.displayLg,
+    fontWeight: '800',
+    marginTop: Space.sm,
+  },
+  heroAmount: {
+    fontSize: 42,
+    fontWeight: '800',
+    color: EL.primary,
+    letterSpacing: -1.5,
+    marginTop: Space.sm,
+  },
+  heroSub: {
+    fontSize: 14,
+    color: 'rgba(0,105,72,0.6)',
+    fontWeight: '500',
+  },
+  heroStats: {
+    flexDirection: 'row',
+    gap: Space.md,
+    marginTop: Space.xxl,
+  },
+  heroStatCard: {
+    flex: 1,
+    backgroundColor: EL.surfaceLow,
+    padding: Space.lg,
+    borderRadius: Radii.lg,
+  },
+  heroStatLabel: {
+    fontSize: 12,
+    color: EL.outline,
+    fontWeight: '600',
+  },
+  heroStatValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: EL.primary,
+    marginTop: 2,
+  },
 
+  // Section
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Space.xl,
+    marginBottom: Space.md,
+  },
+  sectionTitle: {
+    ...Type.displaySm,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+
+  // Transaction card
+  txCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: EL.surfaceCard,
+    padding: Space.xl,
+    borderRadius: Radii.lg,
+    ...Shadows.card,
+  },
+  txLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.lg,
+  },
+  txIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: Radii.md,
+    backgroundColor: 'rgba(0,133,93,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  txTitle: {
+    ...Type.titleMd,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  txSub: {
+    fontSize: 14,
+    color: EL.outline,
+    marginTop: 2,
+  },
+  txAmount: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: EL.onSurface,
+  },
+  txDate: {
+    fontSize: 12,
+    color: EL.outline,
+    marginTop: 2,
+  },
+
+  // Empty
+  emptyCard: {
+    margin: Space.xl,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    padding: Space.xl,
+    ...Shadows.card,
+  },
+
+  // FAB
+  fab: {
+    position: 'absolute',
+    right: Space.xxl,
+    bottom: Space.xxl + 60,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: EL.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.float,
+  },
+
+  // Sheet
   backdrop: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     borderTopLeftRadius: Radii.xl + 4,

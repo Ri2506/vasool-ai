@@ -110,8 +110,11 @@ export function NippuReportScreen() {
         <Text style={styles.nippuBadgeText}>NIPPU / {'\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1'}</Text>
       </View>
 
-      {/* Borrower info */}
-      <View style={styles.borrowerRow}>
+      {/* Borrower info — tap to view details */}
+      <Pressable
+        style={styles.borrowerRow}
+        onPress={() => navigation.navigate('BorrowerDetail', { id: item.borrower_id })}
+      >
         <Avatar name={item.borrower_name} size={56} />
         <View style={styles.borrowerInfo}>
           <Text style={styles.borrowerName}>{item.borrower_name}</Text>
@@ -119,7 +122,8 @@ export function NippuReportScreen() {
             <Text style={styles.borrowerPhone}>{item.borrower_phone}</Text>
           ) : null}
         </View>
-      </View>
+        <MaterialCommunityIcons name="chevron-right" size={20} color={EL.outline} />
+      </Pressable>
 
       {/* Stats grid */}
       <View style={styles.statsGrid}>
@@ -127,7 +131,7 @@ export function NippuReportScreen() {
           <Text style={styles.statLabel}>OVERDUE AMOUNT</Text>
           <Text style={styles.statValue}>{formatRupees(item.amount_owed)}</Text>
         </View>
-        <View style={[styles.statBox, { backgroundColor: 'rgba(186, 85, 81, 0.06)' }]}>
+        <View style={[styles.statBox, { backgroundColor: 'rgba(155, 62, 59, 0.06)' }]}>
           <Text style={styles.statLabel}>DAYS OVERDUE</Text>
           <Text style={styles.statValue}>{item.days_overdue} Days</Text>
         </View>
@@ -312,7 +316,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: Space.lg,
     right: Space.lg,
-    backgroundColor: '#ba5551',
+    backgroundColor: EL.tertiary,
     paddingHorizontal: Space.md,
     paddingVertical: Space.xs,
     borderRadius: Radii.pill,

@@ -5,9 +5,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 
 import { Avatar } from '@/components/common/Avatar';
-import { ELCard } from '@/components/common/ELCard';
 import { StarRating } from '@/components/common/StarRating';
-import { EL, Common, Space, Type } from '@/theme/emeraldLedger';
+import { EL, Common, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { openDb } from '@/db';
 import { useBorrower } from '@/hooks/useBorrowers';
 import type { OwnerStackParamList } from '@/navigation/types';
@@ -65,81 +64,116 @@ export function BorrowerRatingDetailScreen({ route }: Props) {
   });
 
   const ratingLabel = (stats?.displayRating ?? 0) >= 4 ? 'EXCELLENT RELIABILITY' : (stats?.displayRating ?? 0) >= 3 ? 'GOOD RELIABILITY' : 'NEEDS ATTENTION';
+  const aiScore = ((stats?.percentage ?? 0) / 10).toFixed(1);
 
   return (
     <SafeAreaView style={Common.screen}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Avatar name={borrower?.name ?? '?'} photoUri={borrower?.photo_url} size={56} />
-          <Text style={styles.name}>{borrower?.name ?? ''}</Text>
+        {/* Hero: Rating Display */}
+        <View style={styles.heroSection}>
+          <View style={styles.starsRow}>
+            <StarRating rating={stats?.rating ?? 0} size={36} />
+          </View>
+          <Text style={styles.bigRating}>
+            {(stats?.rating ?? 0).toFixed(1)}
+            <Text style={styles.bigRatingSuffix}>/5</Text>
+          </Text>
+          <Text style={styles.ratingLabel}>{ratingLabel}</Text>
         </View>
 
-        {/* Big rating */}
-        <ELCard style={styles.ratingCard}>
-          <StarRating rating={stats?.displayRating ?? 0} size={22} />
-          <Text style={styles.bigRating}>{(stats?.rating ?? 0).toFixed(1)}</Text>
-          <Text style={styles.ratingLabel}>{ratingLabel}</Text>
-        </ELCard>
-
-        {/* Performance */}
-        <ELCard style={styles.card}>
-          <View style={styles.perfRow}>
-            <Text style={styles.perfLabel}>PERFORMANCE</Text>
-            <View style={styles.perfCircle}>
-              <Text style={styles.perfPct}>{stats?.percentage ?? 0}%</Text>
-            </View>
+        {/* Performance Overview */}
+        <View style={styles.perfCard}>
+          <View style={{ gap: 4 }}>
+            <Text style={styles.perfSectionLabel}>PERFORMANCE</Text>
+            <Text style={styles.perfBig}>{stats?.percentage ?? 0}%</Text>
+            <Text style={styles.perfSub}>On-Time Payments</Text>
           </View>
-          <Text style={styles.perfSub}>On-Time Payments</Text>
-        </ELCard>
+          {/* Radial progress placeholder */}
+          <View style={styles.perfCircle}>
+            <MaterialCommunityIcons name="lightning-bolt" size={24} color={EL.primary} />
+          </View>
+        </View>
 
-        {/* Rating factors */}
-        <ELCard style={styles.card}>
-          <Text style={styles.sectionTitle}>Rating Factors</Text>
-          <Factor
-            icon="check-circle"
-            color={EL.nadapu}
-            title="Payment Consistency"
-            desc={stats?.missed === 0 ? 'Never missed a payment' : `${stats?.missed} missed payments`}
-          />
-          <Factor
-            icon="history"
-            color={EL.info}
-            title="Loan History"
-            desc={`${stats?.closedLoans ?? 0} loans successfully closed`}
-          />
-          <Factor
-            icon="account-check"
-            color={EL.completed}
-            title="Reliability Score"
-            desc={`${stats?.onTime ?? 0} of ${stats?.total ?? 0} payments on time`}
-          />
-        </ELCard>
+        {/* Rating Factors */}
+        <Text style={styles.sectionTitle}>Rating Factors</Text>
+
+        <Factor
+          icon="calendar-check"
+          title="Payment Consistency"
+          desc={stats?.missed === 0 ? 'Never missed a daily payment in the last 30 days' : `${stats?.missed} missed payments`}
+          showCheck={stats?.missed === 0}
+        />
+        <Factor
+          icon="trophy"
+          title="Loan History"
+          desc={`${stats?.closedLoans ?? 0} loans successfully closed with VasoolAI`}
+        />
+        <Factor
+          icon="account-check"
+          title="Active Engagement"
+          desc={`${stats?.activeLoans ?? 0} active loan${(stats?.activeLoans ?? 0) !== 1 ? 's' : ''} currently running`}
+        />
 
         {/* AI Health Score */}
-        <ELCard style={styles.card}>
-          <View style={styles.aiRow}>
-            <MaterialCommunityIcons name="robot" size={20} color={EL.primary} />
-            <Text style={styles.aiLabel}>  AI Health Score</Text>
+        <View style={styles.aiCard}>
+          <View style={styles.aiHeader}>
+            <MaterialCommunityIcons name="chart-line" size={20} color={EL.primaryContainer} />
+            <Text style={styles.aiHeaderText}>AI Health Score</Text>
           </View>
-          <Text style={styles.aiScore}>{((stats?.percentage ?? 0) / 10).toFixed(1)} / 10</Text>
+          <View style={styles.aiScoreRow}>
+            <Text style={styles.aiScoreBig}>{aiScore}</Text>
+            <Text style={styles.aiScoreSuffix}>/ 10</Text>
+          </View>
+          {/* Progress bar */}
+          <View style={styles.aiProgressTrack}>
+            <View style={[styles.aiProgressFill, { width: `${stats?.percentage ?? 0}%` }]} />
+          </View>
           <Text style={styles.aiDesc}>
             {(stats?.percentage ?? 0) >= 80
               ? 'Very low default risk predicted by VasoolAI'
-              : 'Moderate risk — monitor closely'}
+              : 'Moderate risk \u2014 monitor closely'}
           </Text>
-        </ELCard>
+        </View>
+
+        {/* Performance pill — dynamic based on actual percentage */}
+        <View style={[
+          styles.comparisonPill,
+          (stats?.percentage ?? 0) < 60 && { backgroundColor: 'rgba(155, 62, 59, 0.1)' }
+        ]}>
+          <MaterialCommunityIcons
+            name={(stats?.percentage ?? 0) >= 80 ? 'trending-up' : (stats?.percentage ?? 0) >= 60 ? 'minus' : 'trending-down'}
+            size={16}
+            color={(stats?.percentage ?? 0) >= 60 ? EL.primary : EL.tertiary}
+          />
+          <Text style={[
+            styles.comparisonText,
+            (stats?.percentage ?? 0) < 60 && { color: EL.tertiary }
+          ]}>
+            {(stats?.percentage ?? 0) >= 80
+              ? 'Excellent payment track record'
+              : (stats?.percentage ?? 0) >= 60
+              ? 'Steady payment history'
+              : 'Payment attention needed'}
+          </Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Factor({ icon, color, title, desc }: { icon: string; color: string; title: string; desc: string }) {
+function Factor({ icon, title, desc, showCheck }: { icon: string; title: string; desc: string; showCheck?: boolean }) {
   return (
-    <View style={styles.factorRow}>
-      <MaterialCommunityIcons name={icon as any} size={22} color={color} />
-      <View style={styles.factorText}>
-        <Text style={styles.factorTitle}>{title}</Text>
+    <View style={styles.factorCard}>
+      <View style={styles.factorIcon}>
+        <MaterialCommunityIcons name={icon as any} size={22} color={EL.primary} />
+      </View>
+      <View style={{ flex: 1, gap: 4 }}>
+        <View style={styles.factorHeader}>
+          <Text style={styles.factorTitle}>{title}</Text>
+          {showCheck ? (
+            <MaterialCommunityIcons name="check-circle" size={18} color={EL.primary} />
+          ) : null}
+        </View>
         <Text style={styles.factorDesc}>{desc}</Text>
       </View>
     </View>
@@ -148,27 +182,182 @@ function Factor({ icon, color, title, desc }: { icon: string; color: string; tit
 
 const styles = StyleSheet.create({
   container: { padding: Space.xl, paddingBottom: Space.xxxl },
-  header: { alignItems: 'center', marginBottom: Space.xl },
-  name: { ...Type.titleLg, marginTop: Space.sm },
-  ratingCard: { alignItems: 'center', marginBottom: Space.lg },
-  bigRating: { ...Type.displayLg, fontSize: 48, color: EL.onSurface, marginTop: Space.sm },
-  ratingLabel: { ...Type.labelMd, color: EL.primary, marginTop: Space.xs },
-  card: { marginBottom: Space.lg },
-  perfRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  perfLabel: { ...Type.labelMd },
-  perfCircle: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: EL.primaryFixed, alignItems: 'center', justifyContent: 'center',
+
+  // Hero
+  heroSection: {
+    alignItems: 'center',
+    paddingVertical: Space.xxl,
+    marginBottom: Space.xxl,
   },
-  perfPct: { ...Type.titleLg, color: EL.primary },
-  perfSub: { ...Type.bodySm, marginTop: Space.xs },
-  sectionTitle: { ...Type.titleMd, marginBottom: Space.lg },
-  factorRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Space.lg },
-  factorText: { flex: 1, marginLeft: Space.md },
-  factorTitle: { ...Type.labelLg },
-  factorDesc: { ...Type.bodySm, marginTop: 2 },
-  aiRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Space.sm },
-  aiLabel: { ...Type.titleMd, color: EL.primary },
-  aiScore: { ...Type.displayMd, color: EL.primary },
-  aiDesc: { ...Type.bodySm, marginTop: Space.xs },
+  starsRow: {
+    marginBottom: Space.sm,
+  },
+  bigRating: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: EL.onSurface,
+    letterSpacing: -1.5,
+  },
+  bigRatingSuffix: {
+    fontSize: 24,
+    fontWeight: '400',
+    color: EL.outlineVariant,
+  },
+  ratingLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: EL.primaryContainer,
+    letterSpacing: 0.5,
+    marginTop: Space.xs,
+  },
+
+  // Performance
+  perfCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.xxl,
+    padding: Space.xxl,
+    marginBottom: Space.xxl,
+    ...Shadows.card,
+  },
+  perfSectionLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: EL.outline,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  },
+  perfBig: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: EL.onSurface,
+  },
+  perfSub: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: EL.onSurfaceSec,
+  },
+  perfCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 3,
+    borderColor: EL.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Section
+  sectionTitle: {
+    ...Type.titleLg,
+    fontWeight: '700',
+    fontSize: 20,
+    marginBottom: Space.lg,
+    paddingHorizontal: Space.sm,
+  },
+
+  // Factor cards
+  factorCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Space.lg,
+    backgroundColor: EL.surfaceCard,
+    padding: Space.xl,
+    borderRadius: Radii.xl,
+    marginBottom: Space.md,
+    ...Shadows.card,
+  },
+  factorIcon: {
+    backgroundColor: EL.secondaryContainer,
+    padding: Space.md,
+    borderRadius: Radii.lg,
+  },
+  factorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  factorTitle: {
+    ...Type.labelLg,
+    fontWeight: '700',
+  },
+  factorDesc: {
+    ...Type.bodySm,
+    color: EL.onSurfaceSec,
+    lineHeight: 20,
+  },
+
+  // AI Health Score
+  aiCard: {
+    backgroundColor: EL.surfaceHighest,
+    borderRadius: Radii.xxl,
+    padding: Space.xl,
+    marginTop: Space.md,
+    marginBottom: Space.xxl,
+  },
+  aiHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.sm,
+    marginBottom: Space.md,
+  },
+  aiHeaderText: {
+    ...Type.titleMd,
+    fontWeight: '700',
+    color: EL.primaryContainer,
+  },
+  aiScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Space.sm,
+  },
+  aiScoreBig: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: EL.onSurface,
+  },
+  aiScoreSuffix: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: EL.outline,
+  },
+  aiProgressTrack: {
+    height: 8,
+    backgroundColor: 'rgba(0,105,72,0.1)',
+    borderRadius: Radii.pill,
+    overflow: 'hidden',
+    marginTop: Space.md,
+  },
+  aiProgressFill: {
+    height: '100%',
+    backgroundColor: EL.primary,
+    borderRadius: Radii.pill,
+  },
+  aiDesc: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: EL.secondary,
+    marginTop: Space.md,
+  },
+
+  // Comparison
+  comparisonPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.sm,
+    backgroundColor: 'rgba(0,133,93,0.1)',
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.md,
+    borderRadius: Radii.pill,
+  },
+  comparisonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: EL.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
 });

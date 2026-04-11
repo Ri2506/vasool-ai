@@ -58,7 +58,7 @@ export function OverdueScreen() {
   const navigation = useNavigation<Nav>();
   const orgId = useAuthStore((s) => s.user?.orgId ?? null);
 
-  const { data: items } = useQuery({
+  const { data: items, isLoading } = useQuery({
     queryKey: ['overdue', orgId],
     enabled: !!orgId,
     queryFn: () => getOverdueList(orgId!),
@@ -104,7 +104,11 @@ export function OverdueScreen() {
         <Text style={styles.sub}>Borrowers with missed payments</Text>
       </View>
 
-      {items && items.length > 0 ? (
+      {isLoading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={Type.bodySm}>Loading...</Text>
+        </View>
+      ) : items && items.length > 0 ? (
         <>
           {/* Aging buckets */}
           <ELCard style={styles.bucketsCard}>

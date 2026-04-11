@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Linking,
   Modal,
   Pressable,
   SafeAreaView,
@@ -15,16 +16,14 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
 import { GradientButton } from '@/components/common/GradientButton';
-import { NumberPad } from '@/components/common/NumberPad';
-import { QuickAmountChips } from '@/components/common/QuickAmountChips';
 import { StarRating } from '@/components/common/StarRating';
-import { VoiceButton } from '@/components/common/VoiceButton';
 import { EL, Common, Glass, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { useRecordCollection } from '@/hooks/useCollections';
 import { useBorrowerStatuses } from '@/hooks/useBorrowerStatus';
 import { useGps } from '@/hooks/useGps';
 import { useVoice } from '@/hooks/useVoice';
 import { useAuthStore } from '@/store/authStore';
+import { useAppStore } from '@/store/appStore';
 import { formatRupees } from '@/utils/format';
 import type { OwnerStackParamList } from '@/navigation/types';
 
@@ -38,12 +37,20 @@ export function CollectScreen({ route, navigation }: Props) {
   const { data: statuses } = useBorrowerStatuses();
   const voice = useVoice();
   const orgId = useAuthStore((s) => s.user?.orgId ?? '');
+  const isOnline = useAppStore((s) => s.isOnline);
 
   const st = statuses?.[item.borrower_id];
 
   const [amount, setAmount] = useState(String(item.expected_amount));
   const [showAdvance, setShowAdvance] = useState(false);
   const [advancePeriods, setAdvancePeriods] = useState(0);
+  const [gpsStatus, setGpsStatus] = useState<'pending' | 'captured' | 'unavailable'>('pending');
+
+  useEffect(() => {
+    getLocation()
+      .then((loc) => setGpsStatus(loc ? 'captured' : 'unavailable'))
+      .catch(() => setGpsStatus('unavailable'));
+  }, [getLocation]);
 
   useEffect(() => {
     if (voice.lastResult?.amount) {
@@ -73,7 +80,7 @@ export function CollectScreen({ route, navigation }: Props) {
         await recordPrincipalReturn(orgId, item.loan_id, numAmount - item.expected_amount, 'Principal return from collection');
       }
       // Calculate remaining: principal - (installments already paid * emi) - this payment
-      const alreadyPaid = (item.installment_number - 1) * item.loan_emi;
+      const alreadyPaid = Math.max(0, item.installment_number - 1) * item.loan_emi;
       const loanRemaining = Math.max(0, item.loan_principal - alreadyPaid - numAmount);
       const totalDays = item.loan_emi > 0 ? Math.ceil(item.loan_principal / item.loan_emi) : 100;
 
@@ -112,9 +119,54 @@ export function CollectScreen({ route, navigation }: Props) {
     }
   };
 
+  // Quick amount chips
+  const quickAmounts = [
+    { label: '\u20B9250', value: 250 },
+    { label: '\u20B9400', value: 400 },
+    { label: formatRupees(item.expected_amount), value: item.expected_amount },
+    { label: '\u20B91,000', value: 1000 },
+    { label: 'Advance', value: -1 },
+  ];
+
+  // Keypad
+  const handleKey = (key: string) => {
+    if (key === 'backspace') {
+      setAmount((prev) => prev.slice(0, -1));
+    } else if (key === 'mic') {
+      if (voice.isListening) {
+        voice.stopListening();
+      } else {
+        voice.startListening();
+      }
+    } else {
+      if (amount.length < 8) {
+        setAmount((prev) => prev + key);
+      }
+    }
+  };
+
+  const numAmount = Number(amount) || 0;
+
   return (
     <SafeAreaView style={Common.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
+      {/* ── Sticky Header ── */}
+      <View style={styles.header}>
+        <Pressable
+          style={styles.headerBtn}
+          onPress={() => navigation.goBack()}
+        >
+          <MaterialCommunityIcons name="arrow-left" size={24} color={EL.onSurface} />
+        </Pressable>
+        <Text style={styles.headerTitle}>Collection Entry</Text>
+        <Pressable style={styles.headerBtn}>
+          <MaterialCommunityIcons name="history" size={24} color={EL.onSurface} />
+        </Pressable>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* ── Borrower Info Card ── */}
         <View style={styles.borrowerCard}>
           <View style={styles.borrowerTop}>
@@ -122,27 +174,36 @@ export function CollectScreen({ route, navigation }: Props) {
               <Avatar name={item.borrower_name} size={56} />
               <View style={styles.borrowerInfo}>
                 <Text style={styles.borrowerName}>{item.borrower_name}</Text>
-                {item.borrower_phone ? (
-                  <Text style={styles.borrowerPhone}>{item.borrower_phone}</Text>
-                ) : null}
+                {/* Status badge */}
+                <View style={[styles.statusBadge, st?.is_nippu && { backgroundColor: 'rgba(155, 62, 59, 0.1)' }]}>
+                  <View style={[styles.statusDot, st?.is_nippu && { backgroundColor: EL.tertiary }]} />
+                  <Text style={[styles.statusText, st?.is_nippu && { color: EL.tertiary }]}>
+                    {st?.is_nippu ? '\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1 / Overdue' : '\u0BA8\u0B9F\u0BAA\u0BCD\u0BAA\u0BC1 / On Schedule'}
+                  </Text>
+                </View>
                 {st?.rating ? (
-                  <StarRating rating={st.rating} size={16} />
+                  <View style={{ marginTop: 6 }}>
+                    <StarRating rating={st.rating} size={18} />
+                  </View>
                 ) : null}
               </View>
             </View>
             {item.borrower_phone ? (
-              <Pressable style={styles.callBtn}>
-                <MaterialCommunityIcons name="phone" size={20} color={EL.primary} />
+              <Pressable
+                style={styles.callBtn}
+                onPress={() => Linking.openURL(`tel:${item.borrower_phone}`)}
+              >
+                <MaterialCommunityIcons name="phone" size={22} color={EL.primary} />
               </Pressable>
             ) : null}
           </View>
 
           {/* Loan info strip */}
-          <View style={styles.loanInfo}>
+          <View style={styles.loanInfoStrip}>
             <Text style={styles.loanInfoText}>
-              {item.line_name ?? 'Daily loan'} \u2022 EMI{' '}
+              {item.line_name ?? 'Daily loan'} {'\u2022'} EMI{' '}
               <Text style={{ fontWeight: '600' }}>{formatRupees(item.expected_amount)}</Text>
-              {' '}\u2022 #{item.installment_number}
+              {' '}{'\u2022'} Day {item.installment_number}/{item.loan_principal && item.loan_emi ? Math.ceil(item.loan_principal / item.loan_emi) : '?'}
             </Text>
           </View>
 
@@ -153,39 +214,133 @@ export function CollectScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {/* ── Number Pad with Amount Display ── */}
-        <NumberPad
-          value={amount}
-          onChange={setAmount}
-          onConfirm={handleCollect}
-          confirmLabel={`Collect`}
-          disabled={recordMut.isPending}
-        />
-
-        {/* ── Quick Amount Chips ── */}
-        <View style={{ marginTop: Space.lg }}>
-          <QuickAmountChips
-            emiAmount={item.expected_amount}
-            selected={Number(amount)}
-            onSelect={(v) => setAmount(String(v))}
-          />
+        {/* ── Amount Display ── */}
+        <View style={styles.amountSection}>
+          <Text style={styles.amountLabel}>Entry Amount</Text>
+          <View style={styles.amountDisplay}>
+            <Text style={styles.amountRupee}>{'\u20B9'}</Text>
+            <Text style={styles.amountValue}>{amount || '0'}</Text>
+          </View>
+          <View style={styles.amountUnderline} />
         </View>
 
-        {/* ── Voice input ── */}
-        <VoiceButton
-          isListening={voice.isListening}
-          onPress={voice.isListening ? voice.stopListening : voice.startListening}
-          lastText={voice.lastResult?.text}
-        />
+        {/* ── Quick Amount Chips ── */}
+        <View style={styles.chipsSection}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsRow}
+          >
+            {quickAmounts.map((chip) => {
+              const isAdvance = chip.value === -1;
+              const isSelected = !isAdvance && chip.value === numAmount;
+              return (
+                <Pressable
+                  key={chip.label}
+                  style={[
+                    styles.chip,
+                    isSelected ? styles.chipSelected : styles.chipDefault,
+                  ]}
+                  onPress={() => {
+                    if (isAdvance) {
+                      setShowAdvance(true);
+                    } else {
+                      setAmount(String(chip.value));
+                    }
+                  }}
+                >
+                  <Text style={[
+                    styles.chipText,
+                    isSelected ? styles.chipTextSelected : styles.chipTextDefault,
+                  ]}>
+                    {chip.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
 
-        {/* ── Advance toggle ── */}
-        <GradientButton
-          title="Advance payment"
-          variant="secondary"
-          onPress={() => setShowAdvance(true)}
-          style={{ marginTop: Space.lg, marginHorizontal: Space.lg }}
-        />
+        {/* ── Numeric Keypad ── */}
+        <View style={styles.keypad}>
+          {[
+            ['1', '2', '3'],
+            ['4', '5', '6'],
+            ['7', '8', '9'],
+            ['mic', '0', 'backspace'],
+          ].map((row, ri) => (
+            <View key={ri} style={styles.keypadRow}>
+              {row.map((key) => (
+                <Pressable
+                  key={key}
+                  style={({ pressed }) => [
+                    styles.key,
+                    key === 'mic' && styles.keyMic,
+                    pressed && key !== '' && { backgroundColor: EL.surfaceHigh },
+                  ]}
+                  onPress={() => handleKey(key)}
+                >
+                  {key === 'mic' ? (
+                    <MaterialCommunityIcons
+                      name="microphone"
+                      size={28}
+                      color={EL.primary}
+                    />
+                  ) : key === 'backspace' ? (
+                    <MaterialCommunityIcons
+                      name="backspace-outline"
+                      size={28}
+                      color={EL.onSurfaceMuted}
+                    />
+                  ) : (
+                    <Text style={styles.keyText}>{key}</Text>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          ))}
+        </View>
       </ScrollView>
+
+      {/* ── Bottom Footer ── */}
+      <View style={styles.bottomFooter}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.collectButton,
+            pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] },
+            (recordMut.isPending || numAmount <= 0) && { opacity: 0.5 },
+          ]}
+          onPress={handleCollect}
+          disabled={recordMut.isPending || numAmount <= 0}
+        >
+          <Text style={styles.collectButtonText}>
+            Collect {formatRupees(numAmount)}
+          </Text>
+          <MaterialCommunityIcons name="check-circle" size={20} color={EL.white} />
+        </Pressable>
+        <View style={styles.footerIndicators}>
+          <View style={styles.indicator}>
+            <MaterialCommunityIcons
+              name={gpsStatus === 'captured' ? 'map-marker-check' : gpsStatus === 'pending' ? 'map-marker-outline' : 'map-marker-off'}
+              size={12}
+              color={gpsStatus === 'captured' ? EL.primary : EL.onSurfaceMuted}
+            />
+            <Text style={styles.indicatorText}>
+              GPS: {gpsStatus === 'captured' ? 'captured' : gpsStatus === 'pending' ? 'locating…' : 'unavailable'}
+            </Text>
+          </View>
+          <View style={styles.indicator}>
+            <MaterialCommunityIcons
+              name={isOnline ? 'cloud-check-outline' : 'cloud-off-outline'}
+              size={12}
+              color={isOnline ? EL.primary : EL.onSurfaceMuted}
+            />
+            <Text style={styles.indicatorText}>
+              {isOnline ? 'Online: syncing' : 'Offline: will sync'}
+            </Text>
+          </View>
+        </View>
+      </View>
 
       {/* ── Advance Payment Bottom Sheet ── */}
       <Modal visible={showAdvance} transparent animationType="slide" onRequestClose={() => setShowAdvance(false)}>
@@ -227,7 +382,7 @@ export function CollectScreen({ route, navigation }: Props) {
             {/* Calculation display */}
             <View style={styles.calcBox}>
               <Text style={styles.calcText}>
-                {advancePeriods || '?'} \u00D7 {formatRupees(item.expected_amount)} = {formatRupees(item.expected_amount * (advancePeriods || 0))}
+                {advancePeriods || '?'} {'\u00D7'} {formatRupees(item.expected_amount)} = {formatRupees(item.expected_amount * (advancePeriods || 0))}
               </Text>
             </View>
 
@@ -254,26 +409,35 @@ export function CollectScreen({ route, navigation }: Props) {
           </View>
         </Pressable>
       </Modal>
-
-      {/* ── Bottom Status Bar ── */}
-      <View style={[Glass.container, styles.bottomBar]}>
-        <View style={styles.bottomStatus}>
-          <View style={styles.statusItem}>
-            <MaterialCommunityIcons name="map-marker" size={12} color={EL.onSurfaceMuted} />
-            <Text style={styles.statusText}>GPS: captured</Text>
-          </View>
-          <View style={styles.statusItem}>
-            <MaterialCommunityIcons name="cloud-off-outline" size={12} color={EL.onSurfaceMuted} />
-            <Text style={styles.statusText}>Offline: will sync</Text>
-          </View>
-        </View>
-      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 100 },
+  content: { paddingBottom: 160 },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.lg,
+    backgroundColor: EL.surface,
+  },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: EL.onSurface,
+    letterSpacing: -0.2,
+  },
 
   // Borrower card
   borrowerCard: {
@@ -281,8 +445,7 @@ const styles = StyleSheet.create({
     borderRadius: Radii.lg,
     padding: Space.lg,
     marginHorizontal: Space.lg,
-    marginTop: Space.md,
-    marginBottom: Space.lg,
+    marginTop: Space.lg,
     ...Shadows.card,
   },
   borrowerTop: {
@@ -297,15 +460,33 @@ const styles = StyleSheet.create({
   },
   borrowerInfo: {
     flex: 1,
-    gap: 2,
   },
   borrowerName: {
-    ...Type.titleLg,
+    fontSize: 18,
     fontWeight: '700',
+    color: EL.onSurface,
   },
-  borrowerPhone: {
-    ...Type.bodySm,
-    color: EL.onSurfaceMuted,
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0, 105, 72, 0.1)',
+    paddingHorizontal: Space.sm,
+    paddingVertical: 2,
+    borderRadius: Radii.pill,
+    gap: 4,
+    marginTop: 4,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: EL.primary,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: EL.primary,
   },
   callBtn: {
     width: 40,
@@ -315,15 +496,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loanInfo: {
+  loanInfoStrip: {
     marginTop: Space.lg,
     paddingTop: Space.lg,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.04)',
   },
   loanInfoText: {
-    ...Type.bodyMd,
+    fontSize: 14,
+    fontWeight: '400',
     color: EL.onSurfaceSec,
+    lineHeight: 20,
   },
   dueBox: {
     flexDirection: 'row',
@@ -335,13 +516,160 @@ const styles = StyleSheet.create({
     marginTop: Space.md,
   },
   dueLabel: {
-    ...Type.labelMd,
-    color: EL.onSurfaceSec,
+    fontSize: 14,
+    fontWeight: '500',
+    color: EL.secondary,
   },
   dueAmount: {
-    ...Type.titleLg,
-    color: EL.primary,
+    fontSize: 18,
     fontWeight: '700',
+    color: EL.primary,
+  },
+
+  // Amount display
+  amountSection: {
+    alignItems: 'center',
+    marginTop: Space.xxxl,
+  },
+  amountLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: EL.onSurfaceMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  amountDisplay: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  amountRupee: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: EL.primary,
+  },
+  amountValue: {
+    fontSize: 48,
+    fontWeight: '800',
+    color: EL.primary,
+    letterSpacing: -2,
+  },
+  amountUnderline: {
+    width: 48,
+    height: 4,
+    backgroundColor: 'rgba(0, 105, 72, 0.2)',
+    borderRadius: 2,
+    marginTop: Space.lg,
+  },
+
+  // Quick amount chips
+  chipsSection: {
+    marginTop: Space.xxxl,
+  },
+  chipsRow: {
+    paddingHorizontal: Space.lg,
+    gap: Space.md,
+    paddingVertical: Space.sm,
+  },
+  chip: {
+    paddingHorizontal: Space.xl,
+    paddingVertical: 10,
+    borderRadius: Radii.pill,
+  },
+  chipSelected: {
+    backgroundColor: EL.primary,
+    ...Shadows.card,
+  },
+  chipDefault: {
+    backgroundColor: EL.surfaceHigh,
+  },
+  chipText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  chipTextSelected: {
+    color: EL.white,
+    fontWeight: '700',
+  },
+  chipTextDefault: {
+    color: EL.onSurfaceSec,
+  },
+
+  // Keypad
+  keypad: {
+    marginTop: Space.xxl,
+    paddingHorizontal: Space.lg,
+  },
+  keypadRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Space.md,
+  },
+  key: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  keyMic: {
+    backgroundColor: 'rgba(0, 105, 72, 0.1)',
+  },
+  keyText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: EL.onSurface,
+  },
+
+  // Bottom footer
+  bottomFooter: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    paddingHorizontal: Space.xxl,
+    paddingTop: Space.lg,
+    paddingBottom: Space.xxxl,
+    borderTopLeftRadius: Radii.xxl,
+    borderTopRightRadius: Radii.xxl,
+    ...Shadows.float,
+    alignItems: 'center',
+    gap: Space.md,
+  },
+  collectButton: {
+    width: '100%',
+    height: 52,
+    borderRadius: Radii.md,
+    backgroundColor: EL.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.sm,
+    ...Shadows.card,
+  },
+  collectButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: EL.white,
+  },
+  footerIndicators: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.lg,
+  },
+  indicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  indicatorText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: EL.onSurfaceMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 
   // Advance bottom sheet
@@ -424,34 +752,5 @@ const styles = StyleSheet.create({
     color: EL.onSurfaceSec,
     flex: 1,
     lineHeight: 20,
-  },
-
-  // Bottom bar
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingVertical: Space.md,
-    paddingHorizontal: Space.xl,
-    borderTopLeftRadius: Radii.xl,
-    borderTopRightRadius: Radii.xl,
-  },
-  bottomStatus: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Space.xl,
-  },
-  statusItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.xs,
-  },
-  statusText: {
-    ...Type.labelSm,
-    color: EL.onSurfaceMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    fontSize: 10,
   },
 });

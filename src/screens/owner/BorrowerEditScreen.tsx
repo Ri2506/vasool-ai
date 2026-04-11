@@ -118,32 +118,32 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
         <ScrollView contentContainerStyle={styles.content}>
           {/* Header */}
           <Text style={styles.screenTitle}>
-            {isEditing ? t('borrowers.edit') : t('borrowers.add')}
+            {isEditing ? t('borrowers.edit') : 'New Borrower'}
           </Text>
 
-          {/* ── Photo Section ── */}
+          {/* Photo Section */}
           <View style={styles.photoSection}>
             <Pressable onPress={handleTakePhoto} style={styles.photoWrap}>
               {photoUri || (isEditing && existing?.photo_url) ? (
                 <Avatar name={name || '?'} size={80} photoUri={photoUri ?? existing?.photo_url} />
               ) : (
                 <View style={styles.photoPlaceholder}>
-                  <MaterialCommunityIcons name="camera" size={32} color={EL.onSurfaceMuted} />
+                  <MaterialCommunityIcons name="camera" size={32} color={EL.outline} />
                 </View>
               )}
             </Pressable>
             <Pressable onPress={handleTakePhoto}>
-              <Text style={styles.photoLabel}>{t('common.take_photo')}</Text>
+              <Text style={styles.photoLabel}>Take Photo</Text>
             </Pressable>
           </View>
 
-          {/* ── Form Fields ── */}
+          {/* Form Fields */}
           <View style={styles.formSection}>
-            {/* Name field */}
+            {/* Name */}
             <View style={styles.fieldWrap}>
               <View style={styles.fieldLabelRow}>
                 <Text style={styles.fieldLabel}>
-                  {t('borrowers.name')} ({'\u0B95\u0B9F\u0BA9\u0BCD\u0B95\u0BBE\u0BB0\u0BB0\u0BCD \u0BAA\u0BC6\u0BAF\u0BB0\u0BCD'})
+                  Borrower name ({'\u0B95\u0B9F\u0BA9\u0BCD\u0B95\u0BBE\u0BB0\u0BB0\u0BCD \u0BAA\u0BC6\u0BAF\u0BB0\u0BCD'})
                 </Text>
                 <Text style={styles.requiredTag}>REQUIRED</Text>
               </View>
@@ -153,21 +153,20 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
                   value={name}
                   onChangeText={setName}
                   placeholder="Enter full name"
-                  placeholderTextColor={EL.onSurfaceMuted}
+                  placeholderTextColor={'rgba(109,122,114,0.5)'}
                 />
                 <Pressable style={styles.contactBtn} onPress={handlePickContact}>
-                  <MaterialCommunityIcons name="card-account-details-outline" size={22} color={EL.primary} />
+                  <MaterialCommunityIcons name="card-account-details-outline" size={22} color={EL.primaryContainer} />
                 </Pressable>
               </View>
             </View>
 
-            {/* Phone field */}
+            {/* Phone */}
             <View style={styles.fieldWrap}>
               <View style={styles.fieldLabelRow}>
                 <Text style={styles.fieldLabel}>
-                  {t('borrowers.phone')} ({'\u0BA4\u0BCA\u0BB2\u0BC8\u0BAA\u0BC7\u0B9A\u0BBF'})
+                  Phone number ({'\u0BA4\u0BCA\u0BB2\u0BC8\u0BAA\u0BC7\u0B9A\u0BBF'})
                 </Text>
-                <Text style={styles.requiredTag}>REQUIRED</Text>
               </View>
               <View style={styles.phoneRow}>
                 <View style={styles.phonePrefix}>
@@ -179,58 +178,53 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
                   onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
                   keyboardType="number-pad"
                   placeholder="98765 43210"
-                  placeholderTextColor={EL.onSurfaceMuted}
+                  placeholderTextColor={'rgba(109,122,114,0.5)'}
                 />
               </View>
             </View>
 
-            {/* Address field */}
+            {/* Address */}
             <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>
-                {t('borrowers.address')} (optional)
-              </Text>
+              <Text style={styles.fieldLabel}>Address (optional)</Text>
               <TextInput
                 style={[styles.input, styles.multiline]}
                 value={address}
                 onChangeText={setAddress}
                 multiline
                 placeholder="Area, Street, Town"
-                placeholderTextColor={EL.onSurfaceMuted}
+                placeholderTextColor={'rgba(109,122,114,0.5)'}
               />
             </View>
 
-            {/* Notes field */}
+            {/* Notes */}
             <View style={styles.fieldWrap}>
-              <Text style={styles.fieldLabel}>
-                {t('borrowers.notes')} (optional)
-              </Text>
+              <Text style={styles.fieldLabel}>Notes (optional)</Text>
               <TextInput
                 style={styles.input}
                 value={notes}
                 onChangeText={setNotes}
                 placeholder="Any reference info..."
-                placeholderTextColor={EL.onSurfaceMuted}
+                placeholderTextColor={'rgba(109,122,114,0.5)'}
               />
             </View>
           </View>
 
-          {/* ── Info Card ── */}
+          {/* Info Card */}
           <View style={styles.infoCard}>
-            <MaterialCommunityIcons name="information-outline" size={18} color={EL.primary} style={{ marginTop: 1 }} />
+            <MaterialCommunityIcons name="information-outline" size={18} color={EL.primaryContainer} style={{ marginTop: 1 }} />
             <Text style={styles.infoText}>
               Add the borrower's phone number to send automated WhatsApp reminders
               ({'\u0BA4\u0BBE\u0BA9\u0BBF\u0BAF\u0B99\u0BCD\u0B95\u0BBF \u0BB5\u0BBE\u0B9F\u0BCD\u0B9A\u0BCD\u0B85\u0BAA\u0BCD \u0BA8\u0BBF\u0BA9\u0BC8\u0BB5\u0BC2\u0B9F\u0BCD\u0B9F\u0BB2\u0BCD\u0B95\u0BB3\u0BCD'}).
             </Text>
           </View>
 
-          {/* Spacer for fixed bottom */}
           <View style={{ height: 100 }} />
         </ScrollView>
 
-        {/* ── Fixed Bottom Action ── */}
+        {/* Fixed Bottom Action */}
         <View style={styles.bottomBar}>
           <GradientButton
-            title={isEditing ? t('common.save') : t('borrowers.add')}
+            title={isEditing ? t('common.save') : 'Add Borrower'}
             onPress={handleSave}
             loading={createMut.isPending || updateMut.isPending}
             icon={<MaterialCommunityIcons name="check-circle" size={20} color={EL.white} />}
@@ -253,10 +247,12 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Space.xl,
-    paddingTop: Space.lg,
+    paddingTop: Space.xxl,
   },
   screenTitle: {
     ...Type.displaySm,
+    fontWeight: '700',
+    fontSize: 20,
     marginBottom: Space.lg,
   },
 
@@ -276,17 +272,17 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     borderWidth: 2,
-    borderColor: EL.outline,
+    borderColor: EL.outlineVariant,
     borderStyle: 'dashed',
     backgroundColor: EL.surfaceCard,
     alignItems: 'center',
     justifyContent: 'center',
   },
   photoLabel: {
-    ...Type.labelMd,
-    color: EL.primary,
+    fontSize: 14,
     fontWeight: '600',
-    marginTop: Space.sm,
+    color: EL.primary,
+    marginTop: Space.md,
   },
 
   // Form
@@ -298,19 +294,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Space.sm,
+    marginBottom: 6,
   },
   fieldLabel: {
-    ...Type.bodySm,
-    color: EL.onSurfaceSec,
-    fontWeight: '500',
     fontSize: 13,
+    fontWeight: '500',
+    color: EL.onSurfaceSec,
   },
   requiredTag: {
-    ...Type.labelSm,
-    color: EL.primary,
-    fontWeight: '700',
     fontSize: 11,
+    fontWeight: '700',
+    color: EL.primaryContainer,
   },
   inputRow: {
     flexDirection: 'row',
@@ -318,12 +312,13 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: EL.surfaceCard,
-    borderRadius: Radii.sm + 2,
+    borderRadius: 10,
     paddingHorizontal: Space.lg,
     minHeight: Touch.min,
-    ...Type.bodyMd,
+    fontSize: 16,
     color: EL.onSurface,
-    ...Shadows.card,
+    borderWidth: 1,
+    borderColor: EL.outlineVariant,
   },
   multiline: {
     minHeight: 72,
@@ -336,16 +331,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: Space.sm,
-    backgroundColor: EL.surfaceCard,
-    borderRadius: Radii.sm + 2,
-    ...Shadows.card,
   },
   phoneRow: {
     flexDirection: 'row',
     backgroundColor: EL.surfaceCard,
-    borderRadius: Radii.sm + 2,
+    borderRadius: 10,
     overflow: 'hidden',
-    ...Shadows.card,
+    borderWidth: 1,
+    borderColor: EL.outlineVariant,
   },
   phonePrefix: {
     height: Touch.min,
@@ -353,18 +346,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: EL.surfaceLow,
     borderRightWidth: 1,
-    borderRightColor: EL.outline,
+    borderRightColor: EL.outlineVariant,
   },
   phonePrefixText: {
-    ...Type.bodyMd,
-    color: EL.onSurfaceSec,
+    fontSize: 16,
     fontWeight: '500',
+    color: EL.onSurfaceSec,
   },
   phoneInput: {
     flex: 1,
     backgroundColor: 'transparent',
-    shadowColor: 'transparent',
-    elevation: 0,
+    borderWidth: 0,
   },
 
   // Info card
@@ -374,14 +366,14 @@ const styles = StyleSheet.create({
     gap: Space.md,
     marginTop: Space.xxxl,
     padding: Space.lg,
-    backgroundColor: 'rgba(5, 150, 105, 0.08)',
+    backgroundColor: 'rgba(133,248,196,0.2)',
     borderRadius: Radii.lg,
     borderLeftWidth: 4,
-    borderLeftColor: EL.primary,
+    borderLeftColor: EL.primaryContainer,
   },
   infoText: {
-    ...Type.bodySm,
-    color: EL.onSurfaceSec,
+    fontSize: 13,
+    color: EL.secondary,
     fontWeight: '500',
     flex: 1,
     lineHeight: 20,
@@ -392,6 +384,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Space.xl,
     paddingVertical: Space.lg,
     paddingBottom: Space.xxxl,
-    backgroundColor: 'rgba(250, 252, 251, 0.92)',
+    backgroundColor: 'rgba(240,253,244,0.9)',
   },
 });

@@ -7,6 +7,8 @@ import { AgentHomeScreen } from '@/screens/agent/AgentHomeScreen';
 import { AgentExpenseScreen } from '@/screens/agent/AgentExpenseScreen';
 import { AgentSummaryScreen } from '@/screens/agent/AgentSummaryScreen';
 import { AgentSuccessReceiptScreen } from '@/screens/agent/AgentSuccessReceiptScreen';
+import { AgentSummarySharePreview } from '@/screens/agent/AgentSummarySharePreview';
+import { BatchCollectScreen } from '@/screens/owner/BatchCollectScreen';
 import { EL, Shadows } from '@/theme/emeraldLedger';
 import { TabIcon } from '@/components/common/TabIcon';
 import type { AgentTabParamList, AgentStackParamList } from './types';
@@ -24,8 +26,6 @@ function AgentTabs() {
         tabBarInactiveTintColor: EL.onSurfaceMuted,
         tabBarStyle: {
           borderTopWidth: 0,
-          height: 64,
-          paddingBottom: 8,
           backgroundColor: 'rgba(250, 252, 251, 0.85)',
           ...Shadows.float,
         },
@@ -56,6 +56,8 @@ export function AgentNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="AgentTabs" component={AgentTabs} />
       <Stack.Screen name="AgentReceipt" component={AgentSuccessReceiptScreen} />
+      <Stack.Screen name="AgentSharePreview" component={AgentSummarySharePreview} />
+      <Stack.Screen name="BatchCollect" component={BatchCollectScreen} options={{ headerShown: true, title: 'Batch Collect' }} />
     </Stack.Navigator>
   );
 }

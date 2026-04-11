@@ -79,6 +79,7 @@ export interface RecordCollectionInput {
 export async function recordCollection(
   input: RecordCollectionInput
 ): Promise<CollectionRow> {
+  if (input.amount <= 0) throw new Error('Amount must be positive');
   const db = await openDb();
   const shortfall = Math.max(0, input.expectedAmount - input.amount);
   const collection: CollectionRow = {
@@ -282,6 +283,22 @@ export async function getTodaySummary(orgId: string): Promise<DaySummary> {
     totalExpected: due?.total ?? 0,
     dueCount: due?.cnt ?? 0,
   };
+}
+
+export async function getTodayCollections(orgId: string): Promise<Array<{borrower_name: string; amount: number}>> {
+  const db = await openDb();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const rows = await db.getAllAsync<{borrower_name: string; amount: number}>(
+    `SELECT b.name AS borrower_name, c.amount
+     FROM collections c
+     JOIN loans l ON l.id = c.loan_id
+     JOIN borrowers b ON b.id = l.borrower_id
+     WHERE c.org_id = ? AND c.collected_at >= ?
+     ORDER BY c.collected_at DESC`,
+    [orgId, today.getTime()]
+  );
+  return rows;
 }
 
 export async function getCollectionsForLoan(loanId: string): Promise<CollectionRow[]> {

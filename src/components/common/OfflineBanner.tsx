@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import { useTranslation } from 'react-i18next';
 
-import { EL, Space, Type } from '@/theme/emeraldLedger';
+import { Space, Type } from '@/theme/emeraldLedger';
 import { useAppStore } from '@/store/appStore';
 import { syncSilent } from '@/db/sync';
 
@@ -36,6 +37,7 @@ export function OfflineBanner() {
 
   return (
     <View style={styles.container}>
+      <MaterialCommunityIcons name="cloud-off-outline" size={16} color="#92400e" />
       <Text style={styles.text}>{t('common.offline')}</Text>
     </View>
   );
@@ -43,13 +45,17 @@ export function OfflineBanner() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: EL.warnContainer,
+    backgroundColor: '#fef3c7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.sm,
+    height: 40,
     paddingHorizontal: Space.lg,
-    paddingVertical: Space.sm,
   },
   text: {
     ...Type.labelMd,
-    color: EL.warn,
+    color: '#92400e',
     fontWeight: '600',
     textAlign: 'center',
   },

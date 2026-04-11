@@ -63,17 +63,17 @@ export function GradientButton({
 const VARIANTS = {
   primary: {
     bg: EL.primary,
-    pressed: EL.primaryDark,
+    pressed: EL.primaryContainer,
     text: EL.white,
   },
   secondary: {
-    bg: EL.surfaceLow,
+    bg: EL.surfaceHighest,
     pressed: EL.surfaceHigh,
     text: EL.primary,
   },
   danger: {
-    bg: EL.nippu,
-    pressed: EL.danger,
+    bg: EL.tertiary,
+    pressed: EL.tertiaryContainer,
     text: EL.white,
   },
 };

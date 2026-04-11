@@ -12,9 +12,12 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+
 import { ELCard } from '@/components/common/ELCard';
 import { GradientButton } from '@/components/common/GradientButton';
 import { EL, Common, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
+import type { OwnerStackParamList } from '@/navigation/types';
 
 interface Document {
   id: string;
@@ -23,11 +26,10 @@ interface Document {
   timestamp: number | null;
 }
 
-interface Props {
-  borrowerId: string;
-}
+type Props = NativeStackScreenProps<OwnerStackParamList, 'Documents'>;
 
-export function DocumentScreen({ borrowerId }: Props) {
+export function DocumentScreen({ route }: Props) {
+  const { borrowerId } = route.params;
   const [documents, setDocuments] = useState<Document[]>([
     { id: 'id_photo', label: 'Borrower ID (Aadhaar / PAN)', uri: null, timestamp: null },
     { id: 'guarantor_photo', label: 'Guarantor photo', uri: null, timestamp: null },

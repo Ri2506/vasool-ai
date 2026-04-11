@@ -63,10 +63,16 @@ export async function sync(): Promise<{ pushed: number; pulled: number }> {
     return { pushed: 0, pulled: 0 };
   }
 
-  // --- Mark pushed rows as clean ---
+  // --- Mark only the specific pushed rows as clean ---
   for (const table of TABLES) {
     if (!changes[table]) continue;
-    await db.runAsync(`UPDATE ${table} SET dirty = 0 WHERE dirty = 1`);
+    const pushedIds = changes[table].created.map((r: any) => r.id).filter(Boolean);
+    if (pushedIds.length === 0) continue;
+    const placeholders = pushedIds.map(() => '?').join(', ');
+    await db.runAsync(
+      `UPDATE ${table} SET dirty = 0 WHERE id IN (${placeholders}) AND dirty = 1`,
+      pushedIds
+    );
   }
 
   // --- Pull: upsert remote changes locally ---
@@ -95,7 +101,7 @@ export async function sync(): Promise<{ pushed: number; pulled: number }> {
       }
 
       // Upsert: build dynamic INSERT OR REPLACE
-      const keys = Object.keys(row).filter((k) => k !== 'updated_at');
+      const keys = Object.keys(row).filter((k) => k !== 'updated_at' && k !== 'dirty');
       keys.push('server_id');
       const placeholders = keys.map(() => '?').join(', ');
       const values = keys.map((k) => {
