@@ -8,6 +8,24 @@ to "live for first 50 users." Track progress here as items get done.
 ## A. Backend & secrets
 
 - [ ] **Supabase project on a paid plan** (free tier sleeps after 7d inactivity)
+- [ ] **Apply Postgres migrations** in order from `supabase/migrations/`:
+  ```bash
+  cd supabase
+  supabase link --project-ref YOUR_PROJECT_REF
+  supabase db push
+  ```
+  Three migrations get applied:
+    - `0001_init.sql` — 18 tables + indexes + `updated_at` triggers
+    - `0002_rls.sql` — RLS policies (org-scoped, owner-only on capital tables)
+    - `0003_helpers.sql` — `bootstrap_owner_by_phone()` + `sign_in_agent_by_pin()` RPCs
+- [ ] **Deploy 5 Edge Functions** that the mobile client calls:
+  ```bash
+  supabase functions deploy bootstrap-owner    # called from owner OTP verify
+  supabase functions deploy agent-login --no-verify-jwt   # agent PIN login
+  supabase functions deploy sync               # two-way push/pull (auto on reconnect)
+  supabase functions deploy send-receipt-sms   # MSG91 outbound (dry-run until A.MSG91 done)
+  supabase functions deploy create-checkout    # Razorpay order (dry-run until A.Razorpay done)
+  ```
 - [ ] **MSG91 account** + DLT registration complete (₹5k one-time)
   - [ ] Sender ID approved (6-char, e.g. `VASOOL`)
   - [ ] Transactional Flow template approved with body `{#var#}`
