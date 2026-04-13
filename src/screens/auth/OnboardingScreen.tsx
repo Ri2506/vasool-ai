@@ -40,31 +40,14 @@ interface Slide {
   accent: string;
 }
 
-const SLIDES: Slide[] = [
-  {
-    icon: 'wallet',
-    title: 'Your thandal, digitised',
-    body: 'Replace the paper diary with a fraud-proof digital ledger built for Tamil Nadu lenders.',
-    accent: EL.primary,
-  },
-  {
-    icon: 'shield-check',
-    title: 'Stop agent fraud',
-    body: 'Every collection has GPS + timestamp. End-of-day cash handover with auto-tally and dispute flag. No more "I forgot to record it".',
-    accent: '#9b3e3b',
-  },
-  {
-    icon: 'flash',
-    title: 'Collect in 30 seconds',
-    body: 'Tap a borrower, confirm the amount, done. Auto-receipt SMS goes out instantly. Works offline — sync later.',
-    accent: '#d97706',
-  },
-  {
-    icon: 'translate',
-    title: 'Tamil-first',
-    body: 'Native Tamil words: Nadapu, Nippu, Vasool. Switch language any time from Settings.',
-    accent: EL.info,
-  },
+// Slides resolve their copy via i18n at render time so the user sees
+// onboarding in the locale they picked at app start.
+interface SlideTemplate { icon: Slide['icon']; titleKey: string; bodyKey: string; accent: string }
+const SLIDE_TEMPLATES: SlideTemplate[] = [
+  { icon: 'wallet', titleKey: 'onboarding.slide1_title', bodyKey: 'onboarding.slide1_body', accent: EL.primary },
+  { icon: 'shield-check', titleKey: 'onboarding.slide2_title', bodyKey: 'onboarding.slide2_body', accent: '#9b3e3b' },
+  { icon: 'flash', titleKey: 'onboarding.slide3_title', bodyKey: 'onboarding.slide3_body', accent: '#d97706' },
+  { icon: 'translate', titleKey: 'onboarding.slide4_title', bodyKey: 'onboarding.slide4_body', accent: EL.info },
 ];
 
 interface Props {
@@ -72,10 +55,11 @@ interface Props {
 }
 
 export function OnboardingScreen({ onDone }: Props) {
-  const { t: _t } = useTranslation();
+  const { t } = useTranslation();
   const scrollX = useRef(new Animated.Value(0)).current;
   const [index, setIndex] = useState(0);
-  const scrollRef = useRef<Animated.FlatList<Slide>>(null);
+  const scrollRef = useRef<Animated.FlatList<SlideTemplate>>(null);
+  const SLIDES: SlideTemplate[] = SLIDE_TEMPLATES;
 
   const handleNext = async () => {
     if (index < SLIDES.length - 1) {
@@ -100,7 +84,7 @@ export function OnboardingScreen({ onDone }: Props) {
     <SafeAreaView style={Common.screen}>
       <View style={styles.skipRow}>
         <Pressable onPress={handleSkip} hitSlop={12}>
-          <Text style={styles.skipText}>Skip</Text>
+          <Text style={styles.skipText}>{t('onboarding.skip')}</Text>
         </Pressable>
       </View>
 
@@ -122,8 +106,8 @@ export function OnboardingScreen({ onDone }: Props) {
             <View style={[styles.iconWrap, Shadows.float, { backgroundColor: `${item.accent}1A` }]}>
               <MaterialCommunityIcons name={item.icon} size={56} color={item.accent} />
             </View>
-            <Text style={styles.slideTitle}>{item.title}</Text>
-            <Text style={styles.slideBody}>{item.body}</Text>
+            <Text style={styles.slideTitle}>{t(item.titleKey)}</Text>
+            <Text style={styles.slideBody}>{t(item.bodyKey)}</Text>
           </View>
         )}
       />
@@ -148,7 +132,7 @@ export function OnboardingScreen({ onDone }: Props) {
       {/* Bottom CTA */}
       <View style={styles.cta}>
         <GradientButton
-          title={index < SLIDES.length - 1 ? 'Next' : 'Get Started'}
+          title={index < SLIDES.length - 1 ? t('onboarding.next') : t('onboarding.get_started')}
           onPress={handleNext}
           icon={
             <MaterialCommunityIcons

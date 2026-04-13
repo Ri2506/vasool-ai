@@ -21,6 +21,7 @@ import {
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -62,6 +63,7 @@ const TONE_FG: Record<Tone, string> = {
 };
 
 export function ToolsHubScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
   const { data: handovers } = useHandoverInbox();
   const { data: pendingRequests } = usePendingLoanRequestCount();
@@ -291,11 +293,11 @@ export function ToolsHubScreen() {
           <MaterialCommunityIcons name="arrow-left" size={22} color={EL.onSurface} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Tools</Text>
+          <Text style={styles.title}>{t('tools.title')}</Text>
           <Text style={styles.sub}>
             {totalActions === 0
-              ? 'All clear — nothing needs your attention'
-              : `${totalActions} item${totalActions === 1 ? '' : 's'} need your attention`}
+              ? t('tools.subtitle_clear')
+              : t('tools.subtitle_pending', { count: totalActions })}
           </Text>
         </View>
       </View>
@@ -346,19 +348,19 @@ export function ToolsHubScreen() {
           </View>
         ) : null}
 
-        <Section title="Fraud Prevention" sub="The moat — keeps agents honest">
+        <Section title={t('tools.section_fraud')} sub={t('tools.section_fraud_sub')}>
           <Grid tools={fraudTools} />
         </Section>
 
-        <Section title="Operations" sub="Day-to-day setup">
+        <Section title={t('tools.section_ops')} sub={t('tools.section_ops_sub')}>
           <Grid tools={opsTools} />
         </Section>
 
-        <Section title="Reports" sub="Read-only analytics">
+        <Section title={t('tools.section_reports')} sub={t('tools.section_reports_sub')}>
           <Grid tools={reportTools} />
         </Section>
 
-        <Section title="More">
+        <Section title={t('tools.section_more')}>
           <Grid tools={moreTools} />
         </Section>
 

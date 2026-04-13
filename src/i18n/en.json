@@ -147,5 +147,98 @@
     "bucket_15_30": "15-30 days",
     "bucket_30_plus": "30+ days",
     "total": "Total overdue"
+  },
+  "onboarding": {
+    "skip": "Skip",
+    "next": "Next",
+    "get_started": "Get Started",
+    "slide1_title": "Your thandal, digitised",
+    "slide1_body": "Replace the paper diary with a fraud-proof digital ledger built for Tamil Nadu lenders.",
+    "slide2_title": "Stop agent fraud",
+    "slide2_body": "Every collection has GPS + timestamp. End-of-day cash handover with auto-tally and dispute flag.",
+    "slide3_title": "Collect in 30 seconds",
+    "slide3_body": "Tap a borrower, confirm the amount, done. Auto-receipt SMS goes out instantly. Works offline.",
+    "slide4_title": "Tamil-first",
+    "slide4_body": "Native Tamil words: Nadapu, Nippu, Vasool. Switch language any time from Settings."
+  },
+  "tools": {
+    "title": "Tools",
+    "subtitle_clear": "All clear — nothing needs your attention",
+    "subtitle_pending": "{{count}} items need your attention",
+    "section_fraud": "Fraud Prevention",
+    "section_fraud_sub": "The moat — keeps agents honest",
+    "section_ops": "Operations",
+    "section_ops_sub": "Day-to-day setup",
+    "section_reports": "Reports",
+    "section_reports_sub": "Read-only analytics",
+    "section_more": "More"
+  },
+  "fraud": {
+    "title": "Fraud dashboard",
+    "subtitle_clear": "All clear — no flags",
+    "subtitle_alert": "{{count}} signals to review",
+    "no_signals": "No fraud signals detected",
+    "no_signals_sub": "Handovers, GPS, and loan requests look clean in the last 30 days.",
+    "action_needed": "Action needed"
+  },
+  "handover": {
+    "title": "End of Day",
+    "tally": "TODAY'S TALLY",
+    "collected": "Collected",
+    "expenses": "Expenses",
+    "net_to_hand_over": "Net cash to hand over",
+    "cash_handed_over": "CASH BEING HANDED OVER",
+    "submit": "Submit EOD",
+    "submitting": "Submitting…",
+    "awaiting_confirmation": "Awaiting owner confirmation",
+    "confirmed_by_owner": "Confirmed by owner",
+    "disputed_by_owner": "Disputed by owner",
+    "inbox_title": "Handovers",
+    "confirm_title": "Confirm cash received",
+    "cash_counted": "CASH YOU COUNTED"
+  },
+  "loan_request": {
+    "title": "Loan requests",
+    "awaiting_approval": "Awaiting your approval",
+    "recent_decisions": "Recent decisions",
+    "approve": "Approve",
+    "reject": "Reject",
+    "my_requests": "My loan requests"
+  },
+  "sms": {
+    "title": "SMS Receipts",
+    "toggle_title": "Send receipt SMS",
+    "stat_sent_today": "SENT TODAY",
+    "stat_queued": "QUEUED",
+    "stat_failed": "FAILED"
+  },
+  "sync": {
+    "title": "Cloud Sync",
+    "all_synced": "All synced",
+    "pending": "{{count}} pending",
+    "sync_now": "Sync now",
+    "syncing": "Syncing…"
+  },
+  "backup": {
+    "title": "Backup & Restore",
+    "export_now": "Export now",
+    "restore": "Restore from backup"
+  },
+  "diagnostics": {
+    "title": "Diagnostics",
+    "share_log": "Share log",
+    "upload": "Upload",
+    "empty_title": "No crashes recorded"
+  },
+  "subscription": {
+    "title_upgrade": "Upgrade to Pro",
+    "price_per_year": "/year",
+    "upgrade_btn": "Upgrade to Pro",
+    "on_pro": "You're on Pro"
+  },
+  "export": {
+    "sheet_title": "Export report",
+    "pdf": "Share as PDF",
+    "excel": "Share as Excel (CSV)"
   }
 }
