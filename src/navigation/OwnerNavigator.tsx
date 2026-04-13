@@ -14,6 +14,7 @@ import { ExpenseScreen } from '@/screens/owner/ExpenseScreen';
 import { InvestmentScreen } from '@/screens/owner/InvestmentScreen';
 import { SettingsScreen } from '@/screens/owner/SettingsScreen';
 import { NewLoanScreen } from '@/screens/owner/NewLoanScreen';
+import { TopUpLoanScreen } from '@/screens/owner/TopUpLoanScreen';
 import { LoanPlanScreen } from '@/screens/owner/LoanPlanScreen';
 import { CollectScreen } from '@/screens/owner/CollectScreen';
 import { BatchCollectScreen } from '@/screens/owner/BatchCollectScreen';
@@ -34,6 +35,17 @@ import { LoanCelebrationScreen } from '@/screens/owner/LoanCelebrationScreen';
 import { DailySummaryScreen } from '@/screens/owner/DailySummaryScreen';
 import { PattiNoteScreen } from '@/screens/owner/PattiNoteScreen';
 import { OutstandingReportScreen } from '@/screens/owner/OutstandingReportScreen';
+import { HandoverInboxScreen } from '@/screens/owner/HandoverInboxScreen';
+import { LoanRequestsScreen } from '@/screens/owner/LoanRequestsScreen';
+import { FraudDashboardScreen } from '@/screens/owner/FraudDashboardScreen';
+import { ToolsHubScreen } from '@/screens/owner/ToolsHubScreen';
+import { SmsQueueScreen } from '@/screens/owner/SmsQueueScreen';
+import { SmsSettingsScreen } from '@/screens/owner/SmsSettingsScreen';
+import { MultiLineDashboardScreen } from '@/screens/owner/MultiLineDashboardScreen';
+import { DiagnosticsScreen } from '@/screens/owner/DiagnosticsScreen';
+import { BackupScreen } from '@/screens/owner/BackupScreen';
+import { SyncScreen } from '@/screens/owner/SyncScreen';
+import { OrgSwitcherScreen } from '@/screens/owner/OrgSwitcherScreen';
 import { TabIcon } from '@/components/common/TabIcon';
 import type { OwnerStackParamList, OwnerTabParamList } from './types';
 
@@ -92,6 +104,7 @@ export function OwnerNavigator() {
       <Stack.Screen name="BorrowerDetail" component={BorrowerDetailScreen} options={{ title: '' }} />
       <Stack.Screen name="BorrowerEdit" component={BorrowerEditScreen} options={{ title: '' }} />
       <Stack.Screen name="NewLoan" component={NewLoanScreen} options={{ title: '' }} />
+      <Stack.Screen name="TopUp" component={TopUpLoanScreen} options={{ title: '', headerShown: false }} />
       <Stack.Screen name="LoanPlan" component={LoanPlanScreen} options={{ title: '' }} />
       <Stack.Screen name="Collect" component={CollectScreen} options={{ title: 'Collect' }} />
       <Stack.Screen name="BatchCollect" component={BatchCollectScreen} options={{ title: 'Batch collect' }} />
@@ -115,6 +128,17 @@ export function OwnerNavigator() {
       <Stack.Screen name="DailySummary" component={DailySummaryScreen} options={{ title: 'Daily Summary' }} />
       <Stack.Screen name="PattiNote" component={PattiNoteScreen} options={{ title: 'Patti Note' }} />
       <Stack.Screen name="OutstandingReport" component={OutstandingReportScreen} options={{ title: 'Outstanding' }} />
+      <Stack.Screen name="HandoverInbox" component={HandoverInboxScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LoanRequests" component={LoanRequestsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="FraudDashboard" component={FraudDashboardScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ToolsHub" component={ToolsHubScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SmsQueue" component={SmsQueueScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="SmsSettings" component={SmsSettingsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="MultiLineDashboard" component={MultiLineDashboardScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Diagnostics" component={DiagnosticsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Backup" component={BackupScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Sync" component={SyncScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="OrgSwitcher" component={OrgSwitcherScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

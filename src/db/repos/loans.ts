@@ -172,6 +172,9 @@ export interface CreateLoanWithTermsInput {
   productDescription?: string;
   penaltyType?: PenaltyType;
   penaltyAmount?: number;
+  // If this loan is a renewal of a previously-closed loan, link it.
+  // UI uses this to label the new loan as RENEWAL vs NEW on the borrower card.
+  renewedFromId?: string | null;
 }
 
 export async function createLoanWithTerms(
@@ -211,7 +214,7 @@ export async function createLoanWithTerms(
         ? terms.planEntries[terms.planEntries.length - 1].dueDate
         : input.startDate + 365 * 86_400_000),
     status: 'active',
-    renewed_from_id: null,
+    renewed_from_id: input.renewedFromId ?? null,
     grace_period_days: input.gracePeriodDays ?? 0,
     product_description: input.productDescription ?? null,
     penalty_type: input.penaltyType ?? null,
@@ -362,6 +365,15 @@ export async function extendInterestOnlyPlan(loanId: string): Promise<void> {
   });
 }
 
+export async function getLoanById(loanId: string): Promise<LoanRow | null> {
+  const db = await openDb();
+  const row = await db.getFirstAsync<LoanRow>(
+    `SELECT * FROM loans WHERE id = ?`,
+    [loanId]
+  );
+  return row ?? null;
+}
+
 export async function listLoansForBorrower(borrowerId: string): Promise<LoanRow[]> {
   const db = await openDb();
   return db.getAllAsync<LoanRow>(
@@ -384,6 +396,103 @@ export async function listPlanEntries(loanId: string): Promise<PlanEntryRow[]> {
     `SELECT * FROM plan_entries WHERE loan_id = ? ORDER BY installment_number`,
     [loanId]
   );
+}
+
+/**
+ * Enriched plan entry — joins plan_entries with collections to show
+ * what actually happened vs what was scheduled. Powers the dynamic
+ * LoanPlanScreen timeline.
+ *
+ * Each row contains:
+ *   - Scheduled (due_date, expected_amount, principal/interest split)
+ *   - Actual   (total_paid, last_paid_date, payment_count, days_late)
+ *   - Status   (paid/partial/pending/missed/advance_covered)
+ *   - Running outstanding balance after this entry
+ */
+export interface PlanTimelineEntry {
+  id: string;
+  loan_id: string;
+  installment_number: number;
+  due_date: number;
+  expected_amount: number;
+  principal_portion: number;
+  interest_portion: number;
+  status: string;
+  // Actuals derived from collections joined on plan_entry_id
+  paid_amount: number;
+  payment_count: number;
+  first_paid_at: number | null;
+  last_paid_at: number | null;
+  // Days between due_date and the date the entry became fully paid.
+  // Negative = paid early (advance), 0 = on time, positive = late.
+  // null = not yet paid.
+  days_late: number | null;
+  // Running outstanding total (sum of expected_amount of remaining entries).
+  outstanding_after: number;
+}
+
+export async function getLoanPlanTimeline(loanId: string): Promise<PlanTimelineEntry[]> {
+  const db = await openDb();
+  const dayMs = 86_400_000;
+
+  // Always read the bare plan first — guarantees the UI gets *something*
+  // even if the collections join below fails (e.g. the plan_entry_id
+  // column hasn't migrated yet on this device).
+  const baseRows = await db.getAllAsync<PlanEntryRow>(
+    `SELECT * FROM plan_entries WHERE loan_id = ? ORDER BY installment_number`,
+    [loanId]
+  );
+
+  // Try to enrich with per-entry collection aggregates. If anything goes
+  // wrong (missing column on legacy DB, etc.) fall back to base entries.
+  type Agg = { id: string; paid_amount: number; payment_count: number; first_paid_at: number | null; last_paid_at: number | null };
+  let aggMap = new Map<string, Agg>();
+  try {
+    const rows = await db.getAllAsync<Agg>(
+      `SELECT
+         pe.id AS id,
+         COALESCE(SUM(c.amount), 0) AS paid_amount,
+         COUNT(c.id) AS payment_count,
+         MIN(c.collected_at) AS first_paid_at,
+         MAX(c.collected_at) AS last_paid_at
+       FROM plan_entries pe
+       LEFT JOIN collections c ON c.plan_entry_id = pe.id
+       WHERE pe.loan_id = ?
+       GROUP BY pe.id`,
+      [loanId]
+    );
+    aggMap = new Map(rows.map((r) => [r.id, r]));
+  } catch (e) {
+    // Column probably missing on a stale DB. Soft-fail and render base plan.
+    // eslint-disable-next-line no-console
+    console.warn('[getLoanPlanTimeline] collection join failed, using base plan:', e);
+  }
+
+  const total = baseRows.reduce((sum, r) => sum + r.expected_amount, 0);
+  let runningPaid = 0;
+
+  return baseRows.map((r) => {
+    runningPaid += r.expected_amount;
+    const agg = aggMap.get(r.id);
+    const lastPaidAt = agg?.last_paid_at ?? null;
+    const daysLate = lastPaidAt != null ? Math.round((lastPaidAt - r.due_date) / dayMs) : null;
+    return {
+      id: r.id,
+      loan_id: r.loan_id,
+      installment_number: r.installment_number,
+      due_date: r.due_date,
+      expected_amount: r.expected_amount,
+      principal_portion: r.principal_portion ?? 0,
+      interest_portion: r.interest_portion ?? 0,
+      status: r.status,
+      paid_amount: agg?.paid_amount ?? 0,
+      payment_count: agg?.payment_count ?? 0,
+      first_paid_at: agg?.first_paid_at ?? null,
+      last_paid_at: lastPaidAt,
+      days_late: daysLate,
+      outstanding_after: Math.max(0, total - runningPaid),
+    };
+  });
 }
 
 export async function updateLoanStatus(id: string, status: LoanStatus): Promise<void> {

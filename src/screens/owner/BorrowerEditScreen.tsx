@@ -25,6 +25,7 @@ import {
   useDeleteBorrower,
 } from '@/hooks/useBorrowers';
 import type { OwnerStackParamList } from '@/navigation/types';
+import type { IdType } from '@/db/types';
 
 type Props = NativeStackScreenProps<OwnerStackParamList, 'BorrowerEdit'>;
 
@@ -43,6 +44,10 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [smsOptOut, setSmsOptOut] = useState(false);
+  const [idType, setIdType] = useState<IdType | null>(null);
+  const [idNumber, setIdNumber] = useState('');
+  const [idPhotoUri, setIdPhotoUri] = useState<string | null>(null);
 
   const handleTakePhoto = async () => {
     try {
@@ -74,8 +79,27 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
       setPhone(existing.phone ?? '');
       setAddress(existing.address ?? '');
       setNotes(existing.notes ?? '');
+      setSmsOptOut(existing.sms_opt_out === 1);
+      setIdType(existing.id_type ?? null);
+      setIdNumber(existing.id_number ?? '');
+      setIdPhotoUri(existing.id_photo_uri ?? null);
     }
   }, [existing]);
+
+  const handlePickIdPhoto = async () => {
+    try {
+      const ImagePicker = await import('expo-image-picker');
+      const cam = await ImagePicker.requestCameraPermissionsAsync();
+      if (cam.status === 'granted') {
+        const r = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.5 });
+        if (!r.canceled && r.assets[0]) { setIdPhotoUri(r.assets[0].uri); return; }
+      }
+      const lib = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (lib.status !== 'granted') return;
+      const r = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.5 });
+      if (!r.canceled && r.assets[0]) setIdPhotoUri(r.assets[0].uri);
+    } catch { Alert.alert('Could not capture photo'); }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -83,10 +107,16 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
       return;
     }
     try {
+      const kycPayload = {
+        smsOptOut,
+        idType,
+        idNumber: idNumber.trim() || null,
+        idPhotoUri,
+      };
       if (isEditing && id) {
-        await updateMut.mutateAsync({ id, name, phone, address, notes });
+        await updateMut.mutateAsync({ id, name, phone, address, notes, ...kycPayload });
       } else {
-        await createMut.mutateAsync({ name, phone, address, notes });
+        await createMut.mutateAsync({ name, phone, address, notes, ...kycPayload });
       }
       navigation.goBack();
     } catch (e: any) {
@@ -223,6 +253,115 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
               />
             </View>
           </View>
+
+          {/* ── KYC Section ── */}
+          <Text style={styles.kycSectionLabel}>KYC (Optional)</Text>
+          <View style={styles.formSection}>
+            <View style={styles.fieldWrap}>
+              <Text style={styles.fieldLabel}>ID type</Text>
+              <View style={styles.idTypeRow}>
+                {([
+                  { v: 'aadhaar', label: 'Aadhaar' },
+                  { v: 'pan', label: 'PAN' },
+                  { v: 'voter', label: 'Voter' },
+                  { v: 'driving_license', label: 'DL' },
+                  { v: 'other', label: 'Other' },
+                ] as const).map((opt) => {
+                  const active = idType === opt.v;
+                  return (
+                    <Pressable
+                      key={opt.v}
+                      onPress={() => setIdType(active ? null : opt.v)}
+                      style={[styles.idTypeChip, active && styles.idTypeChipActive]}
+                    >
+                      <Text style={[styles.idTypeText, active && styles.idTypeTextActive]}>
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            {idType ? (
+              <View style={styles.fieldWrap}>
+                <Text style={styles.fieldLabel}>ID number</Text>
+                <TextInput
+                  style={styles.input}
+                  value={idNumber}
+                  onChangeText={setIdNumber}
+                  placeholder={
+                    idType === 'aadhaar'
+                      ? 'XXXX XXXX XXXX'
+                      : idType === 'pan'
+                      ? 'ABCDE1234F'
+                      : 'ID number'
+                  }
+                  placeholderTextColor={'rgba(109,122,114,0.5)'}
+                  autoCapitalize="characters"
+                />
+              </View>
+            ) : null}
+
+            <Pressable
+              style={[styles.idPhotoRow, idPhotoUri && styles.idPhotoRowFilled]}
+              onPress={handlePickIdPhoto}
+            >
+              <View style={styles.idPhotoIcon}>
+                <MaterialCommunityIcons
+                  name={idPhotoUri ? 'check-circle' : 'card-account-details'}
+                  size={22}
+                  color={idPhotoUri ? EL.primary : EL.onSurfaceSec}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.idPhotoTitle}>
+                  {idPhotoUri ? 'ID photo attached' : 'Add ID photo'}
+                </Text>
+                <Text style={styles.idPhotoSub}>
+                  Photocopy or photo of the document — for your records only
+                </Text>
+              </View>
+              {idPhotoUri ? (
+                <Pressable
+                  onPress={(e) => { e.stopPropagation(); setIdPhotoUri(null); }}
+                  hitSlop={10}
+                >
+                  <MaterialCommunityIcons name="close-circle" size={20} color={EL.onSurfaceMuted} />
+                </Pressable>
+              ) : (
+                <MaterialCommunityIcons name="chevron-right" size={20} color={EL.onSurfaceMuted} />
+              )}
+            </Pressable>
+          </View>
+
+          {/* ── SMS Preferences ── */}
+          <Text style={styles.kycSectionLabel}>Communication</Text>
+          <Pressable
+            style={styles.smsRow}
+            onPress={() => setSmsOptOut(!smsOptOut)}
+          >
+            <View style={styles.smsIcon}>
+              <MaterialCommunityIcons
+                name={smsOptOut ? 'message-off' : 'message-text'}
+                size={22}
+                color={smsOptOut ? EL.tertiary : EL.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.smsTitle}>
+                {smsOptOut ? "Don't send SMS receipts" : 'Send SMS receipts'}
+              </Text>
+              <Text style={styles.smsSub}>
+                {smsOptOut
+                  ? "This borrower won't receive any auto-SMS"
+                  : "After every collection, an SMS receipt is auto-sent"}
+              </Text>
+            </View>
+            <View style={[styles.toggleTrack, smsOptOut && styles.toggleTrackOff]}>
+              <View style={[styles.toggleThumb, smsOptOut && styles.toggleThumbOff]} />
+            </View>
+          </Pressable>
 
           {/* Info Card */}
           <View style={styles.infoCard}>
@@ -411,6 +550,85 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 20,
   },
+
+  // KYC + SMS preferences
+  kycSectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: EL.onSurfaceMuted,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: Space.xl,
+    marginBottom: Space.sm,
+    paddingHorizontal: Space.xl,
+  },
+  idTypeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Space.xs,
+  },
+  idTypeChip: {
+    paddingHorizontal: Space.md,
+    paddingVertical: 8,
+    borderRadius: Radii.pill,
+    backgroundColor: EL.surfaceLow,
+  },
+  idTypeChipActive: {
+    backgroundColor: EL.primary,
+  },
+  idTypeText: { fontSize: 12, fontWeight: '700', color: EL.onSurface },
+  idTypeTextActive: { color: EL.white },
+  idPhotoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+    padding: Space.md,
+    borderRadius: Radii.md,
+    backgroundColor: EL.surfaceLow,
+    marginTop: Space.md,
+  },
+  idPhotoRowFilled: { backgroundColor: 'rgba(0,105,72,0.06)' },
+  idPhotoIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: EL.surfaceCard,
+  },
+  idPhotoTitle: { fontSize: 14, fontWeight: '700', color: EL.onSurface },
+  idPhotoSub: { fontSize: 11, color: EL.onSurfaceMuted, marginTop: 2 },
+  smsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+    padding: Space.lg,
+    borderRadius: Radii.lg,
+    backgroundColor: EL.surfaceCard,
+    marginHorizontal: Space.xl,
+    ...Shadows.card,
+  },
+  smsIcon: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: EL.surfaceLow,
+  },
+  smsTitle: { fontSize: 14, fontWeight: '700', color: EL.onSurface },
+  smsSub: { fontSize: 11, color: EL.onSurfaceMuted, marginTop: 2 },
+  toggleTrack: {
+    width: 42,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: EL.primary,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleTrackOff: { backgroundColor: EL.surfaceMid },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: EL.white,
+    alignSelf: 'flex-end',
+  },
+  toggleThumbOff: { alignSelf: 'flex-start' },
 
   // Bottom bar
   bottomBar: {

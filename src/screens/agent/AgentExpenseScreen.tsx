@@ -17,7 +17,9 @@ import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { EL, Common, Radii, Shadows, Space, Fonts } from '@/theme/emeraldLedger';
-import { createExpense, getTodayExpenseTotal, listExpenses } from '@/db/repos/expenses';
+import { createExpense, EXPENSE_PHOTO_THRESHOLD, getTodayExpenseTotal, listExpenses } from '@/db/repos/expenses';
+import { useGps } from '@/hooks/useGps';
+import * as ImagePicker from 'expo-image-picker';
 import { getTodaySummary } from '@/db/repos/collections';
 import type { ExpenseCategory, ExpenseRow } from '@/db/types';
 import { useAuthStore } from '@/store/authStore';
@@ -66,7 +68,14 @@ export function AgentExpenseScreen() {
   });
 
   const addMut = useMutation({
-    mutationFn: (input: { category: ExpenseCategory; amount: number }) =>
+    mutationFn: (input: {
+      category: ExpenseCategory;
+      amount: number;
+      gpsLat?: number | null;
+      gpsLng?: number | null;
+      gpsMocked?: boolean;
+      photoUri?: string | null;
+    }) =>
       createExpense({ orgId: orgId!, userId, ...input }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agentExpenseTotal', orgId] });
@@ -77,14 +86,67 @@ export function AgentExpenseScreen() {
 
   const [category, setCategory] = useState<ExpenseCategory>('petrol');
   const [amount, setAmount] = useState('200');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const { getLocation } = useGps();
+  const numericAmountForPhoto = Number(amount) || 0;
+  const photoRequired = numericAmountForPhoto >= EXPENSE_PHOTO_THRESHOLD;
+
+  const pickPhoto = async () => {
+    // Camera first (fraud prevention — the agent must actually take the
+    // photo, not upload an old one). Falls back to library if camera
+    // permission is denied.
+    try {
+      const cam = await ImagePicker.requestCameraPermissionsAsync();
+      if (cam.status === 'granted') {
+        const res = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.6,
+          allowsEditing: false,
+        });
+        if (!res.canceled && res.assets[0]) {
+          setPhotoUri(res.assets[0].uri);
+          return;
+        }
+      }
+      // Fallback — library. Less fraud-proof but at least we get a receipt.
+      const lib = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (lib.status !== 'granted') {
+        Alert.alert('Permission needed', 'Camera or photo library access is required for receipt.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.6,
+      });
+      if (!res.canceled && res.assets[0]) setPhotoUri(res.assets[0].uri);
+    } catch (e: any) {
+      Alert.alert('Could not take photo', e?.message ?? '');
+    }
+  };
 
   const handleAdd = async () => {
     const n = Number(amount);
     if (n <= 0) return;
+    if (n >= EXPENSE_PHOTO_THRESHOLD && !photoUri) {
+      Alert.alert(
+        'Photo required',
+        `Expenses of ₹${EXPENSE_PHOTO_THRESHOLD} or more need a receipt photo for the owner's records.`,
+      );
+      return;
+    }
     try {
-      await addMut.mutateAsync({ category, amount: n });
+      const gps = await getLocation();
+      await addMut.mutateAsync({
+        category,
+        amount: n,
+        gpsLat: gps?.lat ?? null,
+        gpsLng: gps?.lng ?? null,
+        gpsMocked: gps?.mocked ?? false,
+        photoUri,
+      });
       setAmount('');
+      setPhotoUri(null);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e: any) {
@@ -229,6 +291,47 @@ export function AgentExpenseScreen() {
               })}
             </View>
           </View>
+
+          {/* Photo receipt — required when amount ≥ ₹100 for owner proof */}
+          <Pressable
+            style={[
+              styles.photoRow,
+              photoRequired && !photoUri && styles.photoRowRequired,
+              photoUri && styles.photoRowFilled,
+            ]}
+            onPress={pickPhoto}
+          >
+            <View style={styles.photoIcon}>
+              <MaterialCommunityIcons
+                name={photoUri ? 'check-circle' : 'camera-plus'}
+                size={22}
+                color={photoUri ? EL.primary : photoRequired ? EL.warn : EL.onSurfaceSec}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.photoTitle}>
+                {photoUri ? 'Receipt attached' : 'Add receipt photo'}
+              </Text>
+              <Text style={styles.photoSub}>
+                {photoRequired
+                  ? `Required for expenses ≥ ₹${EXPENSE_PHOTO_THRESHOLD}`
+                  : 'Optional for small expenses'}
+              </Text>
+            </View>
+            {photoUri ? (
+              <Pressable
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setPhotoUri(null);
+                }}
+                hitSlop={10}
+              >
+                <MaterialCommunityIcons name="close-circle" size={20} color={EL.onSurfaceMuted} />
+              </Pressable>
+            ) : (
+              <MaterialCommunityIcons name="chevron-right" size={20} color={EL.onSurfaceMuted} />
+            )}
+          </Pressable>
 
           {/* Confirm Button */}
           <Pressable
@@ -565,6 +668,35 @@ const styles = StyleSheet.create({
   quickAmountTextActive: {
     color: EL.primary,
   },
+
+  // Photo-receipt row
+  photoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+    padding: Space.md,
+    borderRadius: Radii.md,
+    backgroundColor: EL.surfaceLow,
+    marginTop: Space.md,
+  },
+  photoRowRequired: {
+    backgroundColor: 'rgba(217,119,6,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(217,119,6,0.2)',
+  },
+  photoRowFilled: {
+    backgroundColor: 'rgba(0,105,72,0.06)',
+  },
+  photoIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: EL.surfaceCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoTitle: { fontSize: 14, fontWeight: '700', color: EL.onSurface },
+  photoSub: { fontSize: 11, color: EL.onSurfaceMuted, marginTop: 2 },
 
   // Confirm button
   confirmBtn: {

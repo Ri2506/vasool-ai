@@ -22,7 +22,8 @@ export type OwnerStackParamList = {
   Tabs: NavigatorScreenParams<OwnerTabParamList>;
   BorrowerDetail: { id: string };
   BorrowerEdit: { id?: string };
-  NewLoan: { borrowerId: string };
+  NewLoan: { borrowerId: string; renewedFromId?: string };
+  TopUp: { loanId: string };
   LoanPlan: { loanId: string };
   Collect: { item: DueTodayItem };
   BatchCollect: undefined;
@@ -46,6 +47,17 @@ export type OwnerStackParamList = {
   Deposits: undefined;
   Guarantor: { loanId: string };
   LoanCelebration: { borrowerName: string; principal: number; totalPaid: number; installments: number; rating: number; borrowerId: string };
+  HandoverInbox: undefined;
+  LoanRequests: undefined;
+  FraudDashboard: undefined;
+  ToolsHub: undefined;
+  SmsQueue: undefined;
+  SmsSettings: undefined;
+  MultiLineDashboard: undefined;
+  Diagnostics: undefined;
+  Backup: undefined;
+  Sync: undefined;
+  OrgSwitcher: undefined;
 };
 
 export type OwnerTabParamList = {
@@ -66,6 +78,7 @@ export type AgentStackParamList = {
   AgentReceipt: SuccessReceiptParams;
   AgentSharePreview: undefined;
   BatchCollect: undefined;
+  AgentEOD: undefined;
 };
 
 export type RootStackParamList = {

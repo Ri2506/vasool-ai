@@ -1,5 +1,6 @@
 import { openDb, uuid, now } from '@/db';
-import type { BorrowerRow } from '@/db/types';
+import type { BorrowerRow, IdType } from '@/db/types';
+import { assertWithinCap } from '@/utils/planCaps';
 
 /**
  * Borrower CRUD against the local SQLite cache. All writes are marked
@@ -31,9 +32,14 @@ export interface NewBorrowerInput {
   address?: string | null;
   notes?: string | null;
   photoUrl?: string | null;
+  smsOptOut?: boolean;
+  idNumber?: string | null;
+  idType?: IdType | null;
+  idPhotoUri?: string | null;
 }
 
 export async function createBorrower(input: NewBorrowerInput): Promise<BorrowerRow> {
+  await assertWithinCap(input.orgId, 'borrowers');
   const db = await openDb();
   const row: BorrowerRow = {
     id: uuid(),
@@ -44,22 +50,21 @@ export async function createBorrower(input: NewBorrowerInput): Promise<BorrowerR
     address: input.address?.trim() || null,
     photo_url: input.photoUrl ?? null,
     notes: input.notes?.trim() || null,
+    sms_opt_out: input.smsOptOut ? 1 : 0,
+    id_number: input.idNumber?.trim() || null,
+    id_type: input.idType ?? null,
+    id_photo_uri: input.idPhotoUri ?? null,
     created_at: now(),
     dirty: 1,
   };
   await db.runAsync(
-    `INSERT INTO borrowers (id, server_id, org_id, name, phone, address, photo_url, notes, created_at, dirty)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+    `INSERT INTO borrowers (id, server_id, org_id, name, phone, address, photo_url, notes,
+       sms_opt_out, id_number, id_type, id_photo_uri, created_at, dirty)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
     [
-      row.id,
-      row.server_id,
-      row.org_id,
-      row.name,
-      row.phone,
-      row.address,
-      row.photo_url,
-      row.notes,
-      row.created_at,
+      row.id, row.server_id, row.org_id, row.name, row.phone, row.address,
+      row.photo_url, row.notes, row.sms_opt_out, row.id_number, row.id_type,
+      row.id_photo_uri, row.created_at,
     ]
   );
   return row;
@@ -71,28 +76,26 @@ export interface UpdateBorrowerInput {
   phone?: string | null;
   address?: string | null;
   notes?: string | null;
+  photoUrl?: string | null;
+  smsOptOut?: boolean;
+  idNumber?: string | null;
+  idType?: IdType | null;
+  idPhotoUri?: string | null;
 }
 
 export async function updateBorrower(input: UpdateBorrowerInput): Promise<void> {
   const db = await openDb();
   const fields: string[] = [];
-  const values: (string | null)[] = [];
-  if (input.name !== undefined) {
-    fields.push('name = ?');
-    values.push(input.name.trim());
-  }
-  if (input.phone !== undefined) {
-    fields.push('phone = ?');
-    values.push(input.phone?.trim() || null);
-  }
-  if (input.address !== undefined) {
-    fields.push('address = ?');
-    values.push(input.address?.trim() || null);
-  }
-  if (input.notes !== undefined) {
-    fields.push('notes = ?');
-    values.push(input.notes?.trim() || null);
-  }
+  const values: (string | number | null)[] = [];
+  if (input.name !== undefined) { fields.push('name = ?'); values.push(input.name.trim()); }
+  if (input.phone !== undefined) { fields.push('phone = ?'); values.push(input.phone?.trim() || null); }
+  if (input.address !== undefined) { fields.push('address = ?'); values.push(input.address?.trim() || null); }
+  if (input.notes !== undefined) { fields.push('notes = ?'); values.push(input.notes?.trim() || null); }
+  if (input.photoUrl !== undefined) { fields.push('photo_url = ?'); values.push(input.photoUrl); }
+  if (input.smsOptOut !== undefined) { fields.push('sms_opt_out = ?'); values.push(input.smsOptOut ? 1 : 0); }
+  if (input.idNumber !== undefined) { fields.push('id_number = ?'); values.push(input.idNumber?.trim() || null); }
+  if (input.idType !== undefined) { fields.push('id_type = ?'); values.push(input.idType); }
+  if (input.idPhotoUri !== undefined) { fields.push('id_photo_uri = ?'); values.push(input.idPhotoUri); }
   if (fields.length === 0) return;
   fields.push('dirty = 1');
   values.push(input.id);

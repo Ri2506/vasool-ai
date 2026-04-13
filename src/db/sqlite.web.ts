@@ -177,6 +177,39 @@ export async function openDb(): Promise<Db> {
     `INSERT OR REPLACE INTO _meta (key, value) VALUES ('schema_version', ?)`,
     [String(SCHEMA_VERSION)]
   );
+
+  // Belt-and-suspenders: re-attempt every additive ALTER. Catches any DB
+  // where a prior migration partially failed but bumped the version.
+  // sql.js raises on duplicate columns, but we silently ignore.
+  const safeAlter = (sql: string) => {
+    try {
+      _handle!.exec(sql);
+    } catch {
+      // duplicate column / harmless
+    }
+  };
+  safeAlter(`ALTER TABLE collections ADD COLUMN plan_entry_id TEXT`);
+  safeAlter(`ALTER TABLE collections ADD COLUMN notes TEXT`);
+  safeAlter(`ALTER TABLE collections ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'cash'`);
+  safeAlter(`ALTER TABLE loans ADD COLUMN repayment_type TEXT NOT NULL DEFAULT 'principal_plus_interest'`);
+  safeAlter(`ALTER TABLE loans ADD COLUMN interest_type TEXT NOT NULL DEFAULT 'front_loaded'`);
+  safeAlter(`ALTER TABLE loans ADD COLUMN interest_rate REAL NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE loans ADD COLUMN disbursed_amount REAL`);
+  safeAlter(`ALTER TABLE plan_entries ADD COLUMN principal_portion REAL NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE plan_entries ADD COLUMN interest_portion REAL NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE collections ADD COLUMN gps_mocked INTEGER NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE expenses ADD COLUMN gps_lat REAL`);
+  safeAlter(`ALTER TABLE expenses ADD COLUMN gps_lng REAL`);
+  safeAlter(`ALTER TABLE expenses ADD COLUMN gps_mocked INTEGER NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE expenses ADD COLUMN photo_uri TEXT`);
+  safeAlter(`ALTER TABLE expenses ADD COLUMN photo_url TEXT`);
+  safeAlter(`ALTER TABLE expenses ADD COLUMN notes TEXT`);
+  safeAlter(`ALTER TABLE organizations ADD COLUMN sms_enabled INTEGER NOT NULL DEFAULT 1`);
+  safeAlter(`ALTER TABLE borrowers ADD COLUMN sms_opt_out INTEGER NOT NULL DEFAULT 0`);
+  safeAlter(`ALTER TABLE borrowers ADD COLUMN id_number TEXT`);
+  safeAlter(`ALTER TABLE borrowers ADD COLUMN id_type TEXT`);
+  safeAlter(`ALTER TABLE borrowers ADD COLUMN id_photo_uri TEXT`);
+
   persist();
 
   return _db;

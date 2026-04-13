@@ -68,6 +68,49 @@ async function migrate(db: Db): Promise<void> {
     `INSERT OR REPLACE INTO _meta (key, value) VALUES ('schema_version', ?)`,
     [String(SCHEMA_VERSION)]
   );
+
+  // Belt-and-suspenders: ensure latest schema columns exist even if a
+  // prior migration silently failed but bumped the version. ALTER is
+  // wrapped in try/catch so "duplicate column" is a safe no-op.
+  await ensureColumns(db);
+}
+
+/**
+ * Idempotently ensure every column the current code relies on exists.
+ * Runs every openDb() — adds about 5ms and prevents "no such column"
+ * errors on databases where a prior migration partially failed.
+ */
+async function ensureColumns(db: Db): Promise<void> {
+  const safeAlter = async (sql: string) => {
+    try {
+      await db.execAsync(sql);
+    } catch {
+      // duplicate column / table missing — both safe to ignore here
+    }
+  };
+  await safeAlter(`ALTER TABLE collections ADD COLUMN plan_entry_id TEXT`);
+  await safeAlter(`ALTER TABLE collections ADD COLUMN notes TEXT`);
+  await safeAlter(`ALTER TABLE collections ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'cash'`);
+  await safeAlter(`ALTER TABLE loans ADD COLUMN repayment_type TEXT NOT NULL DEFAULT 'principal_plus_interest'`);
+  await safeAlter(`ALTER TABLE loans ADD COLUMN interest_type TEXT NOT NULL DEFAULT 'front_loaded'`);
+  await safeAlter(`ALTER TABLE loans ADD COLUMN interest_rate REAL NOT NULL DEFAULT 0`);
+  await safeAlter(`ALTER TABLE loans ADD COLUMN disbursed_amount REAL`);
+  await safeAlter(`ALTER TABLE plan_entries ADD COLUMN principal_portion REAL NOT NULL DEFAULT 0`);
+  await safeAlter(`ALTER TABLE plan_entries ADD COLUMN interest_portion REAL NOT NULL DEFAULT 0`);
+  // v8 — GPS trust + photo evidence
+  await safeAlter(`ALTER TABLE collections ADD COLUMN gps_mocked INTEGER NOT NULL DEFAULT 0`);
+  await safeAlter(`ALTER TABLE expenses ADD COLUMN gps_lat REAL`);
+  await safeAlter(`ALTER TABLE expenses ADD COLUMN gps_lng REAL`);
+  await safeAlter(`ALTER TABLE expenses ADD COLUMN gps_mocked INTEGER NOT NULL DEFAULT 0`);
+  await safeAlter(`ALTER TABLE expenses ADD COLUMN photo_uri TEXT`);
+  await safeAlter(`ALTER TABLE expenses ADD COLUMN photo_url TEXT`);
+  await safeAlter(`ALTER TABLE expenses ADD COLUMN notes TEXT`);
+  // v9 — SMS prefs + KYC
+  await safeAlter(`ALTER TABLE organizations ADD COLUMN sms_enabled INTEGER NOT NULL DEFAULT 1`);
+  await safeAlter(`ALTER TABLE borrowers ADD COLUMN sms_opt_out INTEGER NOT NULL DEFAULT 0`);
+  await safeAlter(`ALTER TABLE borrowers ADD COLUMN id_number TEXT`);
+  await safeAlter(`ALTER TABLE borrowers ADD COLUMN id_type TEXT`);
+  await safeAlter(`ALTER TABLE borrowers ADD COLUMN id_photo_uri TEXT`);
 }
 
 export function uuid(): string {

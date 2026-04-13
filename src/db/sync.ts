@@ -10,9 +10,29 @@ import { secureStorage } from '@/lib/secureStorage';
 
 const LAST_PULL_KEY = 'vasool.sync.lastPulledAt';
 
+// All tables that should round-trip through Supabase. Order is
+// dependency-aware: parents (organizations, users, borrowers) come
+// before children (loans, plan_entries, collections, etc.) so server
+// FK checks pass during push.
 const TABLES = [
-  'organizations', 'users', 'borrowers', 'lines', 'loans',
-  'plan_entries', 'collections', 'expenses', 'investments', 'notifications',
+  'organizations',
+  'users',
+  'borrowers',
+  'lines',
+  'loans',
+  'plan_entries',
+  'collections',
+  'principal_returns',
+  'expenses',
+  'investments',
+  'guarantors',
+  'deposits',
+  'handovers',
+  'loan_requests',
+  'sms_queue',
+  'line_agent_assignments',
+  'notifications',
+  'referrals',
 ] as const;
 
 // Column lists per table for upsert — must match local schema.
@@ -58,8 +78,13 @@ export async function sync(): Promise<{ pushed: number; pulled: number }> {
   });
 
   if (error) {
-    // eslint-disable-next-line no-console
-    console.warn('[sync] Edge Function error:', error);
+    // Expected until the `sync` Edge Function is deployed to Supabase.
+    // Log once per session at info level, not a loud warning every time.
+    if (!(globalThis as any).__vasoolSyncLogged) {
+      (globalThis as any).__vasoolSyncLogged = true;
+      // eslint-disable-next-line no-console
+      console.log('[sync] Edge Function unavailable — running offline-only.');
+    }
     return { pushed: 0, pulled: 0 };
   }
 

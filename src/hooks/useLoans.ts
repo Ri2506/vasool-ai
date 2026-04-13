@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createLoanWithPlan,
   createLoanWithTerms,
+  getLoanPlanTimeline,
   listActiveLoans,
   listLoansForBorrower,
   listPlanEntries,
@@ -44,6 +45,19 @@ export function usePlanEntries(loanId: string | undefined) {
   });
 }
 
+/**
+ * Enriched timeline view of a loan's plan_entries joined with collections.
+ * Used by LoanPlanScreen to show what *actually* happened (paid date, days
+ * late, partial top-ups) vs the original schedule.
+ */
+export function useLoanPlanTimeline(loanId: string | undefined) {
+  return useQuery({
+    queryKey: ['plan-timeline', loanId ?? '_'],
+    enabled: !!loanId,
+    queryFn: () => getLoanPlanTimeline(loanId!),
+  });
+}
+
 export function useCreateLoan() {
   const qc = useQueryClient();
   const orgId = useAuthStore((s) => s.user?.orgId ?? null);
@@ -77,6 +91,8 @@ export function useCreateLoanFromTerms() {
         qc.invalidateQueries({ queryKey: ['dueToday', orgId] });
         qc.invalidateQueries({ queryKey: ['todaySummary', orgId] });
         qc.invalidateQueries({ queryKey: ['borrower-statuses', orgId] });
+        qc.invalidateQueries({ queryKey: ['borrower-list-summaries', orgId] });
+        qc.invalidateQueries({ queryKey: ['borrower-summary', orgId] });
       }
       qc.invalidateQueries({ queryKey: KEYS.byBorrower(data.loan.borrower_id) });
       qc.invalidateQueries({ queryKey: KEYS.plan(data.loan.id) });
@@ -91,7 +107,11 @@ export function useUpdateLoanStatus() {
     mutationFn: ({ id, status }: { id: string; status: LoanStatus }) =>
       updateLoanStatus(id, status),
     onSuccess: () => {
-      if (orgId) qc.invalidateQueries({ queryKey: KEYS.active(orgId) });
+      if (orgId) {
+        qc.invalidateQueries({ queryKey: KEYS.active(orgId) });
+        qc.invalidateQueries({ queryKey: ['borrower-list-summaries', orgId] });
+        qc.invalidateQueries({ queryKey: ['borrower-summary', orgId] });
+      }
     },
   });
 }

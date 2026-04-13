@@ -1,5 +1,6 @@
 import { openDb, uuid, now } from '@/db';
 import type { UserRow } from '@/db/types';
+import { assertWithinCap } from '@/utils/planCaps';
 
 // PIN hashing — must match the agent-login Edge Function's SALT.
 // Uses Web Crypto when available (web), falls back to a simple
@@ -44,6 +45,7 @@ export interface NewAgentInput {
 }
 
 export async function createAgent(input: NewAgentInput): Promise<UserRow> {
+  await assertWithinCap(input.orgId, 'agents');
   const db = await openDb();
   const pinHash = await hashPin(input.pin);
   const row: UserRow = {

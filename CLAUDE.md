@@ -132,8 +132,8 @@ Three personas only. If a request does not serve one of these, push back.
 
 These are actively rejected features. If a user asks, redirect.
 
-- ❌ KYC (Aadhaar, PAN, photo verification) — scheduled for later, not now
 - ❌ Credit bureau integration (CIBIL, CRIF, Experian)
+- ❌ Aadhaar API verification (KYC photo + ID number is fine — API isn't)
 - ❌ Group loans / JLG / SHG structures (MFI feature)
 - ❌ Borrower-facing app or portal
 - ❌ Tally / Zoho / accounting software exports
@@ -143,65 +143,93 @@ These are actively rejected features. If a user asks, redirect.
 - ❌ Family trust layer / heir handover / co-owner access (rejected by owner)
 - ❌ Web dashboard, tablet layout, desktop app
 - ❌ NBFC / MFI compliance reports or audit logs
-- ❌ Borrower photo KYC, document storage beyond Documents screen
 - ❌ Razorpay/Stripe integration for anything except app subscription
 - ❌ 24/7 support infrastructure (solo founder, best-effort only)
-- ❌ WhatsApp Business API (too expensive; use MSG91 SMS instead)
+- ❌ WhatsApp Business API (too expensive; use MSG91 SMS + deep-link instead)
 
 ---
 
-## 6. Data model — core domain
+## 6. Data model — core domain (schema v10)
 
 ```
-organizations  ← tenant boundary (org_id scopes everything)
-users          ← owner or agent
-borrowers      ← people who took loans
-lines          ← collection routes (daily, weekly, monthly, etc.)
-loans          ← active debts with dynamic terms
-plan_entries   ← scheduled installments (principal + interest portions)
-collections    ← recorded payments with GPS + agent + timestamp
-principal_returns ← separate principal returns for interest-only loans
-expenses       ← agent field expenses (petrol, food, etc.)
-investments    ← owner capital injections
-deposits       ← owner's deposit-taking side (savings from depositors)
-guarantors     ← per-loan guarantor info
-handovers      ← EOD cash reconciliation (TO BE ADDED in Month 2)
-sms_queue      ← outbound SMS receipts (TO BE ADDED in Month 2)
+organizations        ← tenant boundary (org_id scopes everything)
+  · sms_enabled      ← v9 org-level SMS kill switch
+users                ← owner or agent (same phone can exist in multiple orgs)
+borrowers            ← v9 adds sms_opt_out + id_number + id_type + id_photo_uri
+lines                ← collection routes (agent_id = current agent)
+loans                ← dynamic terms (repayment_type, interest_type, rate,
+                        disbursed_amount, renewed_from_id)
+plan_entries         ← scheduled installments (principal_portion + interest_portion)
+collections          ← GPS + timestamp + plan_entry_id + payment_method
+                        + gps_mocked + notes
+principal_returns    ← separate principal returns for interest-only loans
+expenses             ← agent field expenses; v8 adds gps + photo + notes
+investments          ← owner capital injections
+deposits             ← owner's deposit-taking side (savings from depositors)
+guarantors           ← per-loan guarantor info
+handovers            ← v6 EOD agent cash reconciliation with variance
+loan_requests        ← v6 agent-proposed loans awaiting owner approval
+sms_queue            ← v7 outbound SMS receipts (offline-first queue)
+line_agent_assignments ← v10 append-only agent rotation history
+notifications        ← in-app + push
+referrals            ← refer-and-earn
 ```
+
+Schema is at **v10** with defensive `ensureColumns()` re-running every
+additive ALTER on every `openDb()` call, so legacy DBs self-heal.
 
 ---
 
-## 7. The 3-Month Roadmap
+## 7. Roadmap — what's done, what's left
 
-### Month 1 — Dynamic Loan Configuration (FOUNDATION)
-- Week 1: Schema v3 migration + `loanCalc.ts` pure function + unit tests
-- Week 2: NewLoanScreen refactored to 5-step wizard with live preview
-- Week 3: Auto-closure rewrite + `extendInterestOnlyPlan` + Return Principal
-- Week 4: Reports showing principal vs interest split, capital-at-risk card
+### ✅ Month 1 — Dynamic Loan Configuration (SHIPPED)
+- [x] Schema v3 migration + `loanCalc.ts` pure function + unit tests
+- [x] NewLoanScreen 5-step wizard with live preview + paisa-notation toggle
+- [x] Auto-closure + `extendInterestOnlyPlan` + Return Principal flow
+- [x] Reports with principal/interest split + Capital at Risk
+- [x] Top-up loan + Renew loan differentiation
+- [x] Bulletproof duplicate-payment guards (status + cumulative + 5s rate-limit)
+- [x] Dynamic LoanPlanScreen timeline (scheduled vs actual)
+- [x] Borrower list grouped by line · per-borrower lifetime stats
+- [x] Cash/account payment method + Daily Summary breakdown
+- [x] Per-line agent assignment + stats
 
-Key additions:
-- `loans.repayment_type` — `'principal_plus_interest' | 'interest_only'`
-- `loans.interest_type` — `'front_loaded' | 'flat' | 'reducing' | 'none'`
-- `loans.interest_rate` — decimal
-- `loans.disbursed_amount` — actual money that went out (may differ from principal)
-- `plan_entries.principal_portion`, `plan_entries.interest_portion`
+### ✅ Month 2 — Fraud Prevention Pack (SHIPPED)
+- [x] Auto SMS receipts via MSG91 (Edge Function + dry-run fallback)
+- [x] Owner approval for new loans (agent files request → owner approves)
+- [x] EOD agent handover with variance + dispute flag
+- [x] GPS mock-location detection (collections + expenses)
+- [x] Photo evidence required for expenses ≥ ₹100
+- [x] Promissory note PDF (bilingual English + Tamil)
+- [x] FraudDashboard + push notifications for handover/approval events
+- [x] Cash position with today's net + per-line breakdown
 
-### Month 2 — Fraud Prevention Pack (THE MOAT)
-- Week 1: Auto SMS receipts via MSG91 (Supabase Edge Function)
-- Week 2: Owner approval for new loans + EOD handover flow
-- Week 3: GPS mock detection + photo evidence for expenses > ₹100
-- Week 4: Owner fraud dashboard + immutable Nippu status
+### ✅ Month 3 prep — Launch-Ready (SHIPPED)
+- [x] Cutting-edge ToolsHub (dedicated screen, badges, categorised tiles)
+- [x] Home top-bar pending-action badge
+- [x] Onboarding tour (4 swipeable slides)
+- [x] Crash reporter (local log + optional Supabase upload + diagnostics UI)
+- [x] WhatsApp deep-link templates (overdue, receipt, new-loan)
+- [x] Per-line agent rotation history
+- [x] Backup / restore (JSON export + paste-to-restore)
+- [x] Cloud sync layer (push/pull all 18 tables + `sync` Edge Function stub)
+- [x] Subscription screen + free-tier hard caps (`planCaps.ts`)
+- [x] Multi-org switcher (same phone → multiple orgs)
+- [x] Reports PDF + Excel export (Outstanding · Nippu · Patti · Daily)
+- [x] Agent-side loan-request status feedback card
+- [x] Haptic feedback on critical flows
+- [x] SMS settings screen + per-borrower opt-out + KYC fields
+- [x] EAS config for Android app-bundle + iOS TestFlight
+- [x] `LAUNCH_CHECKLIST.md` — 7-section playbook
 
-Key additions:
-- `handovers` table
-- `sms_queue` table
-- `supabase/functions/send-receipt-sms/index.ts`
-
-### Month 3 — Multi-Line + iOS + Launch
-- Week 1: Line picker UX, per-line metrics, agent-to-line assignment
-- Week 2: iOS build via EAS + subscription wiring (Razorpay UPI Autopay)
-- Week 3: Play Store + App Store listings, landing page
-- Week 4: Soft launch with first 50 users
+### ⏳ Still remaining (external-only, not code)
+- [ ] MSG91 account + DLT registration (1-week lead time, ₹5k one-time)
+- [ ] Razorpay account + webhook deployment (`create-checkout` Edge Function)
+- [ ] Play Store ₹2,200 dev account + app listing
+- [ ] App Store $99 dev account + TestFlight review
+- [ ] Landing page (vasoolai.com or .in)
+- [ ] First 5 friendly-user onboarding calls
+- [ ] Supabase Postgres migrations to mirror SQLite schema (for sync pull)
 
 ---
 
@@ -283,9 +311,9 @@ vasool-ai/
 │   ├── hooks/                ← React Query wrappers
 │   ├── navigation/           ← Root + Auth + Owner + Agent navigators
 │   ├── screens/
-│   │   ├── auth/
-│   │   ├── owner/            ← 26 screens
-│   │   └── agent/            ← 5 screens
+│   │   ├── auth/             ← 4 screens + OnboardingScreen
+│   │   ├── owner/            ← 40+ screens (ToolsHub · FraudDashboard · Sync · Backup · Diagnostics · OrgSwitcher · MultiLineDashboard · SmsSettings · etc.)
+│   │   └── agent/            ← 6 screens (AgentEOD added)
 │   ├── store/                ← zustand stores
 │   ├── theme/emeraldLedger.ts
 │   ├── utils/                ← loanCalc, format, workingDays, pdfExport
@@ -298,4 +326,6 @@ vasool-ai/
 
 ---
 
-**Last updated:** Month 1 Week 1 start (dynamic loan config work beginning).
+**Last updated:** Month 1 + Month 2 complete, Month 3 feature-complete.
+Remaining work is external accounts (MSG91, Razorpay, store listings) —
+see `LAUNCH_CHECKLIST.md` for the actionable playbook.

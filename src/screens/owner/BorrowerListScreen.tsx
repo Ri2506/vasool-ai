@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
+  SectionList,
   Pressable,
   RefreshControl,
   SafeAreaView,
@@ -26,6 +27,7 @@ import { useVoice } from '@/hooks/useVoice';
 import { useBorrowers } from '@/hooks/useBorrowers';
 import { useBorrowerStatuses } from '@/hooks/useBorrowerStatus';
 import { useDueToday } from '@/hooks/useCollections';
+import { useBorrowerListSummaries } from '@/hooks/useBorrowerSummary';
 import type { BorrowerRow } from '@/db/types';
 import type { OwnerStackParamList } from '@/navigation/types';
 
@@ -40,6 +42,7 @@ export function BorrowerListScreen() {
   const { data: borrowers, isLoading, refetch, isRefetching } = useBorrowers();
   const { data: statuses } = useBorrowerStatuses();
   const { data: dueItems = [] } = useDueToday();
+  const { data: summaries } = useBorrowerListSummaries();
   const dueBorrowerIds = useMemo(() => new Set(dueItems.map((d) => d.borrower_id)), [dueItems]);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
@@ -76,6 +79,26 @@ export function BorrowerListScreen() {
     );
   }, [borrowers, statuses, query, activeFilter]);
 
+  // Line-wise grouping for SectionList
+  const sections = useMemo(() => {
+    if (!filtered.length) return [];
+    const groups = new Map<string, BorrowerRow[]>();
+    for (const b of filtered) {
+      const summary = summaries?.get(b.id);
+      const lineName = summary?.line_name ?? 'No line';
+      const arr = groups.get(lineName) ?? [];
+      arr.push(b);
+      groups.set(lineName, arr);
+    }
+    // "No line" goes last; rest sorted alphabetically
+    const entries = Array.from(groups.entries()).sort((a, b) => {
+      if (a[0] === 'No line') return 1;
+      if (b[0] === 'No line') return -1;
+      return a[0].localeCompare(b[0]);
+    });
+    return entries.map(([title, data]) => ({ title, data }));
+  }, [filtered, summaries]);
+
   // Count stats for filter chips
   const counts = useMemo(() => {
     if (!borrowers) return { all: 0, nippu: 0, completed: 0 };
@@ -98,47 +121,80 @@ export function BorrowerListScreen() {
 
   const renderItem = ({ item }: { item: BorrowerRow }) => {
     const st = statuses?.[item.id];
+    const summary = summaries?.get(item.id);
     const borrowerStatus: BorrowerStatusType = st?.is_nippu ? 'nippu' : st?.rating ? 'nadapu' : 'none';
     return (
       <Pressable
         onPress={() => navigation.navigate('BorrowerDetail', { id: item.id })}
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       >
-        {/* Left: avatar + info */}
-        <View style={styles.cardLeft}>
-          <Avatar name={item.name} photoUri={item.photo_url} size={44} />
-          <View style={styles.cardBody}>
-            <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
-            {item.phone ? (
-              <Text style={styles.cardPhone}>{item.phone}</Text>
-            ) : null}
-            {st?.emi ? (
-              <Text style={styles.cardEmi}>
-                {formatRupees(st.emi)}/{st.line_type === 'daily' ? 'day' : st.line_type === 'weekly' ? 'wk' : 'mo'} • {st.days_paid}/{st.total_days} days
-              </Text>
+        {/* Top row: avatar + name/phone + status */}
+        <View style={styles.cardTopRow}>
+          <View style={styles.cardLeft}>
+            <Avatar name={item.name} photoUri={item.photo_url} size={44} />
+            <View style={styles.cardBody}>
+              <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+              {item.phone ? (
+                <Text style={styles.cardPhone}>{item.phone}</Text>
+              ) : null}
+              {st?.emi ? (
+                <Text style={styles.cardEmi}>
+                  {formatRupees(st.emi)}/{st.line_type === 'daily' ? 'day' : st.line_type === 'weekly' ? 'wk' : 'mo'}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+          <View style={styles.cardRight}>
+            <StatusBadge status={borrowerStatus} />
+            {st?.rating ? (
+              <View style={styles.cardStars}>
+                <StarRating rating={st.rating} size={12} />
+              </View>
             ) : null}
           </View>
         </View>
 
-        {/* Right: status badge + stars */}
-        <View style={styles.cardRight}>
-          <StatusBadge status={borrowerStatus} />
-          {st?.rating ? (
-            <View style={styles.cardStars}>
-              <StarRating rating={st.rating} size={12} />
+        {/* Paid/balance mini-stats row — only when active loan exists */}
+        {summary && summary.active_loan_count > 0 ? (
+          <View style={styles.cardStats}>
+            <View style={styles.cardStat}>
+              <Text style={styles.cardStatLabel}>Paid</Text>
+              <Text style={[styles.cardStatValue, { color: EL.primary }]}>
+                {formatRupees(summary.total_paid)}
+              </Text>
             </View>
-          ) : null}
-        </View>
+            <View style={styles.cardStat}>
+              <Text style={styles.cardStatLabel}>Balance</Text>
+              <Text style={[styles.cardStatValue, { color: EL.nippu }]}>
+                {formatRupees(summary.total_balance)}
+              </Text>
+            </View>
+            <View style={styles.cardStat}>
+              <Text style={styles.cardStatLabel}>Loans</Text>
+              <Text style={styles.cardStatValue}>{summary.active_loan_count}</Text>
+            </View>
+          </View>
+        ) : null}
       </Pressable>
     );
   };
 
   return (
     <SafeAreaView style={Common.screen}>
-      <FlatList
-        data={filtered}
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
+        renderSectionHeader={({ section: { title, data } }) => (
+          <View style={styles.sectionHeader}>
+            <MaterialCommunityIcons name="road-variant" size={14} color={EL.primary} />
+            <Text style={styles.sectionHeaderText}>{title}</Text>
+            <Text style={styles.sectionHeaderCount}>
+              {data.length} {data.length === 1 ? 'borrower' : 'borrowers'}
+            </Text>
+          </View>
+        )}
+        stickySectionHeadersEnabled={false}
         contentContainerStyle={{ paddingBottom: 120 }}
         refreshControl={
           <RefreshControl
@@ -354,17 +410,66 @@ const styles = StyleSheet.create({
     color: EL.onSurfaceSec,
   },
 
-  /* ── Borrower Card ── */
-  card: {
+  /* ── Section Header (line-wise grouping) ── */
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: Space.sm,
+    paddingHorizontal: Space.xxl,
+    paddingTop: Space.lg,
+    paddingBottom: Space.sm,
+  },
+  sectionHeaderText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: EL.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    flex: 1,
+  },
+  sectionHeaderCount: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: EL.onSurfaceMuted,
+  },
+
+  /* ── Borrower Card ── */
+  card: {
     backgroundColor: EL.surfaceCard,
     borderRadius: Radii.lg,
     padding: Space.lg,
     marginHorizontal: Space.xxl,
-    marginBottom: Space.lg,
+    marginBottom: Space.md,
     ...Shadows.card,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardStats: {
+    flexDirection: 'row',
+    marginTop: Space.md,
+    paddingTop: Space.md,
+    borderTopWidth: 1,
+    borderTopColor: EL.surfaceHighest,
+    gap: Space.lg,
+  },
+  cardStat: {
+    flex: 1,
+  },
+  cardStatLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: EL.onSurfaceMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  cardStatValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: EL.onSurface,
+    marginTop: 2,
   },
   cardPressed: {
     backgroundColor: EL.surfaceLow,

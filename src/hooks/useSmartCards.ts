@@ -15,6 +15,19 @@ export interface SmartCardData {
   monthInterestEarned: number;
   monthPrincipalRecovered: number;
   capitalAtRisk: number;
+  // Today's cash flow breakdown for the "net today" line on Cash Position
+  todayCollected: number;
+  todayLent: number;
+  todayExpenses: number;
+  todayNet: number;
+  // Per-line capital deployed + collected today
+  byLine: Array<{
+    lineId: string | null;
+    lineName: string;
+    outstanding: number;
+    collectedToday: number;
+    borrowerCount: number;
+  }>;
 }
 
 async function computeSmartCards(orgId: string): Promise<SmartCardData> {
@@ -237,6 +250,71 @@ async function computeSmartCards(orgId: string): Promise<SmartCardData> {
     (interestOnlyPrincipal?.total ?? 0) - (interestOnlyReturned?.total ?? 0)
   );
 
+  // ── Today slice + per-line breakdown ──
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayStartMs = todayStart.getTime();
+  const todayEndMs = todayStartMs + 86_400_000;
+
+  const todayColl = await db.getFirstAsync<{ total: number }>(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM collections
+     WHERE org_id = ? AND collected_at >= ? AND collected_at < ?`,
+    [orgId, todayStartMs, todayEndMs]
+  );
+  const todayDisbursed = await db.getFirstAsync<{ total: number }>(
+    `SELECT COALESCE(SUM(COALESCE(disbursed_amount, principal)), 0) AS total
+     FROM loans WHERE org_id = ? AND start_date >= ? AND start_date < ?`,
+    [orgId, todayStartMs, todayEndMs]
+  );
+  const todayExp = await db.getFirstAsync<{ total: number }>(
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM expenses
+     WHERE org_id = ? AND date >= ? AND date < ?`,
+    [orgId, todayStartMs, todayEndMs]
+  );
+  const todayCollected = todayColl?.total ?? 0;
+  const todayLent = todayDisbursed?.total ?? 0;
+  const todayExpenses = todayExp?.total ?? 0;
+  const todayNet = todayCollected - todayLent - todayExpenses;
+
+  const lineRows = await db.getAllAsync<{
+    line_id: string | null;
+    line_name: string | null;
+    outstanding: number;
+    collected_today: number;
+    borrower_count: number;
+  }>(
+    `SELECT
+       ln.id AS line_id,
+       COALESCE(ln.name, 'No line') AS line_name,
+       COALESCE(SUM(CASE WHEN l.status = 'active'
+                         THEN l.total_repayment - COALESCE(pd.paid, 0)
+                         ELSE 0 END), 0) AS outstanding,
+       COALESCE(td.total, 0) AS collected_today,
+       COUNT(DISTINCT CASE WHEN l.status = 'active' THEN l.borrower_id END) AS borrower_count
+     FROM loans l
+     LEFT JOIN lines ln ON ln.id = l.line_id
+     LEFT JOIN (
+       SELECT loan_id, SUM(amount) AS paid FROM collections GROUP BY loan_id
+     ) pd ON pd.loan_id = l.id
+     LEFT JOIN (
+       SELECT l2.line_id, SUM(c.amount) AS total FROM collections c
+       JOIN loans l2 ON l2.id = c.loan_id
+       WHERE c.collected_at >= ? AND c.collected_at < ?
+       GROUP BY l2.line_id
+     ) td ON td.line_id = ln.id
+     WHERE l.org_id = ?
+     GROUP BY ln.id
+     ORDER BY outstanding DESC`,
+    [todayStartMs, todayEndMs, orgId]
+  );
+  const byLine = lineRows.map((r) => ({
+    lineId: r.line_id,
+    lineName: r.line_name ?? 'No line',
+    outstanding: r.outstanding,
+    collectedToday: r.collected_today,
+    borrowerCount: r.borrower_count,
+  }));
+
   return {
     monthProfit,
     monthCollected,
@@ -248,6 +326,11 @@ async function computeSmartCards(orgId: string): Promise<SmartCardData> {
     monthInterestEarned,
     monthPrincipalRecovered,
     capitalAtRisk,
+    todayCollected,
+    todayLent,
+    todayExpenses,
+    todayNet,
+    byLine,
   };
 }
 

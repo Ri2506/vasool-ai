@@ -1,3 +1,9 @@
+// SubscriptionScreen — single-tier pricing per CLAUDE.md.
+//
+// Free forever (with hard caps) → ₹1,999/year Pro (unlimited).
+// No tiers, no monthly toggles, no fake-trust GST/security badges.
+// Just: usage now, what Pro unlocks, one button.
+
 import React, { useState } from 'react';
 import {
   Alert,
@@ -10,389 +16,293 @@ import {
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { useQuery } from '@tanstack/react-query';
 
 import { GradientButton } from '@/components/common/GradientButton';
 import { EL, Common, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { supabase } from '@/lib/supabase';
-
-interface PlanTier {
-  id: string;
-  name: string;
-  price: string;
-  priceNum: number;
-  desc: string;
-  features: { text: string; included: boolean }[];
-  highlight?: boolean;
-}
-
-const PLANS: PlanTier[] = [
-  {
-    id: 'free', name: 'Free', price: '\u20B90', priceNum: 0,
-    desc: 'Perfect for beginners managing personal lending.',
-    features: [
-      { text: 'Up to 5 Borrowers', included: true },
-      { text: 'Basic Ledger Tracking', included: true },
-      { text: 'WhatsApp Reminders', included: false },
-      { text: 'AI Collections Assistant', included: false },
-    ],
-  },
-  {
-    id: 'starter', name: 'Starter', price: '\u20B9199', priceNum: 199,
-    desc: 'Scale your small lending business efficiently.',
-    features: [
-      { text: 'Up to 50 Borrowers', included: true },
-      { text: 'WhatsApp Reminders', included: true },
-      { text: 'PDF Statement Exports', included: true },
-      { text: 'AI Collections Assistant', included: false },
-    ],
-  },
-  {
-    id: 'pro', name: 'Pro', price: '\u20B9499', priceNum: 499, highlight: true,
-    desc: 'Advanced automation for high-volume lenders.',
-    features: [
-      { text: 'Unlimited Borrowers', included: true },
-      { text: 'Auto-WhatsApp Reminders', included: true },
-      { text: 'AI Assistant (Chatbot)', included: true },
-      { text: 'Custom Branding', included: true },
-    ],
-  },
-  {
-    id: 'business', name: 'Business', price: '\u20B9999', priceNum: 999,
-    desc: 'Enterprise-grade tools for multi-branch operations.',
-    features: [
-      { text: 'Multi-Lender Access', included: true },
-      { text: 'Advanced API Access', included: true },
-      { text: 'Dedicated Account Manager', included: true },
-      { text: 'Priority Support', included: true },
-    ],
-  },
-];
+import { useAuthStore } from '@/store/authStore';
+import { getPlanQuota, FREE_CAPS } from '@/utils/planCaps';
 
 export function SubscriptionScreen() {
-  // TODO: persist selected plan once billing integration is wired up.
-  // For now the starter tier is the default state.
-  const [activePlan] = useState<string>('free');
-  const [annual, setAnnual] = useState(false);
-  const [loading, setLoading] = useState<string | null>(null);
+  const navigation = useNavigation();
+  const orgId = useAuthStore((s) => s.user?.orgId ?? null);
+  const [loading, setLoading] = useState(false);
 
-  const handleUpgrade = async (plan: PlanTier) => {
-    if (plan.priceNum === 0) return;
-    setLoading(plan.id);
+  const { data: quota } = useQuery({
+    queryKey: ['plan-quota', orgId],
+    enabled: !!orgId,
+    queryFn: () => getPlanQuota(orgId!),
+    refetchInterval: 30_000,
+  });
+
+  const isPro = quota?.plan === 'pro';
+
+  const handleUpgrade = async () => {
+    if (isPro) return;
+    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-checkout', { body: { plan: plan.id, annual } });
+      // Razorpay UPI Autopay setup is server-side. Until the Edge Function
+      // is wired with key + webhook, dry-run with an info dialog.
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { plan: 'pro', annual: true, amount_paise: 199_900 },
+      });
       if (error) throw error;
       if (!data?.razorpay_configured) {
-        Alert.alert(`${plan.name} \u2014 ${annual ? '\u20B9' + (plan.priceNum * 10) + '/yr' : plan.price + '/mo'}`, data?.message ?? 'Razorpay not configured yet.', [
-          { text: 'OK' },
-          { text: 'Setup Razorpay', onPress: () => Linking.openURL('https://dashboard.razorpay.com') },
-        ]);
+        Alert.alert(
+          'Razorpay not configured yet',
+          'The payment gateway needs Razorpay key + webhook deployed first. Until then, contact founder via WhatsApp +91-XXXXXXXXXX to upgrade manually.',
+          [
+            { text: 'OK' },
+            {
+              text: 'WhatsApp',
+              onPress: () => Linking.openURL('https://wa.me/919999999999?text=Upgrade%20to%20Pro'),
+            },
+          ],
+        );
       } else {
-        Alert.alert('Payment ready', `Order ${data.order_id} created for ${plan.name}.\nAmount: \u20B9${(data.amount / 100).toLocaleString('en-IN')}`);
+        Alert.alert(
+          'Payment ready',
+          `Order ${data.order_id} created. Amount ₹${(data.amount / 100).toLocaleString('en-IN')}. Razorpay checkout would open here.`,
+        );
       }
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Payment failed');
+      Alert.alert('Error', e?.message ?? 'Could not start checkout');
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={Common.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Hero */}
-        <Text style={styles.heroTitle}>Choose Your Plan</Text>
-        <Text style={styles.heroSub}>
-          Secure your lending business with premium features designed for scale and absolute precision.
-        </Text>
-
-        {/* Toggle */}
-        <View style={styles.toggleRow}>
-          <Text style={[styles.toggleLabel, !annual && { color: EL.onSurfaceSec }]}>Monthly</Text>
-          <Pressable style={styles.toggleTrack} onPress={() => setAnnual(!annual)}>
-            <View style={[styles.toggleThumb, annual && { marginLeft: 'auto' }]} />
-          </Pressable>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Space.sm }}>
-            <Text style={[styles.toggleLabel, annual && { color: EL.onSurface, fontWeight: '600' }]}>Annual</Text>
-            <View style={styles.saveBadge}>
-              <Text style={styles.saveBadgeText}>SAVE 20%</Text>
-            </View>
-          </View>
+      <View style={styles.header}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={EL.onSurface} />
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>{isPro ? 'VasoolAI Pro' : 'Upgrade to Pro'}</Text>
+          <Text style={styles.sub}>{isPro ? 'You are on the Pro plan' : 'Free forever — or unlock everything'}</Text>
         </View>
+      </View>
 
-        {/* Plan Cards */}
-        {PLANS.map((plan) => {
-          const isActive = plan.id === activePlan;
-          const isPro = plan.highlight;
-          return (
-            <View
-              key={plan.id}
-              style={[
-                styles.planCard,
-                isPro && styles.planCardPro,
-              ]}
-            >
-              {isPro ? (
-                <View style={styles.popularBadge}>
-                  <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
+      <ScrollView contentContainerStyle={{ padding: Space.lg, gap: Space.lg, paddingBottom: 80 }}>
+        {/* Usage bar — only shown for free users since Pro has no caps */}
+        {quota && !isPro ? (
+          <View style={[styles.usageCard, Shadows.card]}>
+            <Text style={styles.usageLabel}>YOUR FREE-PLAN USAGE</Text>
+            <UsageRow
+              icon="account-multiple"
+              label="Borrowers"
+              used={quota.borrowers.used}
+              limit={FREE_CAPS.borrowers}
+            />
+            <UsageRow
+              icon="road-variant"
+              label="Lines"
+              used={quota.lines.used}
+              limit={FREE_CAPS.lines}
+            />
+            <UsageRow
+              icon="account-tie"
+              label="Agents"
+              used={quota.agents.used}
+              limit={FREE_CAPS.agents}
+            />
+          </View>
+        ) : null}
+
+        {/* Pro confirmation card if subscribed */}
+        {isPro ? (
+          <View style={[styles.proConfirm, Shadows.float]}>
+            <View style={styles.proIcon}>
+              <MaterialCommunityIcons name="crown" size={32} color={EL.white} />
+            </View>
+            <Text style={styles.proConfirmTitle}>You're on Pro</Text>
+            <Text style={styles.proConfirmSub}>
+              Unlimited borrowers, lines, agents. All fraud-prevention features unlocked.
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* Pro pricing hero */}
+            <View style={[styles.proCard, Shadows.float]}>
+              <View style={styles.proHeader}>
+                <View style={styles.proIconSmall}>
+                  <MaterialCommunityIcons name="crown" size={22} color={EL.white} />
                 </View>
-              ) : null}
-
-              <Text style={[styles.planName, isPro && { color: EL.primary }]}>{plan.name}</Text>
-              {annual && plan.priceNum > 0 ? (
                 <View>
-                  <View style={styles.priceRow}>
-                    <Text style={[styles.planPrice, isPro && { fontSize: 42 }]}>
-                      {'\u20B9'}{plan.priceNum * 10}
-                    </Text>
-                    <Text style={styles.planPriceSuffix}>/yr</Text>
-                  </View>
-                  <Text style={styles.strikePrice}>
-                    {plan.price}/month
-                  </Text>
+                  <Text style={styles.proTitle}>VasoolAI Pro</Text>
+                  <Text style={styles.proTag}>Unlimited everything</Text>
                 </View>
-              ) : (
-                <View style={styles.priceRow}>
-                  <Text style={[styles.planPrice, isPro && { fontSize: 42 }]}>{plan.price}</Text>
-                  <Text style={styles.planPriceSuffix}>/mo</Text>
-                </View>
-              )}
-              <Text style={styles.planDesc}>{plan.desc}</Text>
+              </View>
+              <View style={styles.priceRow}>
+                <Text style={styles.priceBig}>₹1,999</Text>
+                <Text style={styles.pricePer}>/year</Text>
+              </View>
+              <Text style={styles.priceMonthly}>≈ ₹167/month — less than one missed installment</Text>
 
               <View style={styles.featureList}>
-                {plan.features.map((f, i) => (
-                  <View key={i} style={[styles.featureRow, !f.included && { opacity: 0.4 }]}>
-                    <MaterialCommunityIcons
-                      name={f.included ? 'check' : 'close'}
-                      size={16}
-                      color={f.included ? EL.primary : EL.onSurface}
-                    />
-                    <Text style={[styles.featureText, isPro && f.included && { fontWeight: '600' }]}>{f.text}</Text>
-                  </View>
-                ))}
+                <Feature label="Unlimited borrowers, lines, agents" />
+                <Feature label="Auto SMS receipts via MSG91" />
+                <Feature label="Owner approval for new loans" />
+                <Feature label="GPS + photo evidence on every entry" />
+                <Feature label="EOD agent handover with variance tracking" />
+                <Feature label="Fraud dashboard + push alerts" />
+                <Feature label="Cloud sync + backup" />
+                <Feature label="Priority WhatsApp support" />
               </View>
 
-              {isActive ? (
-                <View style={styles.currentPlan}>
-                  <Text style={styles.currentPlanText}>Current Plan</Text>
-                </View>
-              ) : isPro ? (
-                <GradientButton
-                  title="Start 14-Day Trial"
-                  onPress={() => handleUpgrade(plan)}
-                  loading={loading === plan.id}
-                  style={{ marginTop: Space.md }}
-                />
-              ) : (
-                <Pressable
-                  style={styles.selectBtn}
-                  onPress={() => handleUpgrade(plan)}
-                >
-                  <Text style={styles.selectBtnText}>
-                    {plan.priceNum === 0 ? 'Get Started' : 'Select Plan'}
-                  </Text>
-                </Pressable>
-              )}
+              <GradientButton
+                title={loading ? 'Loading…' : 'Upgrade to Pro'}
+                onPress={handleUpgrade}
+                loading={loading}
+                disabled={loading}
+                icon={<MaterialCommunityIcons name="crown" size={18} color={EL.white} />}
+              />
             </View>
-          );
-        })}
 
-        {/* Trust badges */}
-        <View style={styles.trustGrid}>
-          <TrustBadge icon="shield-lock" title="Bank-Grade Security" desc="Your data is encrypted with 256-bit AES protection." />
-          <TrustBadge icon="sync" title="Real-time Sync" desc="Access your ledger across all devices with cloud sync." />
-          <TrustBadge icon="check-decagram" title="GST Compliant" desc="Generate GST-ready reports with a single click." />
+            {/* Free plan summary */}
+            <View style={[styles.freeCard, Shadows.card]}>
+              <View style={styles.freeHeader}>
+                <MaterialCommunityIcons name="check-circle-outline" size={20} color={EL.onSurfaceSec} />
+                <Text style={styles.freeTitle}>Your current plan: Free</Text>
+              </View>
+              <Text style={styles.freeBody}>
+                Free forever for 1 line · 1 agent · 30 borrowers. All collection,
+                loan, and reporting features included. Upgrade only when you outgrow it.
+              </Text>
+            </View>
+          </>
+        )}
+
+        {/* Trust note */}
+        <View style={[styles.infoCard, Shadows.card]}>
+          <MaterialCommunityIcons name="information-outline" size={18} color={EL.onSurfaceSec} />
+          <Text style={styles.infoText}>
+            One-time annual payment via UPI Autopay (Razorpay). Cancel any time —
+            you keep all your data on the free plan.
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function TrustBadge({ icon, title, desc }: { icon: string; title: string; desc: string }) {
+function UsageRow({
+  icon, label, used, limit,
+}: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  label: string;
+  used: number;
+  limit: number;
+}) {
+  const pct = Math.min(1, used / limit);
+  const isFull = used >= limit;
+  const color = isFull ? EL.tertiary : pct > 0.7 ? EL.warn : EL.primary;
   return (
-    <View style={styles.trustItem}>
-      <MaterialCommunityIcons name={icon as any} size={28} color={EL.primary} />
-      <Text style={styles.trustTitle}>{title}</Text>
-      <Text style={styles.trustDesc}>{desc}</Text>
+    <View style={{ gap: 4, marginTop: Space.sm }}>
+      <View style={styles.usageRow}>
+        <MaterialCommunityIcons name={icon} size={14} color={EL.onSurfaceSec} />
+        <Text style={styles.usageRowLabel}>{label}</Text>
+        <Text style={[styles.usageRowValue, { color }]}>
+          {used} / {limit}
+        </Text>
+      </View>
+      <View style={styles.usageTrack}>
+        <View style={[styles.usageFill, { width: `${pct * 100}%`, backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+function Feature({ label }: { label: string }) {
+  return (
+    <View style={styles.featureRow}>
+      <MaterialCommunityIcons name="check-circle" size={16} color={EL.primary} />
+      <Text style={styles.featureText}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Space.xl, paddingBottom: Space.xxxl },
-
-  // Hero
-  heroTitle: {
-    ...Type.displayLg,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: -1,
-    marginBottom: Space.lg,
-  },
-  heroSub: {
-    ...Type.bodyMd,
-    color: EL.onSurfaceSec,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: Space.xxl,
-  },
-
-  // Toggle
-  toggleRow: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Space.lg,
-    marginBottom: Space.xxl,
+    gap: Space.md,
+    padding: Space.lg,
   },
-  toggleLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: EL.onSurfaceSec,
-  },
-  toggleTrack: {
-    width: 64,
-    height: 32,
-    backgroundColor: EL.surfaceHighest,
-    borderRadius: Radii.pill,
-    padding: 4,
-    justifyContent: 'center',
-  },
-  toggleThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: EL.primary,
-    ...Shadows.card,
-  },
-  saveBadge: {
-    backgroundColor: EL.primaryFixed,
-    paddingHorizontal: Space.sm,
-    paddingVertical: 2,
-    borderRadius: Radii.pill,
-  },
-  saveBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: EL.onSurface,
-    letterSpacing: 0.5,
-  },
-
-  // Plan cards
-  planCard: {
+  backBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
     backgroundColor: EL.surfaceCard,
-    borderRadius: Radii.xxl,
-    padding: Space.xxl,
-    marginBottom: Space.xl,
-    ...Shadows.card,
   },
-  planCardPro: {
-    borderWidth: 2,
-    borderColor: EL.primary,
-    backgroundColor: 'rgba(255,255,255,0.8)',
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: -14,
-    alignSelf: 'center',
-    backgroundColor: EL.primary,
-    paddingHorizontal: Space.lg,
-    paddingVertical: Space.xs,
-    borderRadius: Radii.pill,
-  },
-  popularBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: EL.white,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-  },
-  planName: {
-    ...Type.titleLg,
-    fontWeight: '700',
-    color: EL.onSurfaceSec,
-    marginBottom: Space.sm,
-  },
-  priceRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: Space.xs,
-  },
-  planPrice: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: EL.onSurface,
-  },
-  planPriceSuffix: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: EL.onSurfaceSec,
-  },
-  strikePrice: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: EL.onSurfaceMuted,
-    textDecorationLine: 'line-through',
-    marginTop: 2,
-  },
-  planDesc: {
-    ...Type.bodySm,
-    color: EL.onSurfaceSec,
-    marginTop: Space.lg,
-    lineHeight: 20,
-  },
-  featureList: {
-    marginTop: Space.xl,
-    gap: Space.lg,
-    marginBottom: Space.xl,
-  },
-  featureRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Space.md,
-  },
-  featureText: {
-    ...Type.bodyMd,
-    color: EL.onSurface,
-    flex: 1,
-  },
-  currentPlan: {
-    backgroundColor: EL.primaryFixed,
-    paddingVertical: Space.md,
-    borderRadius: Radii.md,
-    alignItems: 'center',
-  },
-  currentPlanText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: EL.primary,
-  },
-  selectBtn: {
-    backgroundColor: EL.surfaceHighest,
-    paddingVertical: Space.lg,
-    borderRadius: Radii.md,
-    alignItems: 'center',
-  },
-  selectBtnText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: EL.onSurfaceSec,
-  },
+  title: { ...Type.titleLg, fontWeight: '800' },
+  sub: { fontSize: 12, color: EL.onSurfaceMuted, fontWeight: '600', marginTop: 2 },
 
-  // Trust
-  trustGrid: {
-    marginTop: Space.xxl,
-    gap: Space.xxl,
+  // Usage card
+  usageCard: { backgroundColor: EL.surfaceCard, borderRadius: Radii.lg, padding: Space.lg },
+  usageLabel: { fontSize: 10, fontWeight: '800', color: EL.onSurfaceMuted, letterSpacing: 0.6, marginBottom: 4 },
+  usageRow: { flexDirection: 'row', alignItems: 'center', gap: Space.sm },
+  usageRowLabel: { flex: 1, fontSize: 13, fontWeight: '600', color: EL.onSurface },
+  usageRowValue: { fontSize: 13, fontWeight: '800' },
+  usageTrack: {
+    height: 6, borderRadius: 3,
+    backgroundColor: EL.surfaceLow, overflow: 'hidden',
   },
-  trustItem: {
+  usageFill: { height: '100%', borderRadius: 3 },
+
+  // Pro confirmation
+  proConfirm: {
+    backgroundColor: EL.primary,
+    padding: Space.xl,
+    borderRadius: Radii.xl,
+    alignItems: 'center',
+    gap: Space.sm,
+  },
+  proIcon: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  proConfirmTitle: { fontSize: 22, fontWeight: '900', color: EL.white },
+  proConfirmSub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', textAlign: 'center', paddingHorizontal: Space.lg },
+
+  // Pro pricing hero
+  proCard: {
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.xl,
+    padding: Space.xl,
     gap: Space.md,
   },
-  trustTitle: {
-    ...Type.titleMd,
-    fontWeight: '700',
+  proHeader: { flexDirection: 'row', alignItems: 'center', gap: Space.md },
+  proIconSmall: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: EL.primary,
+    alignItems: 'center', justifyContent: 'center',
   },
-  trustDesc: {
-    ...Type.bodySm,
-    color: EL.onSurfaceSec,
-    lineHeight: 20,
+  proTitle: { fontSize: 18, fontWeight: '900', color: EL.onSurface },
+  proTag: { fontSize: 11, fontWeight: '700', color: EL.primary, marginTop: 2 },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  priceBig: { fontSize: 42, fontWeight: '900', color: EL.onSurface },
+  pricePer: { fontSize: 14, fontWeight: '700', color: EL.onSurfaceMuted },
+  priceMonthly: { fontSize: 12, color: EL.onSurfaceMuted, fontStyle: 'italic' },
+  featureList: { gap: 8, marginVertical: Space.md },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: Space.sm },
+  featureText: { fontSize: 13, fontWeight: '600', color: EL.onSurface, flex: 1 },
+
+  // Free card
+  freeCard: { backgroundColor: EL.surfaceCard, borderRadius: Radii.lg, padding: Space.lg, gap: Space.sm },
+  freeHeader: { flexDirection: 'row', alignItems: 'center', gap: Space.sm },
+  freeTitle: { fontSize: 14, fontWeight: '800', color: EL.onSurface },
+  freeBody: { fontSize: 12, color: EL.onSurfaceMuted, lineHeight: 17 },
+
+  infoCard: {
+    flexDirection: 'row', gap: Space.sm,
+    backgroundColor: EL.surfaceCard,
+    padding: Space.md,
+    borderRadius: Radii.lg,
+    alignItems: 'flex-start',
   },
+  infoText: { flex: 1, fontSize: 12, color: EL.onSurfaceSec, lineHeight: 17 },
 });

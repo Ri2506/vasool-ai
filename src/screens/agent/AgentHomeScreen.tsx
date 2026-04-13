@@ -17,6 +17,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { EL, Common, Glass, Radii, Shadows, Space, Fonts } from '@/theme/emeraldLedger';
 import { useDueToday, useRecordCollection, useTodaySummary } from '@/hooks/useCollections';
+import { useMyLoanRequests } from '@/hooks/useLoanRequests';
+import { formatDateShort } from '@/utils/format';
 import { useAuthStore } from '@/store/authStore';
 import { formatRupees } from '@/utils/format';
 import type { DueTodayItem } from '@/db/repos/collections';
@@ -31,6 +33,10 @@ export function AgentHomeScreen() {
   const signOut = useAuthStore((s) => s.signOut);
   const { data: items = [], refetch } = useDueToday();
   const { data: summary } = useTodaySummary();
+  const { data: myRequests } = useMyLoanRequests();
+  // Show only the latest 3 unresolved + recent decisions so the home
+  // doesn't get noisy. Most recent first.
+  const visibleRequests = (myRequests ?? []).slice(0, 4);
   const recordMut = useRecordCollection();
   const [pendingIds, setPendingIds] = React.useState<Set<string>>(new Set());
   const [showProfile, setShowProfile] = useState(false);
@@ -196,6 +202,47 @@ export function AgentHomeScreen() {
                 </Pressable>
               </View>
             )}
+
+            {/* Agent's own loan requests — shows approval / rejection
+                feedback so they don't have to hassle the owner over the phone */}
+            {visibleRequests.length > 0 ? (
+              <View style={styles.reqWrap}>
+                <Text style={styles.reqHeader}>My loan requests</Text>
+                {visibleRequests.map((req) => {
+                  const tone =
+                    req.status === 'approved' ? EL.primary :
+                    req.status === 'rejected' ? EL.tertiary :
+                    req.status === 'cancelled' ? EL.onSurfaceMuted :
+                    EL.warn;
+                  const icon =
+                    req.status === 'approved' ? 'check-decagram' :
+                    req.status === 'rejected' ? 'close-circle' :
+                    req.status === 'cancelled' ? 'minus-circle' :
+                    'clock-outline';
+                  return (
+                    <View key={req.id} style={styles.reqCard}>
+                      <View style={[styles.reqIcon, { backgroundColor: `${tone}1A` }]}>
+                        <MaterialCommunityIcons name={icon} size={18} color={tone} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.reqName}>{req.borrower_name ?? 'Borrower'}</Text>
+                        <Text style={styles.reqMeta}>
+                          {formatRupees(req.disbursed_amount)} · {formatDateShort(new Date(req.created_at))}
+                        </Text>
+                        {req.rejection_reason ? (
+                          <Text style={styles.reqReason}>Reason: {req.rejection_reason}</Text>
+                        ) : null}
+                      </View>
+                      <View style={[styles.reqStatus, { backgroundColor: `${tone}1A` }]}>
+                        <Text style={[styles.reqStatusText, { color: tone }]}>
+                          {req.status.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
 
             {items.length === 0 && (
               <View style={styles.emptyWrap}>
@@ -514,6 +561,42 @@ const styles = StyleSheet.create({
   },
 
   // Empty
+  reqWrap: {
+    paddingHorizontal: Space.lg,
+    paddingTop: Space.lg,
+    gap: Space.sm,
+  },
+  reqHeader: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: EL.onSurfaceMuted,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  reqCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+    padding: Space.md,
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.lg,
+    ...Shadows.card,
+  },
+  reqIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  reqName: { fontSize: 14, fontWeight: '800', color: EL.onSurface },
+  reqMeta: { fontSize: 11, color: EL.onSurfaceMuted, marginTop: 2 },
+  reqReason: { fontSize: 11, color: EL.tertiary, fontStyle: 'italic', marginTop: 2 },
+  reqStatus: {
+    paddingHorizontal: Space.sm,
+    paddingVertical: 4,
+    borderRadius: Radii.pill,
+  },
+  reqStatusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
+
   emptyWrap: {
     alignItems: 'center',
     padding: Space.xl,
@@ -558,7 +641,7 @@ const styles = StyleSheet.create({
   // Profile modal
   profileBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
   },
   profileSheet: {

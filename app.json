@@ -11,30 +11,55 @@
       "backgroundColor": "#059669",
       "resizeMode": "contain"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.vasoolai.app"
+      "bundleIdentifier": "com.vasoolai.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "VasoolAI stamps every collection with GPS so the owner can verify the agent was at the borrower's location.",
+        "NSCameraUsageDescription": "Take a receipt photo for expenses ≥ ₹100 and capture borrower ID photos for KYC.",
+        "NSPhotoLibraryUsageDescription": "Pick an existing receipt or ID photo from your gallery.",
+        "NSContactsUsageDescription": "Quickly fill in a new borrower's name and phone from your contacts.",
+        "NSMicrophoneUsageDescription": "VasoolAI uses the mic for voice-driven amount entry."
+      }
     },
     "android": {
       "package": "com.vasoolai.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#059669"
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "READ_CONTACTS",
+        "POST_NOTIFICATIONS",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "plugins": [
       "expo-localization",
       "expo-secure-store",
       "expo-sqlite",
+      "expo-notifications",
       [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "VasoolAI needs location to stamp collections with GPS."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pick a receipt or ID photo for KYC and expense proof.",
+          "cameraPermission": "Capture a receipt photo for expenses or borrower ID."
         }
       ]
     ],
@@ -44,8 +69,9 @@
     },
     "extra": {
       "eas": {
-        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+        "projectId": "738ffa6c-89bd-48b6-8b12-33197a0d91ab"
       }
-    }
+    },
+    "owner": "rishi2525"
   }
 }

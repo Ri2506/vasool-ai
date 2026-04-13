@@ -37,7 +37,9 @@ import { GradientButton } from '@/components/common/GradientButton';
 import { EL, Common, Radii, Shadows, Space, Touch, Type } from '@/theme/emeraldLedger';
 import { useLines } from '@/hooks/useLines';
 import { useCreateLoanFromTerms } from '@/hooks/useLoans';
+import { useCreateLoanRequest } from '@/hooks/useLoanRequests';
 import { useBorrower } from '@/hooks/useBorrowers';
+import { useAuthStore } from '@/store/authStore';
 import { computeLoanTerms, type ComputeLoanTermsInput } from '@/utils/loanCalc';
 import { formatDateShort, formatRupees } from '@/utils/format';
 import type {
@@ -90,10 +92,13 @@ const FREQUENCY_OPTIONS: Array<{ value: CollectionFrequency; label: string; sub:
 
 export function NewLoanScreen({ route, navigation }: Props) {
   const { t } = useTranslation();
-  const { borrowerId } = route.params;
+  const { borrowerId, renewedFromId } = route.params;
   const { data: borrower } = useBorrower(borrowerId);
   const { data: lines } = useLines();
   const createLoan = useCreateLoanFromTerms();
+  const createRequest = useCreateLoanRequest();
+  const role = useAuthStore((s) => s.user?.role ?? 'owner');
+  const isAgent = role === 'agent';
 
   const [stepIndex, setStepIndex] = useState(0);
   const step: StepKey = STEPS[stepIndex].key;
@@ -199,6 +204,32 @@ export function NewLoanScreen({ route, navigation }: Props) {
       return;
     }
     try {
+      // Role-aware flow:
+      //   - Agent: files a loan_request → owner approves on their phone
+      //     before the real loan is created. This is the anti-fraud moat.
+      //   - Owner: direct creation (as before).
+      if (isAgent) {
+        await createRequest.mutateAsync({
+          borrowerId,
+          lineId: lineId ?? undefined,
+          disbursedAmount: computeInput.disbursedAmount,
+          repaymentType: computeInput.repaymentType,
+          interestType: computeInput.interestType,
+          interestRate: computeInput.interestRate,
+          interestRatePeriod: computeInput.interestRatePeriod,
+          frequency: computeInput.frequency,
+          tenureCount: computeInput.tenureCount,
+          startDate: computeInput.startDate,
+          upfrontFee: computeInput.upfrontFee,
+        });
+        Alert.alert(
+          'Request sent',
+          'The owner has been notified. The loan will become active once approved.',
+          [{ text: 'OK', onPress: () => navigation.goBack() }],
+        );
+        return;
+      }
+
       const result = await createLoan.mutateAsync({
         borrowerId,
         lineId: lineId ?? undefined,
@@ -212,6 +243,7 @@ export function NewLoanScreen({ route, navigation }: Props) {
         startDate: computeInput.startDate,
         upfrontFee: computeInput.upfrontFee,
         gracePeriodDays: gracePeriod,
+        renewedFromId: renewedFromId ?? null,
       });
       Alert.alert('Loan created', 'Would you like to add a guarantor for this loan?', [
         {
@@ -485,6 +517,10 @@ function SimpleInterestStep(props: SimpleInterestStepProps) {
   const { interestRate, setInterestRate, repaymentType, upfrontFee, setUpfrontFee } = props;
 
   const isInterestOnly = repaymentType === 'interest_only';
+  // Paisa-per-rupee-per-month is the traditional Tamil notation older
+  // thandal operators think in: "5 paisa" literally means 5% per month.
+  // Same number, same math — we just let them pick the unit they prefer.
+  const [notation, setNotation] = React.useState<'percent' | 'paisa'>('percent');
 
   return (
     <View>
@@ -495,8 +531,48 @@ function SimpleInterestStep(props: SimpleInterestStepProps) {
           : 'Flat % of loan amount. E.g. 20% on ₹10,000 = ₹2,000 total interest.'}
       </Text>
 
+      {/* Notation toggle */}
+      <View style={styles.notationRow}>
+        <Pressable
+          onPress={() => setNotation('percent')}
+          style={[
+            styles.notationBtn,
+            notation === 'percent' && styles.notationBtnActive,
+          ]}
+        >
+          <Text
+            style={[
+              styles.notationText,
+              notation === 'percent' && styles.notationTextActive,
+            ]}
+          >
+            Percent (%)
+          </Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setNotation('paisa')}
+          style={[
+            styles.notationBtn,
+            notation === 'paisa' && styles.notationBtnActive,
+          ]}
+        >
+          <Text
+            style={[
+              styles.notationText,
+              notation === 'paisa' && styles.notationTextActive,
+            ]}
+          >
+            Paisa / ₹ / month
+          </Text>
+        </Pressable>
+      </View>
+
       <Text style={styles.sectionLabel}>
-        {isInterestOnly ? 'RATE PER INSTALLMENT' : 'INTEREST %'}
+        {notation === 'paisa'
+          ? 'PAISA PER RUPEE PER MONTH'
+          : isInterestOnly
+          ? 'RATE PER INSTALLMENT'
+          : 'INTEREST %'}
       </Text>
       <View style={styles.emiInput}>
         <TextInput
@@ -508,8 +584,13 @@ function SimpleInterestStep(props: SimpleInterestStepProps) {
           placeholderTextColor={EL.outlineVariant}
           autoFocus
         />
-        <Text style={styles.emiPrefix}>%</Text>
+        <Text style={styles.emiPrefix}>{notation === 'paisa' ? 'paisa' : '%'}</Text>
       </View>
+      {notation === 'paisa' && interestRate ? (
+        <Text style={styles.hint}>
+          {interestRate} paisa = {interestRate}% per month
+        </Text>
+      ) : null}
 
       {/* Quick rate presets */}
       <View style={[styles.chipWrap, { marginTop: Space.lg }]}>
@@ -521,7 +602,9 @@ function SimpleInterestStep(props: SimpleInterestStepProps) {
               onPress={() => setInterestRate(r)}
               style={[styles.chipBtn, active ? styles.chipBtnActive : styles.chipBtnInactive]}
             >
-              <Text style={[styles.chipText, active && { color: EL.white }]}>{r}%</Text>
+              <Text style={[styles.chipText, active && { color: EL.white }]}>
+                {r}{notation === 'paisa' ? ' paisa' : '%'}
+              </Text>
             </Pressable>
           );
         })}
@@ -998,6 +1081,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: EL.onSurfaceSec,
+  },
+
+  // Percent / Paisa notation toggle (segmented control)
+  notationRow: {
+    flexDirection: 'row',
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.pill,
+    padding: 4,
+    marginTop: Space.lg,
+    marginBottom: Space.md,
+  },
+  notationBtn: {
+    flex: 1,
+    paddingVertical: Space.sm,
+    borderRadius: Radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notationBtnActive: {
+    backgroundColor: EL.surfaceCard,
+    ...Shadows.card,
+  },
+  notationText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: EL.onSurfaceMuted,
+  },
+  notationTextActive: {
+    color: EL.primary,
   },
 
   // Chip buttons

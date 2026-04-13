@@ -118,45 +118,26 @@ export function SettingsScreen() {
           )}
         </View>
 
-        {/* ── TOOLS ── */}
-        <Text style={styles.sectionLabel}>TOOLS</Text>
-        <View style={styles.settingsGroup}>
-          <SettingsItem
-            value="Collection Lines"
-            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
-            onPress={() => navigation.navigate('Lines')}
-          />
-          <View style={styles.separator} />
-          <SettingsItem
-            value="Deposits"
-            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
-            onPress={() => navigation.navigate('Deposits')}
-          />
-          <View style={styles.separator} />
-          <SettingsItem
-            value="Import Borrowers"
-            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
-            onPress={() => navigation.navigate('Import')}
-          />
-          <View style={styles.separator} />
-          <SettingsItem
-            value="AI Assistant"
-            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
-            onPress={() => navigation.navigate('AIChat')}
-          />
-          <View style={styles.separator} />
-          <SettingsItem
-            value="Overdue Report"
-            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
-            onPress={() => navigation.navigate('Overdue')}
-          />
-          <View style={styles.separator} />
-          <SettingsItem
-            value="Refer & Earn"
-            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
-            onPress={() => navigation.navigate('Referral')}
-          />
-        </View>
+        {/* ── TOOLS HUB — single hero entry ──
+            All operational tools (handovers, loan requests, lines, reports,
+            etc.) live in their own dedicated ToolsHub screen with badges
+            and categorization. Kept out of Settings so this screen stays
+            focused on user/org/preferences. */}
+        <Pressable
+          style={styles.toolsHero}
+          onPress={() => navigation.navigate('ToolsHub')}
+        >
+          <View style={styles.toolsHeroIcon}>
+            <MaterialCommunityIcons name="apps" size={26} color={EL.white} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.toolsHeroTitle}>Tools</Text>
+            <Text style={styles.toolsHeroSub}>
+              Fraud, handovers, loans, reports, agents, and more
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={22} color="rgba(255,255,255,0.7)" />
+        </Pressable>
 
         {/* ── DATA ── */}
         <Text style={styles.sectionLabel}>DATA</Text>
@@ -339,6 +320,37 @@ const styles = StyleSheet.create({
     color: EL.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+
+  // Tools hero — gradient-filled card linking to ToolsHub
+  toolsHero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+    backgroundColor: EL.primary,
+    padding: Space.lg,
+    borderRadius: Radii.lg,
+    marginTop: Space.xxl,
+    ...Shadows.float,
+  },
+  toolsHeroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  toolsHeroTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: EL.white,
+  },
+  toolsHeroSub: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
   },
 
   // Settings group (white card)
@@ -581,7 +593,7 @@ const styles = StyleSheet.create({
   // Edit modal
   editBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'center',
     paddingHorizontal: Space.xxl,
   },

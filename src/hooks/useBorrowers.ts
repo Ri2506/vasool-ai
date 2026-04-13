@@ -48,6 +48,17 @@ export function useBorrower(id: string | undefined) {
   });
 }
 
+// Invalidate every query that may show a borrower's name, count, or
+// summary so a single create/update/delete refreshes the whole UI.
+function invalidateBorrowerScopes(qc: ReturnType<typeof useQueryClient>, orgId: string | null) {
+  if (!orgId) return;
+  qc.invalidateQueries({ queryKey: ['borrowers', orgId] });
+  qc.invalidateQueries({ queryKey: ['borrower-list-summaries', orgId] });
+  qc.invalidateQueries({ queryKey: ['borrower-summary', orgId] });
+  qc.invalidateQueries({ queryKey: ['borrower-statuses', orgId] });
+  qc.invalidateQueries({ queryKey: ['lines', orgId, 'stats'] });
+}
+
 export function useCreateBorrower() {
   const qc = useQueryClient();
   const orgId = useOrgId();
@@ -56,9 +67,7 @@ export function useCreateBorrower() {
       if (!orgId) throw new Error('Not signed in');
       return createBorrower({ ...input, orgId });
     },
-    onSuccess: () => {
-      if (orgId) qc.invalidateQueries({ queryKey: KEYS.all(orgId) });
-    },
+    onSuccess: () => invalidateBorrowerScopes(qc, orgId),
   });
 }
 
@@ -68,8 +77,8 @@ export function useUpdateBorrower() {
   return useMutation({
     mutationFn: (input: UpdateBorrowerInput) => updateBorrower(input),
     onSuccess: (_data, vars) => {
-      if (orgId) qc.invalidateQueries({ queryKey: KEYS.all(orgId) });
-      qc.invalidateQueries({ queryKey: KEYS.detail(vars.id) });
+      invalidateBorrowerScopes(qc, orgId);
+      qc.invalidateQueries({ queryKey: ['borrower', vars.id] });
     },
   });
 }
@@ -79,8 +88,6 @@ export function useDeleteBorrower() {
   const orgId = useOrgId();
   return useMutation({
     mutationFn: (id: string) => deleteBorrower(id),
-    onSuccess: () => {
-      if (orgId) qc.invalidateQueries({ queryKey: KEYS.all(orgId) });
-    },
+    onSuccess: () => invalidateBorrowerScopes(qc, orgId),
   });
 }

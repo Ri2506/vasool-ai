@@ -45,6 +45,7 @@ export function CollectScreen({ route, navigation }: Props) {
   const [amount, setAmount] = useState(String(item.expected_amount));
   const [showAdvance, setShowAdvance] = useState(false);
   const [advancePeriods, setAdvancePeriods] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'account'>('cash');
   const [gpsStatus, setGpsStatus] = useState<'pending' | 'captured' | 'unavailable'>('pending');
   const [showReturnPrincipal, setShowReturnPrincipal] = useState(false);
   const [principalReturnAmount, setPrincipalReturnAmount] = useState('');
@@ -78,6 +79,8 @@ export function CollectScreen({ route, navigation }: Props) {
         advancePeriods,
         gpsLat: gps?.lat,
         gpsLng: gps?.lng,
+        gpsMocked: gps?.mocked,
+        paymentMethod,
       });
       if (isPrincipalReturn) {
         const { recordPrincipalReturn } = await import('@/db/repos/principalReturns');
@@ -251,6 +254,49 @@ export function CollectScreen({ route, navigation }: Props) {
             <Text style={styles.amountValue}>{amount || '0'}</Text>
           </View>
           <View style={styles.amountUnderline} />
+        </View>
+
+        {/* ── Payment Method Toggle ── */}
+        <View style={styles.methodSection}>
+          <Text style={styles.methodLabel}>Payment method</Text>
+          <View style={styles.methodRow}>
+            <Pressable
+              style={[styles.methodBtn, paymentMethod === 'cash' && styles.methodBtnActive]}
+              onPress={() => setPaymentMethod('cash')}
+            >
+              <MaterialCommunityIcons
+                name="cash"
+                size={18}
+                color={paymentMethod === 'cash' ? EL.white : EL.onSurface}
+              />
+              <Text
+                style={[
+                  styles.methodText,
+                  paymentMethod === 'cash' && styles.methodTextActive,
+                ]}
+              >
+                Cash
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.methodBtn, paymentMethod === 'account' && styles.methodBtnActive]}
+              onPress={() => setPaymentMethod('account')}
+            >
+              <MaterialCommunityIcons
+                name="bank"
+                size={18}
+                color={paymentMethod === 'account' ? EL.white : EL.onSurface}
+              />
+              <Text
+                style={[
+                  styles.methodText,
+                  paymentMethod === 'account' && styles.methodTextActive,
+                ]}
+              >
+                Account
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* ── Quick Amount Chips ── */}
@@ -679,9 +725,48 @@ const styles = StyleSheet.create({
     marginTop: Space.lg,
   },
 
+  // Payment method toggle (cash vs account)
+  methodSection: {
+    marginTop: Space.xl,
+    paddingHorizontal: Space.lg,
+  },
+  methodLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    color: EL.onSurfaceMuted,
+    textTransform: 'uppercase',
+    marginBottom: Space.sm,
+  },
+  methodRow: {
+    flexDirection: 'row',
+    gap: Space.sm,
+  },
+  methodBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.sm,
+    paddingVertical: Space.md,
+    borderRadius: Radii.md,
+    backgroundColor: EL.surfaceCard,
+  },
+  methodBtnActive: {
+    backgroundColor: EL.primary,
+  },
+  methodText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: EL.onSurface,
+  },
+  methodTextActive: {
+    color: EL.white,
+  },
+
   // Quick amount chips
   chipsSection: {
-    marginTop: Space.xxxl,
+    marginTop: Space.xl,
   },
   chipsRow: {
     paddingHorizontal: Space.lg,

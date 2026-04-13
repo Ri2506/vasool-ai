@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FlatList,
   Linking,
@@ -16,11 +16,14 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar } from '@/components/common/Avatar';
 import { ELCard } from '@/components/common/ELCard';
+import { ExportSheet } from '@/components/common/ExportSheet';
 import { GradientButton } from '@/components/common/GradientButton';
 import { EL, Common, Radii, Shadows, Space, Type } from '@/theme/emeraldLedger';
 import { openDb } from '@/db';
 import { useAuthStore } from '@/store/authStore';
 import { formatRupees } from '@/utils/format';
+import { buildNippuReport } from '@/utils/pdfExport';
+import { openWhatsApp, WhatsAppTemplates } from '@/utils/whatsapp';
 import type { OwnerStackParamList } from '@/navigation/types';
 
 type Nav = NativeStackNavigationProp<OwnerStackParamList>;
@@ -78,6 +81,7 @@ export function NippuReportScreen() {
     enabled: !!orgId,
     queryFn: () => getNippuList(orgId!),
   });
+  const [showExport, setShowExport] = useState(false);
 
   // Compute aging buckets
   const buckets: AgingBucket[] = [
@@ -99,8 +103,14 @@ export function NippuReportScreen() {
 
   const handleSendReminder = (item: NippuItem) => {
     if (!item.borrower_phone) return;
-    const msg = `Hi ${item.borrower_name}, your payment of ${formatRupees(item.amount_owed)} is overdue by ${item.days_overdue} days. Please pay at the earliest. - VasoolAI`;
-    Linking.openURL(`https://wa.me/91${item.borrower_phone}?text=${encodeURIComponent(msg)}`);
+    void openWhatsApp({
+      phone: item.borrower_phone,
+      body: WhatsAppTemplates.overdueReminder({
+        borrowerName: item.borrower_name,
+        daysOverdue: item.days_overdue,
+        amount: item.amount_owed,
+      }),
+    });
   };
 
   const renderItem = ({ item }: { item: NippuItem }) => (
@@ -166,9 +176,19 @@ export function NippuReportScreen() {
         ListHeaderComponent={
           <>
             {/* Title */}
-            <View style={styles.header}>
-              <Text style={styles.title}>{'\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1'} Report</Text>
-              <Text style={styles.subtitle}>Overdue Portfolio Analysis</Text>
+            <View style={styles.headerRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.title}>{'\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1'} Report</Text>
+                <Text style={styles.subtitle}>Overdue Portfolio Analysis</Text>
+              </View>
+              <Pressable
+                style={styles.exportBtn}
+                onPress={() => setShowExport(true)}
+                disabled={items.length === 0}
+              >
+                <MaterialCommunityIcons name="export-variant" size={18} color={EL.primary} />
+                <Text style={styles.exportBtnText}>Export</Text>
+              </Pressable>
             </View>
 
             {/* Aging Buckets — horizontal scroll */}
@@ -215,11 +235,42 @@ export function NippuReportScreen() {
           </ELCard>
         }
       />
+      <ExportSheet
+        visible={showExport}
+        onClose={() => setShowExport(false)}
+        filename="VasoolAI-Nippu-Overdue"
+        title="Export Nippu report"
+        build={() => buildNippuReport(
+          items.map((i) => ({
+            borrower_name: i.borrower_name,
+            borrower_phone: i.borrower_phone,
+            line_name: null,
+            days_overdue: i.days_overdue,
+            amount_overdue: i.amount_owed,
+          })),
+        )}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Space.md,
+    marginBottom: Space.lg,
+  },
+  exportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Space.md,
+    paddingVertical: Space.sm,
+    borderRadius: Radii.pill,
+    backgroundColor: 'rgba(0,105,72,0.08)',
+  },
+  exportBtnText: { fontSize: 12, fontWeight: '700', color: EL.primary },
   // Header
   header: {
     marginBottom: Space.lg,

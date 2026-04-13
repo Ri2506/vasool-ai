@@ -32,12 +32,18 @@ export async function registerForPush(): Promise<string | null> {
   }
   if (finalStatus !== 'granted') return null;
 
-  // Set notification channel for Android
+  // Set notification channels for Android
   if (Platform.OS === 'android') {
     await N.setNotificationChannelAsync('overdue', {
       name: 'Overdue reminders',
       importance: N.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
+    });
+    await N.setNotificationChannelAsync('fraud', {
+      name: 'Fraud alerts',
+      description: 'Handover disputes, loan requests, agent variance',
+      importance: N.AndroidImportance.HIGH,
+      vibrationPattern: [0, 300, 200, 300],
     });
   }
 
@@ -65,6 +71,70 @@ export async function scheduleOverdueReminder(
       ...(Platform.OS === 'android' ? { channelId: 'overdue' } : {}),
     },
     trigger: null, // Immediately
+  });
+}
+
+/**
+ * Owner alert: agent submitted EOD handover. Fires immediately and routes
+ * to the HandoverInbox screen on tap.
+ */
+export async function notifyHandoverSubmitted(
+  agentName: string,
+  cashHandedOver: number,
+): Promise<void> {
+  const N = await getNotifications();
+  if (!N) return;
+  await N.scheduleNotificationAsync({
+    content: {
+      title: `${agentName} submitted EOD cash`,
+      body: `Claims ₹${cashHandedOver.toLocaleString('en-IN')}. Tap to confirm count.`,
+      data: { type: 'handover_submitted' },
+      ...(Platform.OS === 'android' ? { channelId: 'fraud' } : {}),
+    },
+    trigger: null,
+  });
+}
+
+/**
+ * Owner alert: agent filed a new-loan request. Fires immediately and
+ * routes to the LoanRequests screen on tap.
+ */
+export async function notifyLoanRequestCreated(
+  agentName: string,
+  borrowerName: string,
+  amount: number,
+): Promise<void> {
+  const N = await getNotifications();
+  if (!N) return;
+  await N.scheduleNotificationAsync({
+    content: {
+      title: `${agentName} requested a loan`,
+      body: `${borrowerName} · ₹${amount.toLocaleString('en-IN')}. Tap to approve or reject.`,
+      data: { type: 'loan_request' },
+      ...(Platform.OS === 'android' ? { channelId: 'fraud' } : {}),
+    },
+    trigger: null,
+  });
+}
+
+/**
+ * Owner alert: handover marked as disputed (owner counted < agent claimed).
+ * Surfaces immediately so the discrepancy isn't forgotten.
+ */
+export async function notifyHandoverDisputed(
+  agentName: string,
+  variance: number,
+): Promise<void> {
+  const N = await getNotifications();
+  if (!N) return;
+  await N.scheduleNotificationAsync({
+    content: {
+      title: `Disputed handover — ${agentName}`,
+      body: `Variance ${variance < 0 ? '-' : ''}₹${Math.abs(variance).toLocaleString('en-IN')}. Tap to investigate.`,
+      data: { type: 'handover_disputed' },
+      ...(Platform.OS === 'android' ? { channelId: 'fraud' } : {}),
+    },
+    trigger: null,
   });
 }
 

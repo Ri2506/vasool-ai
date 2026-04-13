@@ -236,6 +236,23 @@ export function AgentSummaryScreen() {
           ))}
         </View>
 
+        {/* End-of-day primary action — kicks off cash handover flow */}
+        <Pressable
+          style={({ pressed }) => [styles.eodBtn, pressed && { opacity: 0.95, transform: [{ scale: 0.98 }] }]}
+          onPress={() => navigation.navigate('AgentEOD')}
+        >
+          <View style={styles.eodIcon}>
+            <MaterialCommunityIcons name="cash-multiple" size={20} color={EL.white} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.eodTitle}>Submit End-of-Day Cash</Text>
+            <Text style={styles.eodSub}>
+              Hand over {formatRupees(netCash)} to the owner
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={22} color={EL.white} />
+        </Pressable>
+
         {/* Share Button */}
         <Pressable
           style={({ pressed }) => [styles.shareBtn, pressed && { opacity: 0.95, transform: [{ scale: 0.98 }] }]}
@@ -559,5 +576,36 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: EL.white,
+  },
+
+  // EOD primary action
+  eodBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: EL.primary,
+    padding: Space.lg,
+    borderRadius: Radii.lg,
+    gap: Space.md,
+    marginTop: Space.xxl,
+    ...Shadows.float,
+  },
+  eodIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eodTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: EL.white,
+  },
+  eodSub: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
   },
 });

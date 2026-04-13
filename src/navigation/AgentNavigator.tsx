@@ -8,6 +8,7 @@ import { AgentExpenseScreen } from '@/screens/agent/AgentExpenseScreen';
 import { AgentSummaryScreen } from '@/screens/agent/AgentSummaryScreen';
 import { AgentSuccessReceiptScreen } from '@/screens/agent/AgentSuccessReceiptScreen';
 import { AgentSummarySharePreview } from '@/screens/agent/AgentSummarySharePreview';
+import { AgentEODScreen } from '@/screens/agent/AgentEODScreen';
 import { BatchCollectScreen } from '@/screens/owner/BatchCollectScreen';
 import { EL, Shadows } from '@/theme/emeraldLedger';
 import { TabIcon } from '@/components/common/TabIcon';
@@ -58,6 +59,7 @@ export function AgentNavigator() {
       <Stack.Screen name="AgentReceipt" component={AgentSuccessReceiptScreen} />
       <Stack.Screen name="AgentSharePreview" component={AgentSummarySharePreview} />
       <Stack.Screen name="BatchCollect" component={BatchCollectScreen} options={{ headerShown: true, title: 'Batch Collect' }} />
+      <Stack.Screen name="AgentEOD" component={AgentEODScreen} />
     </Stack.Navigator>
   );
 }

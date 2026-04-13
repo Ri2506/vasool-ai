@@ -154,18 +154,28 @@ export const Shadows = {
 
 // ─── Glassmorphism ──────────────────────────────────────
 // For bottom sheets, modals, tab bar. On web: backdrop-filter works.
-// On native: we approximate with semi-transparent bg + no blur (RN limitation).
+// On native: blur isn't reliable, so we use a near-opaque surface for the
+// sheet body and a strong scrim for the backdrop. This keeps content fully
+// readable instead of bleeding through to the screen behind.
 export const Glass = StyleSheet.create({
+  // Sheet body — fully opaque so text and inputs are 100% legible.
+  // Web keeps the soft blur for the premium feel, native gets a solid card.
   container: {
-    backgroundColor: 'rgba(240, 253, 244, 0.8)',
+    backgroundColor: EL.surfaceCard,
     ...(Platform.OS === 'web'
-      ? ({ backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' } as any)
+      ? ({
+          backgroundColor: 'rgba(255, 255, 255, 0.96)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+        } as any)
       : {}),
   },
+  // Backdrop scrim — dark enough to mute background detail and put real
+  // focus on the sheet. 0.55 is the Material 3 standard for modal scrims.
   dark: {
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     ...(Platform.OS === 'web'
-      ? ({ backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' } as any)
+      ? ({ backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' } as any)
       : {}),
   },
 });

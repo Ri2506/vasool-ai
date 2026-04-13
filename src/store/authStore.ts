@@ -25,6 +25,9 @@ interface AuthState {
   verifyOwnerOtp: (otp: string) => Promise<void>;
   signInAgent: (phone: string, pin: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Switch active org for users who own / belong to multiple orgs.
+   *  Keeps the same SessionUser identity but flips orgId. */
+  switchOrg: (next: { id: string; orgId: string; name: string; phone: string; role: Role }) => Promise<void>;
   /** Dev helper: bypass network auth by seeding a local session. */
   _devSetUser: (user: SessionUser) => Promise<void>;
 }
@@ -138,6 +141,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     await persist(null);
     set({ user: null, pendingPhone: null });
+  },
+
+  switchOrg: async (next) => {
+    const updated: SessionUser = {
+      id: next.id,
+      orgId: next.orgId,
+      name: next.name,
+      phone: next.phone,
+      role: next.role,
+    };
+    await persist(updated);
+    set({ user: updated });
   },
 
   _devSetUser: async (user) => {

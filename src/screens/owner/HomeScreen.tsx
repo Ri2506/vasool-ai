@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, SafeAreaView, StyleSheet, Text, View,
+  ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +17,8 @@ import { EL, Common, Glass, Radii, Shadows, Space, Touch, Type, Fonts } from '@/
 import { useDueToday, useTodaySummary } from '@/hooks/useCollections';
 import { useSmartCards } from '@/hooks/useSmartCards';
 import { useBorrowerStatuses } from '@/hooks/useBorrowerStatus';
+import { useHandoverInbox } from '@/hooks/useHandovers';
+import { usePendingLoanRequestCount } from '@/hooks/useLoanRequests';
 import { useAuthStore } from '@/store/authStore';
 import { formatRupees } from '@/utils/format';
 import type { DueTodayItem } from '@/db/repos/collections';
@@ -33,6 +35,12 @@ export function HomeScreen() {
   const { data: smart } = useSmartCards();
   const { data: statuses } = useBorrowerStatuses();
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const { data: handovers } = useHandoverInbox();
+  const { data: pendingRequests } = usePendingLoanRequestCount();
+  const pendingActionCount =
+    (handovers?.filter((h) => h.status === 'submitted').length ?? 0) +
+    (handovers?.filter((h) => h.status === 'disputed').length ?? 0) +
+    (pendingRequests ?? 0);
 
   const total = dueItems.length + (summary?.collectionCount ?? 0);
   const done = summary?.collectionCount ?? 0;
@@ -104,12 +112,28 @@ export function HomeScreen() {
                 </Pressable>
                 <Text style={styles.logoText}>VasoolAI</Text>
               </View>
-              <Pressable
-                style={styles.bellBtn}
-                onPress={() => Alert.alert('Notifications', 'No new notifications')}
-              >
-                <MaterialCommunityIcons name="bell-outline" size={24} color={EL.primary} />
-              </Pressable>
+              <View style={styles.topBarActions}>
+                {/* Quick access to Tools — single tap from anywhere */}
+                <Pressable
+                  style={styles.topActionBtn}
+                  onPress={() => navigation.navigate('ToolsHub')}
+                >
+                  <MaterialCommunityIcons name="apps" size={22} color={EL.primary} />
+                  {pendingActionCount > 0 ? (
+                    <View style={styles.topActionBadge}>
+                      <Text style={styles.topActionBadgeText}>
+                        {pendingActionCount > 9 ? '9+' : pendingActionCount}
+                      </Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+                <Pressable
+                  style={styles.topActionBtn}
+                  onPress={() => navigation.navigate('FraudDashboard')}
+                >
+                  <MaterialCommunityIcons name="shield-check-outline" size={22} color={EL.primary} />
+                </Pressable>
+              </View>
             </View>
 
             {/* Two-column metric cards */}
@@ -249,13 +273,51 @@ export function HomeScreen() {
         <Pressable style={styles.breakdownBackdrop} onPress={() => setShowBreakdown(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <Text style={Type.displaySm}>Cash Position</Text>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: Space.lg }}>
             {smart ? (
               <>
+                {/* Today's net — answers "where did the day leave me?" */}
+                <View style={styles.todayBlock}>
+                  <Text style={styles.todayLabel}>TODAY</Text>
+                  <View style={styles.bRow}>
+                    <Text style={Type.bodySm}>Collected</Text>
+                    <Text style={[Type.bodySm, { color: EL.primary, fontWeight: '700' }]}>
+                      + {formatRupees(smart.todayCollected)}
+                    </Text>
+                  </View>
+                  <View style={styles.bRow}>
+                    <Text style={Type.bodySm}>Disbursed</Text>
+                    <Text style={[Type.bodySm, { color: EL.nippu, fontWeight: '700' }]}>
+                      − {formatRupees(smart.todayLent)}
+                    </Text>
+                  </View>
+                  <View style={styles.bRow}>
+                    <Text style={Type.bodySm}>Expenses</Text>
+                    <Text style={[Type.bodySm, { color: EL.nippu, fontWeight: '700' }]}>
+                      − {formatRupees(smart.todayExpenses)}
+                    </Text>
+                  </View>
+                  <View style={styles.divider} />
+                  <View style={styles.bRow}>
+                    <Text style={[Type.titleMd, { fontWeight: '800' }]}>Net today</Text>
+                    <Text
+                      style={[
+                        Type.titleMd,
+                        { fontWeight: '800', color: smart.todayNet >= 0 ? EL.primary : EL.nippu },
+                      ]}
+                    >
+                      {smart.todayNet >= 0 ? '+' : ''}{formatRupees(smart.todayNet)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Month totals */}
+                <Text style={styles.sectionSub}>THIS MONTH</Text>
                 <BRow label="Collections received" value={formatRupees(smart.monthCollected)} plus />
                 <BRow label="Investments added" value={formatRupees(smart.totalInvested)} plus />
                 <View style={styles.divider} />
                 <BRow label="Total in" value={formatRupees(smart.monthCollected + smart.totalInvested)} bold plus />
-                <View style={{ height: Space.lg }} />
+                <View style={{ height: Space.md }} />
                 <BRow label="Loans given out" value={formatRupees(smart.monthLent)} />
                 <BRow label="Expenses" value={formatRupees(smart.monthExpenses)} />
                 <View style={styles.divider} />
@@ -265,8 +327,28 @@ export function HomeScreen() {
                   <Text style={Type.titleLg}>Available to lend</Text>
                   <Text style={[Type.displayMd, { color: EL.primary }]}>{formatRupees(smart.availableToLend)}</Text>
                 </View>
+
+                {/* Per-line breakdown */}
+                {smart.byLine && smart.byLine.length > 0 ? (
+                  <>
+                    <Text style={[styles.sectionSub, { marginTop: Space.xl }]}>BY LINE</Text>
+                    {smart.byLine.map((l) => (
+                      <View key={l.lineId ?? 'none'} style={styles.lineRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.lineName}>{l.lineName}</Text>
+                          <Text style={styles.lineSub}>
+                            {l.borrowerCount} borrower{l.borrowerCount === 1 ? '' : 's'}
+                            {l.collectedToday > 0 ? ` · today ${formatRupees(l.collectedToday)}` : ''}
+                          </Text>
+                        </View>
+                        <Text style={styles.lineOutstanding}>{formatRupees(l.outstanding)}</Text>
+                      </View>
+                    ))}
+                  </>
+                ) : null}
               </>
             ) : null}
+            </ScrollView>
             <GradientButton title="Close" variant="secondary" onPress={() => setShowBreakdown(false)} style={{ marginTop: Space.xl }} />
           </Pressable>
         </Pressable>
@@ -323,6 +405,40 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  topBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.sm,
+  },
+  topActionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: EL.surfaceCard,
+    position: 'relative',
+    ...Shadows.card,
+  },
+  topActionBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: EL.tertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: EL.surface,
+  },
+  topActionBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: EL.white,
   },
 
   /* ── Metric Cards ── */
@@ -591,8 +707,39 @@ const styles = StyleSheet.create({
     borderTopRightRadius: Radii.xxl,
     padding: Space.xxl,
     paddingBottom: Space.xxxl + 16,
+    maxHeight: '85%',
     ...Shadows.float,
   },
+  todayBlock: {
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.lg,
+    padding: Space.lg,
+    marginTop: Space.md,
+    marginBottom: Space.md,
+  },
+  todayLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: EL.onSurfaceMuted,
+    letterSpacing: 0.8,
+    marginBottom: Space.xs,
+  },
+  sectionSub: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: EL.onSurfaceMuted,
+    letterSpacing: 0.8,
+    marginTop: Space.md,
+    marginBottom: Space.xs,
+  },
+  lineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Space.sm,
+  },
+  lineName: { fontSize: 14, fontWeight: '700', color: EL.onSurface },
+  lineSub: { fontSize: 11, color: EL.onSurfaceMuted, marginTop: 2 },
+  lineOutstanding: { fontSize: 14, fontWeight: '800', color: EL.primary },
   divider: {
     height: 1,
     backgroundColor: EL.surfaceLow,

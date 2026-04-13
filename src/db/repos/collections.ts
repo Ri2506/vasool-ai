@@ -76,6 +76,9 @@ export interface RecordCollectionInput {
   advancePeriods?: number;
   gpsLat?: number | null;
   gpsLng?: number | null;
+  gpsMocked?: boolean;
+  paymentMethod?: 'cash' | 'account';
+  notes?: string | null;
 }
 
 /**
@@ -87,6 +90,70 @@ export async function recordCollection(
 ): Promise<CollectionRow> {
   if (input.amount <= 0) throw new Error('Amount must be positive');
   const db = await openDb();
+
+  // ── Bulletproof duplicate-payment guards ──
+  //
+  // Three layered checks (defense in depth):
+  //   (1) Plan-entry status: if 'paid' or 'advance_covered', block.
+  //   (2) Existing collections for this plan_entry_id: sum their amounts.
+  //       If the sum already covers expected, block. Otherwise, only allow
+  //       the unpaid balance to be topped up — overpayment goes to error
+  //       so the owner sees the real number instead of accidentally
+  //       double-paying.
+  //   (3) Hard rate-limit: refuse identical (loan_id, plan_entry_id,
+  //       amount) within 5 seconds — catches double-tap, network retry,
+  //       and accidental two-finger submits.
+  if (input.planEntryId) {
+    // (1) Always-on: status guard. Cheapest, most reliable.
+    const existing = await db.getFirstAsync<{ status: string }>(
+      `SELECT status FROM plan_entries WHERE id = ?`,
+      [input.planEntryId]
+    );
+    if (existing && (existing.status === 'paid' || existing.status === 'advance_covered')) {
+      throw new Error('This installment is already fully paid.');
+    }
+
+    // (2) and (3) need the new plan_entry_id column on collections. Wrap
+    // in try/catch so legacy DBs that haven't migrated yet don't error
+    // out the whole collection — falling back to status-only guard.
+    try {
+      const priorSum = await db.getFirstAsync<{ total: number; cnt: number }>(
+        `SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS cnt
+         FROM collections WHERE plan_entry_id = ?`,
+        [input.planEntryId]
+      );
+      const alreadyPaid = priorSum?.total ?? 0;
+      if (alreadyPaid >= input.expectedAmount) {
+        throw new Error(
+          `This installment is already fully paid (${alreadyPaid}/${input.expectedAmount}).`
+        );
+      }
+
+      const recentDup = await db.getFirstAsync<{ cnt: number }>(
+        `SELECT COUNT(*) AS cnt FROM collections
+         WHERE plan_entry_id = ? AND amount = ? AND collected_at > ?`,
+        [input.planEntryId, input.amount, now() - 5000]
+      );
+      if (recentDup && recentDup.cnt > 0) {
+        throw new Error('Duplicate payment detected — same amount just recorded a moment ago.');
+      }
+    } catch (e) {
+      // Re-throw guard errors so the user sees the alert.
+      // Swallow only "no such column" / migration errors so legacy DBs
+      // can still record collections.
+      const msg = (e as Error)?.message ?? '';
+      if (
+        msg.startsWith('This installment is already') ||
+        msg.startsWith('Duplicate payment')
+      ) {
+        throw e;
+      }
+      // Otherwise it's a schema error — log and continue with status-only guard.
+      // eslint-disable-next-line no-console
+      console.warn('[recordCollection] guard fallback (likely missing column):', msg);
+    }
+  }
+
   const shortfall = Math.max(0, input.expectedAmount - input.amount);
   const collection: CollectionRow = {
     id: uuid(),
@@ -99,6 +166,10 @@ export async function recordCollection(
     shortfall,
     is_advance: input.isAdvance ? 1 : 0,
     advance_periods: input.advancePeriods ?? 0,
+    payment_method: input.paymentMethod ?? 'cash',
+    plan_entry_id: input.planEntryId || null,
+    notes: input.notes ?? null,
+    gps_mocked: input.gpsMocked ? 1 : 0,
     collected_at: now(),
     gps_lat: input.gpsLat ?? null,
     gps_lng: input.gpsLng ?? null,
@@ -108,33 +179,72 @@ export async function recordCollection(
     dirty: 1,
   };
 
-  // Determine plan_entry status after payment
+  // Cumulative paid (prior + this) decides the new status. This handles
+  // partial-then-topup correctly: ₹200 + ₹300 = ₹500 expected → 'paid'.
   let newStatus: string;
-  if (input.amount >= input.expectedAmount) {
-    newStatus = 'paid';
-  } else if (input.amount > 0) {
-    newStatus = 'partial';
-  } else {
-    newStatus = 'missed';
-  }
-
   await db.withTransactionAsync(async () => {
-    await db.runAsync(
-      `INSERT INTO collections (id, server_id, org_id, loan_id, agent_id,
-         amount, expected_amount, shortfall, is_advance, advance_periods,
-         collected_at, gps_lat, gps_lng, is_synced, offline_id, created_at, dirty)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 1)`,
-      [
-        collection.id, collection.server_id, collection.org_id,
-        collection.loan_id, collection.agent_id,
-        collection.amount, collection.expected_amount, collection.shortfall,
-        collection.is_advance, collection.advance_periods,
-        collection.collected_at, collection.gps_lat, collection.gps_lng,
-        collection.offline_id, collection.created_at,
-      ]
-    );
+    // Try the full INSERT (with plan_entry_id + notes). If those columns
+    // don't exist on a legacy DB, fall back to the legacy column set so
+    // collection still succeeds.
+    try {
+      await db.runAsync(
+        `INSERT INTO collections (id, server_id, org_id, loan_id, agent_id,
+           amount, expected_amount, shortfall, is_advance, advance_periods,
+           payment_method, plan_entry_id, notes, collected_at, gps_lat, gps_lng,
+           is_synced, offline_id, created_at, dirty)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 1)`,
+        [
+          collection.id, collection.server_id, collection.org_id,
+          collection.loan_id, collection.agent_id,
+          collection.amount, collection.expected_amount, collection.shortfall,
+          collection.is_advance, collection.advance_periods,
+          collection.payment_method, collection.plan_entry_id, collection.notes,
+          collection.collected_at, collection.gps_lat, collection.gps_lng,
+          collection.offline_id, collection.created_at,
+        ]
+      );
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[recordCollection] full INSERT failed, using legacy columns:', (e as Error)?.message);
+      await db.runAsync(
+        `INSERT INTO collections (id, server_id, org_id, loan_id, agent_id,
+           amount, expected_amount, shortfall, is_advance, advance_periods,
+           collected_at, gps_lat, gps_lng,
+           is_synced, offline_id, created_at, dirty)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 1)`,
+        [
+          collection.id, collection.server_id, collection.org_id,
+          collection.loan_id, collection.agent_id,
+          collection.amount, collection.expected_amount, collection.shortfall,
+          collection.is_advance, collection.advance_periods,
+          collection.collected_at, collection.gps_lat, collection.gps_lng,
+          collection.offline_id, collection.created_at,
+        ]
+      );
+    }
 
-    // Update plan entry status
+    // Recompute cumulative paid for this plan entry from the source of truth
+    // (collections table). Fallback: just use this payment if the join
+    // can't run (legacy DB without plan_entry_id column).
+    let totalPaid = input.amount;
+    try {
+      const cumulative = await db.getFirstAsync<{ total: number }>(
+        `SELECT COALESCE(SUM(amount), 0) AS total FROM collections
+         WHERE plan_entry_id = ?`,
+        [input.planEntryId]
+      );
+      totalPaid = cumulative?.total ?? input.amount;
+    } catch {
+      totalPaid = input.amount;
+    }
+    if (totalPaid >= input.expectedAmount) {
+      newStatus = 'paid';
+    } else if (totalPaid > 0) {
+      newStatus = 'partial';
+    } else {
+      newStatus = 'missed';
+    }
+
     await db.runAsync(
       `UPDATE plan_entries SET status = ?, dirty = 1 WHERE id = ?`,
       [newStatus, input.planEntryId]

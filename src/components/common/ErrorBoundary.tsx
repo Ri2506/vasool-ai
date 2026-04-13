@@ -1,6 +1,7 @@
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { recordCrash } from '@/lib/crashReporter';
 import { EL, Radii, Space, Type } from '@/theme/emeraldLedger';
 
 interface Props {
@@ -21,6 +22,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[ErrorBoundary]', error, info.componentStack);
+    void recordCrash({
+      type: 'boundary',
+      message: error.message,
+      stack: error.stack,
+      context: info.componentStack ?? undefined,
+    });
   }
 
   handleRetry = () => {
