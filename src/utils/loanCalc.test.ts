@@ -37,130 +37,120 @@ function approxEqual(a: number, b: number, tolerance = 1): void {
   );
 }
 
-// ─── Case 1: Thandal classic (front-loaded, daily, 100 days) ───────────
+// ─── Case 1: Thandal classic (flat % of principal, 100 days daily) ─────
+//
+// NEW semantics: interest rate is a FLAT percentage of principal (one time),
+// NOT time-based. This matches real thandal usage where lender says
+// "20% on 10,000" meaning 2,000 total interest regardless of tenure.
 
-test('Case 1: Thandal classic — ₹9K disbursed, front-loaded, 100 days daily → ₹100/day', () => {
+test('Case 1: Thandal classic — ₹10K at 20% flat, 100 days daily → ₹120/day', () => {
   const input: ComputeLoanTermsInput = {
-    disbursedAmount: 9000,
+    disbursedAmount: 10000,
     repaymentType: 'principal_plus_interest',
     interestType: 'front_loaded',
-    // Owner chose: "₹1000 on top of ₹9000" — that's ~11.11% over ~3.3 months
-    // We model it as a rate that gives exactly ₹1000 interest over 100 days:
-    //   interest = 9000 × rate × (100/30) for rate period 'month'
-    //   1000 = 9000 × rate × 3.333...
-    //   rate = 1000 / (9000 × 3.333) = ~0.0333 per month = 3.33%/month
-    interestRate: 1000 / (9000 * (100 / 30)),
+    interestRate: 0.20, // 20% flat of principal
     interestRatePeriod: 'month',
     frequency: 'daily',
     tenureCount: 100,
     startDate: START,
   };
   const result = computeLoanTerms(input);
-  assert.equal(result.principal, 9000);
-  approxEqual(result.totalInterest, 1000);
-  approxEqual(result.totalRepayment, 10000);
-  approxEqual(result.emiAmount, 100);
+  assert.equal(result.principal, 10000);
+  // Interest = 10000 × 0.20 = 2000 (ONE TIME, flat)
+  approxEqual(result.totalInterest, 2000);
+  approxEqual(result.totalRepayment, 12000);
+  approxEqual(result.emiAmount, 120);
   assert.equal(result.installments, 100);
   assert.equal(result.planEntries.length, 100);
-  // First installment due day 1 after start
   assert.equal(result.planEntries[0].dueDate, START + MS_PER_DAY);
-  // Last installment due day 100
   assert.equal(result.planEntries[99].dueDate, START + 100 * MS_PER_DAY);
 });
 
-// ─── Case 2: Flat interest loan (weekly) ───────────────────────────────
+// ─── Case 2: Same flat % but weekly tenure ─────────────────────────────
 
-test('Case 2: Flat interest — ₹50K at 2%/month flat, 26 weekly installments', () => {
+test('Case 2: Flat % — ₹50K at 15% flat, 10 weekly installments', () => {
   const input: ComputeLoanTermsInput = {
     disbursedAmount: 50000,
     repaymentType: 'principal_plus_interest',
     interestType: 'flat',
-    interestRate: 0.02,
+    interestRate: 0.15,
     interestRatePeriod: 'month',
     frequency: 'weekly',
-    tenureCount: 26,
+    tenureCount: 10,
     startDate: START,
   };
   const result = computeLoanTerms(input);
   assert.equal(result.principal, 50000);
-  // tenureDays = 26 × 7 = 182 days = 182/30 = 6.067 months
-  // interest = 50000 × 0.02 × 6.067 ≈ 6,067
-  approxEqual(result.totalInterest, 6067, 5);
-  approxEqual(result.totalRepayment, 56067, 5);
-  assert.equal(result.installments, 26);
-  // Principal portion per installment: (50000 / 26) ≈ 1923
-  // Interest portion per installment: (6067 / 26) ≈ 233
-  // EMI ≈ 2156
-  approxEqual(result.planEntries[0].principalPortion, 1923, 5);
-  approxEqual(result.planEntries[0].interestPortion, 233, 5);
+  // Interest = 50000 × 0.15 = 7500 flat, regardless of how many weeks
+  approxEqual(result.totalInterest, 7500);
+  approxEqual(result.totalRepayment, 57500);
+  assert.equal(result.installments, 10);
+  approxEqual(result.emiAmount, 5750);
+  // Per-installment split: principal 5000, interest 750
+  approxEqual(result.planEntries[0].principalPortion, 5000);
+  approxEqual(result.planEntries[0].interestPortion, 750);
 });
 
 // ─── Case 3: Reducing balance EMI (monthly) ────────────────────────────
 
-test('Case 3: Reducing balance — ₹1L at 24% p.a. reducing, 12 months', () => {
+test('Case 3: Reducing balance — ₹1L at 2% monthly reducing, 12 months', () => {
   const input: ComputeLoanTermsInput = {
     disbursedAmount: 100000,
     repaymentType: 'principal_plus_interest',
     interestType: 'reducing',
-    interestRate: 0.24,
-    interestRatePeriod: 'year',
+    interestRate: 0.02, // 2%/month
+    interestRatePeriod: 'month',
     frequency: 'monthly',
     tenureCount: 12,
     startDate: START,
   };
   const result = computeLoanTerms(input);
   assert.equal(result.principal, 100000);
-  // Standard EMI formula: 24%/year → 2%/month reducing
   // EMI = 100000 × 0.02 × (1.02)^12 / ((1.02)^12 - 1) ≈ 9456
   approxEqual(result.emiAmount, 9456, 10);
   assert.equal(result.installments, 12);
-  // First installment: interest = 100000 × 0.02 = 2000, principal = 9456 - 2000 = 7456
   approxEqual(result.planEntries[0].interestPortion, 2000, 5);
   approxEqual(result.planEntries[0].principalPortion, 7456, 10);
-  // Last installment: outstanding should be close to 0 after
   const lastEntry = result.planEntries[11];
   assert.ok(lastEntry.interestPortion < lastEntry.principalPortion);
 });
 
 // ─── Case 4: Interest-only rolling (daily) ─────────────────────────────
 
-test('Case 4: Interest-only rolling — ₹10K working capital, 0.3%/day, 365 days', () => {
+test('Case 4: Interest-only monthly — ₹10K at 3%/month, rolling 12 months', () => {
   const input: ComputeLoanTermsInput = {
     disbursedAmount: 10000,
     repaymentType: 'interest_only',
     interestType: 'flat',
-    interestRate: 0.003,
-    interestRatePeriod: 'day',
-    frequency: 'daily',
-    tenureCount: 365,
+    interestRate: 0.03, // 3% per month (rate is per-installment)
+    interestRatePeriod: 'month',
+    frequency: 'monthly',
+    tenureCount: 12,
     startDate: START,
   };
   const result = computeLoanTerms(input);
   assert.equal(result.principal, 10000);
-  // Each day: 10000 × 0.003 × 1 = ₹30/day
-  approxEqual(result.emiAmount, 30, 0.1);
-  assert.equal(result.installments, 365);
-  // Every installment has principalPortion = 0
+  // Each month: 10000 × 0.03 = ₹300/month
+  approxEqual(result.emiAmount, 300);
+  assert.equal(result.installments, 12);
   assert.equal(result.planEntries[0].principalPortion, 0);
-  assert.equal(result.planEntries[100].principalPortion, 0);
-  approxEqual(result.planEntries[0].interestPortion, 30, 0.1);
-  // No natural end date for interest-only
+  approxEqual(result.planEntries[0].interestPortion, 300);
   assert.equal(result.endDate, null);
-  // Total scheduled interest over 365 days ≈ ₹10,950
-  approxEqual(result.totalInterest, 10950, 5);
+  // Total scheduled interest over 12 months = ₹3,600
+  approxEqual(result.totalInterest, 3600);
 });
 
 // ─── Case 5: Interest-only with upfront fee ────────────────────────────
 
-test('Case 5: Interest-only + upfront fee — ₹10K principal + ₹500 fee + ₹200/day interest', () => {
+test('Case 5: Interest-only + upfront fee — ₹10K + ₹500 fee + ₹300/month', () => {
   const input: ComputeLoanTermsInput = {
     disbursedAmount: 10000,
     repaymentType: 'interest_only',
     interestType: 'front_loaded',
-    interestRate: 0.02, // 2% per day → ₹200/day
-    interestRatePeriod: 'day',
-    frequency: 'daily',
-    tenureCount: 100,
+    interestRate: 0.03, // 3%/month → ₹300/month
+    interestRatePeriod: 'month',
+    frequency: 'monthly',
+    tenureCount: 12,
     startDate: START,
     upfrontFee: 500,
   };
@@ -171,11 +161,10 @@ test('Case 5: Interest-only + upfront fee — ₹10K principal + ₹500 fee + �
   assert.equal(result.planEntries[0].expectedAmount, 500);
   assert.equal(result.planEntries[0].preMarkedPaid, true);
   assert.equal(result.planEntries[0].dueDate, START);
-  // Installments 1..100 are daily ₹200 interest
-  assert.equal(result.planEntries.length, 101); // 100 regular + 1 day-0
-  approxEqual(result.planEntries[1].expectedAmount, 200, 0.1);
+  // Installments 1..12 are monthly ₹300 interest
+  assert.equal(result.planEntries.length, 13); // 12 regular + 1 day-0
+  approxEqual(result.planEntries[1].expectedAmount, 300);
   assert.equal(result.planEntries[1].installmentNumber, 1);
-  assert.equal(result.planEntries[1].dueDate, START + MS_PER_DAY);
   assert.equal(result.endDate, null);
 });
 
@@ -253,24 +242,23 @@ test('Validation: negative interestRate throws', () => {
 
 // ─── Edge case: monthly front-loaded (money lender style) ──────────────
 
-test('Edge: Money lender ₹25K at 3%/month flat, 6 monthly installments', () => {
+test('Edge: Money lender ₹25K at 18% flat, 6 monthly installments', () => {
   const input: ComputeLoanTermsInput = {
     disbursedAmount: 25000,
     repaymentType: 'principal_plus_interest',
     interestType: 'flat',
-    interestRate: 0.03,
+    interestRate: 0.18,
     interestRatePeriod: 'month',
     frequency: 'monthly',
     tenureCount: 6,
     startDate: START,
   };
   const result = computeLoanTerms(input);
-  // 25000 × 0.03 × 6 = 4500 interest
-  approxEqual(result.totalInterest, 4500, 5);
-  approxEqual(result.totalRepayment, 29500, 5);
-  // 6 monthly installments
+  // 25000 × 0.18 = 4500 interest (flat, one time)
+  approxEqual(result.totalInterest, 4500);
+  approxEqual(result.totalRepayment, 29500);
   assert.equal(result.installments, 6);
-  approxEqual(result.emiAmount, 4916, 5);
+  approxEqual(result.emiAmount, 4917, 2);
 });
 
 // ─── Summary ────────────────────────────────────────────────────────────

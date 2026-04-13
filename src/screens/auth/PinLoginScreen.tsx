@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
-  Alert, Pressable,
-  SafeAreaView, StyleSheet, Text, TextInput, View,
+  Alert, KeyboardAvoidingView, Platform, Pressable,
+  SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -47,7 +47,15 @@ export function PinLoginScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={Common.screen}>
-      <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Brand Identity */}
         <View style={styles.brandHeader}>
           <Text style={styles.brandName}>VasoolAI</Text>
@@ -167,7 +175,8 @@ export function PinLoginScreen({ navigation }: Props) {
             <Text style={[styles.forgotText, { color: EL.primary }]}>I'm the owner →</Text>
           </Pressable>
         </View>
-      </View>
+      </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Decorative Background Tones */}
       <View style={styles.bgDecorBottomLeft} />
@@ -178,7 +187,7 @@ export function PinLoginScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Space.xxxl,
     paddingTop: Space.xxxl + 16,
     paddingBottom: Space.xxxl,
@@ -298,9 +307,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
+    alignSelf: 'center',
     width: 300,
     gap: 24,
-    marginTop: 'auto',
+    marginTop: Space.xxl,
   },
   numBtn: {
     width: 64,
@@ -333,7 +343,8 @@ const styles = StyleSheet.create({
   // Footer
   footer: {
     alignItems: 'center',
-    marginTop: Space.xxxl + 32,
+    marginTop: Space.xxl,
+    paddingBottom: Space.xxxl,
   },
   forgotText: {
     fontSize: 14,

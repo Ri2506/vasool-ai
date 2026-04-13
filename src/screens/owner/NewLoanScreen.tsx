@@ -60,6 +60,10 @@ const STEPS = [
   { key: 'preview', label: 'Review' },
 ] as const;
 
+// Simplified: thandal/money-lending uses front-loaded interest exclusively.
+// Flat, reducing, and none are removed from the wizard per user feedback.
+// The calculator still supports them — just not exposed in the UI.
+
 type StepKey = (typeof STEPS)[number]['key'];
 
 // Quick presets for owner convenience
@@ -76,24 +80,10 @@ const REPAYMENT_OPTIONS: Array<{ value: RepaymentType; label: string; sub: strin
   },
 ];
 
-const INTEREST_OPTIONS: Array<{ value: InterestType; label: string; sub: string }> = [
-  { value: 'front_loaded', label: 'Front Loaded', sub: '"Write ₹X on top of disbursed"' },
-  { value: 'flat', label: 'Flat', sub: 'Rate × principal × time' },
-  { value: 'reducing', label: 'Reducing Balance', sub: 'Standard EMI amortization' },
-  { value: 'none', label: 'No Interest', sub: 'Zero markup, pay back exactly' },
-];
-
 const FREQUENCY_OPTIONS: Array<{ value: CollectionFrequency; label: string; sub: string }> = [
   { value: 'daily', label: 'Daily', sub: 'Collect every day' },
   { value: 'weekly', label: 'Weekly', sub: 'Collect once a week' },
   { value: 'monthly', label: 'Monthly', sub: 'Collect once a month' },
-];
-
-const RATE_PERIOD_OPTIONS: Array<{ value: InterestRatePeriod; label: string }> = [
-  { value: 'day', label: '/ day' },
-  { value: 'week', label: '/ week' },
-  { value: 'month', label: '/ month' },
-  { value: 'year', label: '/ year' },
 ];
 
 // ─── Main component ────────────────────────────────────────────────────
@@ -112,30 +102,40 @@ export function NewLoanScreen({ route, navigation }: Props) {
   const [disbursedAmount, setDisbursedAmount] = useState('');
   const [lineId, setLineId] = useState<string | null>(null);
   const [repaymentType, setRepaymentType] = useState<RepaymentType>('principal_plus_interest');
-  const [interestType, setInterestType] = useState<InterestType>('front_loaded');
+  // Simplified: always front_loaded, rate is always per month.
+  // The calculator supports other types but the UI doesn't expose them.
+  const interestType: InterestType = 'front_loaded';
+  const interestRatePeriod: InterestRatePeriod = 'month';
   const [interestRate, setInterestRate] = useState(''); // displayed as percent, e.g. "2" = 2%
-  const [interestRatePeriod, setInterestRatePeriod] = useState<InterestRatePeriod>('month');
   const [upfrontFee, setUpfrontFee] = useState('');
   const [frequency, setFrequency] = useState<CollectionFrequency>('daily');
   const [tenureCount, setTenureCount] = useState('');
   const [startDate, setStartDate] = useState<Date>(() => new Date());
-  const [gracePeriod, setGracePeriod] = useState(0);
+  // Grace period is kept as 0 by default — removed from wizard UI per user feedback.
+  // Field still exists in schema for backward compat and optional per-loan override later.
+  const gracePeriod = 0;
 
   // ── Derived values ──
   const disbursedNum = Number(disbursedAmount) || 0;
   const rateDecimal = (Number(interestRate) || 0) / 100;
   const tenureNum = Number(tenureCount) || 0;
 
+  // For interest_only + monthly + no-tenure, default to a 12-month window
+  // (the loan will auto-extend when it runs out; user can change later).
+  const isNoTenureFlow =
+    repaymentType === 'interest_only' && frequency === 'monthly' && tenureCount === '';
+  const effectiveTenure = isNoTenureFlow ? 12 : tenureNum;
+
   const computeInput: ComputeLoanTermsInput | null = useMemo(() => {
-    if (disbursedNum <= 0 || tenureNum <= 0) return null;
+    if (disbursedNum <= 0 || effectiveTenure <= 0) return null;
     return {
       disbursedAmount: disbursedNum,
       repaymentType,
       interestType,
-      interestRate: interestType === 'none' ? 0 : rateDecimal,
+      interestRate: rateDecimal,
       interestRatePeriod,
       frequency,
-      tenureCount: tenureNum,
+      tenureCount: effectiveTenure,
       startDate: startDate.getTime(),
       upfrontFee:
         repaymentType === 'interest_only' && interestType === 'front_loaded'
@@ -144,7 +144,7 @@ export function NewLoanScreen({ route, navigation }: Props) {
     };
   }, [
     disbursedNum,
-    tenureNum,
+    effectiveTenure,
     repaymentType,
     interestType,
     rateDecimal,
@@ -168,10 +168,12 @@ export function NewLoanScreen({ route, navigation }: Props) {
     if (step === 'disbursement') return disbursedNum > 0;
     if (step === 'repayment') return true; // radio is always set
     if (step === 'interest') {
-      if (interestType === 'none') return true;
       return rateDecimal > 0;
     }
-    if (step === 'frequency') return tenureNum > 0;
+    if (step === 'frequency') {
+      // "No tenure" rolling mode is valid (interest_only + monthly + empty tenure)
+      return isNoTenureFlow || tenureNum > 0;
+    }
     return true;
   };
 
@@ -279,13 +281,9 @@ export function NewLoanScreen({ route, navigation }: Props) {
             />
           )}
           {step === 'interest' && (
-            <InterestStep
-              interestType={interestType}
-              setInterestType={setInterestType}
+            <SimpleInterestStep
               interestRate={interestRate}
               setInterestRate={setInterestRate}
-              interestRatePeriod={interestRatePeriod}
-              setInterestRatePeriod={setInterestRatePeriod}
               repaymentType={repaymentType}
               upfrontFee={upfrontFee}
               setUpfrontFee={setUpfrontFee}
@@ -299,8 +297,6 @@ export function NewLoanScreen({ route, navigation }: Props) {
               setTenureCount={setTenureCount}
               startDate={startDate}
               setStartDate={setStartDate}
-              gracePeriod={gracePeriod}
-              setGracePeriod={setGracePeriod}
               repaymentType={repaymentType}
             />
           )}
@@ -405,34 +401,37 @@ function DisbursementStep(props: DisbursementStepProps) {
         />
       </View>
 
-      <Text style={styles.sectionLabel}>ASSIGN TO LINE (optional)</Text>
-      <View style={styles.chipWrap}>
-        <Pressable
-          onPress={() => setLineId(null)}
-          style={[
-            styles.chipBtn,
-            lineId === null ? styles.chipBtnActive : styles.chipBtnInactive,
-          ]}
-        >
-          <Text style={[styles.chipText, lineId === null && { color: EL.white }]}>
-            No line
-          </Text>
-        </Pressable>
-        {lines.map((line) => {
-          const active = lineId === line.id;
-          return (
+      {lines.length > 0 ? (
+        <>
+          <Text style={styles.sectionLabel}>ASSIGN TO LINE (optional)</Text>
+          <View style={styles.chipWrap}>
             <Pressable
-              key={line.id}
-              onPress={() => setLineId(line.id)}
-              style={[styles.chipBtn, active ? styles.chipBtnActive : styles.chipBtnInactive]}
+              onPress={() => setLineId(null)}
+              hitSlop={8}
+              style={[
+                styles.chipBtn,
+                lineId === null ? styles.chipBtnActive : styles.chipBtnInactive,
+              ]}
             >
-              <Text style={[styles.chipText, active && { color: EL.white }]}>{line.name}</Text>
+              <Text style={[styles.chipText, lineId === null && { color: EL.white }]}>
+                No line
+              </Text>
             </Pressable>
-          );
-        })}
-      </View>
-      {lines.length === 0 ? (
-        <Text style={styles.hint}>No lines yet — you can create one later in the Lines tab.</Text>
+            {lines.map((line) => {
+              const active = lineId === line.id;
+              return (
+                <Pressable
+                  key={line.id}
+                  onPress={() => setLineId(line.id)}
+                  hitSlop={8}
+                  style={[styles.chipBtn, active ? styles.chipBtnActive : styles.chipBtnInactive]}
+                >
+                  <Text style={[styles.chipText, active && { color: EL.white }]}>{line.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </>
       ) : null}
     </View>
   );
@@ -474,107 +473,66 @@ function RepaymentStep(props: RepaymentStepProps) {
   );
 }
 
-interface InterestStepProps {
-  interestType: InterestType;
-  setInterestType: (v: InterestType) => void;
+interface SimpleInterestStepProps {
   interestRate: string;
   setInterestRate: (v: string) => void;
-  interestRatePeriod: InterestRatePeriod;
-  setInterestRatePeriod: (v: InterestRatePeriod) => void;
   repaymentType: RepaymentType;
   upfrontFee: string;
   setUpfrontFee: (v: string) => void;
 }
 
-function InterestStep(props: InterestStepProps) {
-  const {
-    interestType,
-    setInterestType,
-    interestRate,
-    setInterestRate,
-    interestRatePeriod,
-    setInterestRatePeriod,
-    repaymentType,
-    upfrontFee,
-    setUpfrontFee,
-  } = props;
+function SimpleInterestStep(props: SimpleInterestStepProps) {
+  const { interestRate, setInterestRate, repaymentType, upfrontFee, setUpfrontFee } = props;
 
-  // For interest_only, "reducing" doesn't really make sense — hide it
-  const visibleOptions =
-    repaymentType === 'interest_only'
-      ? INTEREST_OPTIONS.filter((o) => o.value !== 'reducing')
-      : INTEREST_OPTIONS;
+  const isInterestOnly = repaymentType === 'interest_only';
 
   return (
     <View>
-      <Text style={styles.stepTitle}>How is interest calculated?</Text>
-      <Text style={styles.stepSub}>Pick the interest model.</Text>
+      <Text style={styles.stepTitle}>Interest rate</Text>
+      <Text style={styles.stepSub}>
+        {isInterestOnly
+          ? 'Rate per installment. E.g. 3% monthly = ₹300 on ₹10,000 every month until principal returned.'
+          : 'Flat % of loan amount. E.g. 20% on ₹10,000 = ₹2,000 total interest.'}
+      </Text>
 
-      <View style={{ gap: Space.md, marginTop: Space.lg }}>
-        {visibleOptions.map((opt) => {
-          const active = interestType === opt.value;
+      <Text style={styles.sectionLabel}>
+        {isInterestOnly ? 'RATE PER INSTALLMENT' : 'INTEREST %'}
+      </Text>
+      <View style={styles.emiInput}>
+        <TextInput
+          style={styles.emiInputText}
+          value={interestRate}
+          onChangeText={(v) => setInterestRate(v.replace(/[^0-9.]/g, ''))}
+          keyboardType="decimal-pad"
+          placeholder={isInterestOnly ? '3' : '20'}
+          placeholderTextColor={EL.outlineVariant}
+          autoFocus
+        />
+        <Text style={styles.emiPrefix}>%</Text>
+      </View>
+
+      {/* Quick rate presets */}
+      <View style={[styles.chipWrap, { marginTop: Space.lg }]}>
+        {(isInterestOnly ? ['1', '2', '3', '5'] : ['10', '15', '20', '25', '30']).map((r) => {
+          const active = interestRate === r;
           return (
             <Pressable
-              key={opt.value}
-              onPress={() => setInterestType(opt.value)}
-              style={[styles.optionCard, active ? styles.optionCardActive : null]}
+              key={r}
+              onPress={() => setInterestRate(r)}
+              style={[styles.chipBtn, active ? styles.chipBtnActive : styles.chipBtnInactive]}
             >
-              <View style={styles.optionRadio}>
-                {active ? <View style={styles.optionRadioInner} /> : null}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.optionLabel}>{opt.label}</Text>
-                <Text style={styles.optionSub}>{opt.sub}</Text>
-              </View>
+              <Text style={[styles.chipText, active && { color: EL.white }]}>{r}%</Text>
             </Pressable>
           );
         })}
       </View>
 
-      {interestType !== 'none' ? (
-        <>
-          <Text style={styles.sectionLabel}>INTEREST RATE</Text>
-          <View style={styles.rateRow}>
-            <View style={[styles.emiInput, { flex: 1 }]}>
-              <TextInput
-                style={styles.emiInputText}
-                value={interestRate}
-                onChangeText={(v) => setInterestRate(v.replace(/[^0-9.]/g, ''))}
-                keyboardType="decimal-pad"
-                placeholder="2"
-                placeholderTextColor={EL.outlineVariant}
-              />
-              <Text style={styles.emiPrefix}>%</Text>
-            </View>
-            <View style={styles.periodPickerRow}>
-              {RATE_PERIOD_OPTIONS.map((opt) => {
-                const active = interestRatePeriod === opt.value;
-                return (
-                  <Pressable
-                    key={opt.value}
-                    onPress={() => setInterestRatePeriod(opt.value)}
-                    style={[
-                      styles.periodChip,
-                      active ? styles.periodChipActive : styles.periodChipInactive,
-                    ]}
-                  >
-                    <Text style={[styles.periodChipText, active && { color: EL.white }]}>
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </>
-      ) : null}
-
-      {/* Optional upfront fee — only for interest_only + front_loaded */}
-      {repaymentType === 'interest_only' && interestType === 'front_loaded' ? (
+      {/* Optional upfront fee — only for interest_only loans */}
+      {repaymentType === 'interest_only' ? (
         <>
           <Text style={styles.sectionLabel}>UPFRONT FEE (optional)</Text>
           <Text style={styles.hint}>
-            One-time fee collected at disbursement, recorded as a paid day-0 entry.
+            One-time fee collected at disbursement.
           </Text>
           <View style={styles.emiInput}>
             <Text style={styles.emiPrefix}>{'\u20B9'}</Text>
@@ -600,8 +558,6 @@ interface FrequencyStepProps {
   setTenureCount: (v: string) => void;
   startDate: Date;
   setStartDate: (d: Date) => void;
-  gracePeriod: number;
-  setGracePeriod: (n: number) => void;
   repaymentType: RepaymentType;
 }
 
@@ -613,8 +569,6 @@ function FrequencyStep(props: FrequencyStepProps) {
     setTenureCount,
     startDate,
     setStartDate,
-    gracePeriod,
-    setGracePeriod,
     repaymentType,
   } = props;
 
@@ -626,8 +580,12 @@ function FrequencyStep(props: FrequencyStepProps) {
 
   const tenureHelper =
     repaymentType === 'interest_only'
-      ? 'Window for initial plan generation. The loan rolls until principal is returned.'
+      ? 'Window to generate installments. The loan auto-extends until principal is returned separately — pick "No tenure" for a fully rolling loan.'
       : 'Number of installments.';
+
+  // For interest_only + monthly, offer a "No tenure" rolling option.
+  const allowNoTenure = repaymentType === 'interest_only' && frequency === 'monthly';
+  const isNoTenure = allowNoTenure && tenureCount === '';
 
   return (
     <View>
@@ -658,34 +616,59 @@ function FrequencyStep(props: FrequencyStepProps) {
 
       <Text style={styles.sectionLabel}>TENURE ({tenureLabel})</Text>
       <Text style={styles.hint}>{tenureHelper}</Text>
-      <View style={styles.stepperRow}>
-        <Pressable
-          style={styles.stepperBtn}
-          onPress={() => {
-            const n = Math.max(1, (Number(tenureCount) || 0) - 1);
-            setTenureCount(String(n));
-          }}
-        >
-          <MaterialCommunityIcons name="minus" size={24} color={EL.primary} />
-        </Pressable>
-        <View style={styles.stepperValue}>
-          <TextInput
-            style={styles.stepperText}
-            value={tenureCount}
-            onChangeText={(v) => setTenureCount(v.replace(/\D/g, ''))}
-            keyboardType="number-pad"
-            placeholder={frequency === 'daily' ? '100' : frequency === 'weekly' ? '20' : '12'}
-            placeholderTextColor={EL.outlineVariant}
-            textAlign="center"
-          />
+
+      {/* No-tenure toggle for interest-only + monthly */}
+      {allowNoTenure ? (
+        <View style={[styles.chipWrap, { marginBottom: Space.md }]}>
+          <Pressable
+            onPress={() => setTenureCount('')}
+            style={[styles.chipBtn, isNoTenure ? styles.chipBtnActive : styles.chipBtnInactive]}
+          >
+            <Text style={[styles.chipText, isNoTenure && { color: EL.white }]}>
+              No tenure (rolling)
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setTenureCount(tenureCount || '12')}
+            style={[styles.chipBtn, !isNoTenure ? styles.chipBtnActive : styles.chipBtnInactive]}
+          >
+            <Text style={[styles.chipText, !isNoTenure && { color: EL.white }]}>
+              Fixed term
+            </Text>
+          </Pressable>
         </View>
-        <Pressable
-          style={styles.stepperBtn}
-          onPress={() => setTenureCount(String((Number(tenureCount) || 0) + 1))}
-        >
-          <MaterialCommunityIcons name="plus" size={24} color={EL.primary} />
-        </Pressable>
-      </View>
+      ) : null}
+
+      {!isNoTenure ? (
+        <View style={styles.stepperRow}>
+          <Pressable
+            style={styles.stepperBtn}
+            onPress={() => {
+              const n = Math.max(1, (Number(tenureCount) || 0) - 1);
+              setTenureCount(String(n));
+            }}
+          >
+            <MaterialCommunityIcons name="minus" size={24} color={EL.primary} />
+          </Pressable>
+          <View style={styles.stepperValue}>
+            <TextInput
+              style={styles.stepperText}
+              value={tenureCount}
+              onChangeText={(v) => setTenureCount(v.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+              placeholder={frequency === 'daily' ? '100' : frequency === 'weekly' ? '20' : '12'}
+              placeholderTextColor={EL.outlineVariant}
+              textAlign="center"
+            />
+          </View>
+          <Pressable
+            style={styles.stepperBtn}
+            onPress={() => setTenureCount(String((Number(tenureCount) || 0) + 1))}
+          >
+            <MaterialCommunityIcons name="plus" size={24} color={EL.primary} />
+          </Pressable>
+        </View>
+      ) : null}
 
       <Text style={styles.sectionLabel}>START DATE</Text>
       <View style={styles.chipWrap}>
@@ -707,23 +690,6 @@ function FrequencyStep(props: FrequencyStepProps) {
         })}
       </View>
 
-      <Text style={styles.sectionLabel}>GRACE PERIOD</Text>
-      <View style={styles.graceRow}>
-        {[0, 1, 3, 7].map((days) => {
-          const active = gracePeriod === days;
-          return (
-            <Pressable
-              key={days}
-              onPress={() => setGracePeriod(days)}
-              style={[styles.graceChip, active ? styles.graceChipActive : styles.graceChipInactive]}
-            >
-              <Text style={[styles.graceChipText, active && { fontWeight: '700' }]}>
-                {days === 0 ? '0 days' : `${days}d`}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
     </View>
   );
 }
@@ -761,7 +727,6 @@ function PreviewStep(props: PreviewStepProps) {
   }
 
   const isInterestOnly = repaymentType === 'interest_only';
-  const interestTypeLabel = INTEREST_OPTIONS.find((o) => o.value === interestType)?.label ?? '';
   const endLabel = terms.endDate
     ? formatDateShort(new Date(terms.endDate))
     : 'Rolling (no fixed end)';
@@ -794,13 +759,10 @@ function PreviewStep(props: PreviewStepProps) {
           label="Repayment type"
           value={isInterestOnly ? 'Interest Only' : 'Principal + Interest'}
         />
-        <PreviewRow label="Interest model" value={interestTypeLabel} />
-        {interestType !== 'none' ? (
-          <PreviewRow
-            label="Rate"
-            value={`${interestRate}% per ${interestRatePeriod}`}
-          />
-        ) : null}
+        <PreviewRow
+          label="Rate"
+          value={isInterestOnly ? `${interestRate}% per installment` : `${interestRate}% flat`}
+        />
         <PreviewRow label="Frequency" value={frequency} />
         <PreviewRow label="Tenure" value={`${tenureCount} ${frequency === 'daily' ? 'days' : frequency === 'weekly' ? 'weeks' : 'months'}`} />
         <PreviewRow

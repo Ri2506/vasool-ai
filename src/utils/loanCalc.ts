@@ -270,12 +270,11 @@ export function computeLoanTerms(input: ComputeLoanTermsInput): ComputedLoanTerm
 
 function computePrincipalPlusInterest(input: ComputeLoanTermsInput): ComputedLoanTerms {
   const {
-    disbursedAmount, interestType, interestRate, interestRatePeriod,
+    disbursedAmount, interestType, interestRate,
     frequency, tenureCount, startDate,
   } = input;
 
   const principal = disbursedAmount;
-  const tenureDays = tenureInDays(tenureCount, frequency);
 
   let totalInterest = 0;
   let planEntries: PlanEntryDraft[] = [];
@@ -292,7 +291,10 @@ function computePrincipalPlusInterest(input: ComputeLoanTermsInput): ComputedLoa
       interestPortionPerEmi: 0,
     });
   } else if (interestType === 'front_loaded' || interestType === 'flat') {
-    totalInterest = computeSimpleInterest(principal, interestRate, interestRatePeriod, tenureDays);
+    // Thandal-style: interest is a FLAT total percentage of principal.
+    // Example: ₹10,000 loan + 20% → ₹2,000 interest (ONE TIME, regardless of tenure)
+    //          Total repayment = ₹12,000 spread over tenureCount installments.
+    totalInterest = roundPaise(principal * interestRate);
     const totalRepay = principal + totalInterest;
     const emi = roundPaise(totalRepay / tenureCount);
     const interestPerEmi = roundPaise(totalInterest / tenureCount);
@@ -306,8 +308,10 @@ function computePrincipalPlusInterest(input: ComputeLoanTermsInput): ComputedLoa
       interestPortionPerEmi: interestPerEmi,
     });
   } else {
-    // reducing balance — classic EMI amortization
-    const perPeriodRate = convertRateToFrequency(interestRate, interestRatePeriod, frequency);
+    // reducing balance — classic EMI amortization using monthly rate
+    const perPeriodRate = frequency === 'monthly'
+      ? interestRate
+      : interestRate * (frequency === 'weekly' ? 12 / 52 : 12 / 365);
     const emi = computeReducingEmi(principal, perPeriodRate, tenureCount);
     planEntries = generateReducingSchedule({
       principal, perPeriodRate, emi,
@@ -331,18 +335,22 @@ function computePrincipalPlusInterest(input: ComputeLoanTermsInput): ComputedLoa
 
 function computeInterestOnly(input: ComputeLoanTermsInput): ComputedLoanTerms {
   const {
-    disbursedAmount, interestType, interestRate, interestRatePeriod,
+    disbursedAmount, interestType, interestRate,
     frequency, tenureCount, startDate, upfrontFee,
   } = input;
 
   const principal = disbursedAmount;
-  const daysPerInstallment = daysBetweenInstallments(frequency);
 
+  // Interest-only: rate is applied per installment (per day for daily,
+  // per week for weekly, per month for monthly). Principal is returned
+  // separately via principal_returns table. Loan rolls until principal
+  // is fully returned.
+  //
+  // Example: ₹10,000 loan at 3% per month → ₹300/month interest until
+  //          borrower returns the ₹10,000 principal.
   let interestPerInstallment = 0;
   if (interestType !== 'none') {
-    interestPerInstallment = roundPaise(
-      computeSimpleInterest(principal, interestRate, interestRatePeriod, daysPerInstallment)
-    );
+    interestPerInstallment = roundPaise(principal * interestRate);
   }
 
   const planEntries: PlanEntryDraft[] = [];
@@ -399,16 +407,6 @@ function roundPaise(amount: number): number {
   return Math.round(amount * 100) / 100;
 }
 
-function daysBetweenInstallments(freq: CollectionFrequency): number {
-  if (freq === 'daily') return 1;
-  if (freq === 'weekly') return 7;
-  return 30;
-}
-
-function tenureInDays(tenureCount: number, freq: CollectionFrequency): number {
-  return tenureCount * daysBetweenInstallments(freq);
-}
-
 function addPeriod(startMs: number, periods: number, freq: CollectionFrequency): number {
   if (freq === 'daily') return startMs + periods * MS_PER_DAY;
   if (freq === 'weekly') return startMs + periods * 7 * MS_PER_DAY;
@@ -417,32 +415,6 @@ function addPeriod(startMs: number, periods: number, freq: CollectionFrequency):
   return d.getTime();
 }
 
-function computeSimpleInterest(
-  principal: number,
-  rate: number,
-  ratePeriod: InterestRatePeriod,
-  tenureDays: number,
-): number {
-  const daysInPeriod = { day: 1, week: 7, month: 30, year: 365 }[ratePeriod];
-  const tenureInRatePeriods = tenureDays / daysInPeriod;
-  return roundPaise(principal * rate * tenureInRatePeriods);
-}
-
-function convertRateToFrequency(
-  rate: number,
-  ratePeriod: InterestRatePeriod,
-  freq: CollectionFrequency,
-): number {
-  // Use calendar-aware periods-per-year for reducing balance EMI math.
-  // This matches standard loan accounting (year = 12 equal months, not 365 days).
-  //   year → monthly: 24%/yr × (1/12) = 2%/month
-  //   year → weekly:  24%/yr × (1/52) ≈ 0.4615%/week
-  //   year → daily:   24%/yr × (1/365) ≈ 0.0658%/day
-  const periodsPerYear = { day: 365, week: 52, month: 12, year: 1 };
-  const rateAsAnnual = rate * periodsPerYear[ratePeriod];
-  const freqPerYear = { daily: 365, weekly: 52, monthly: 12 }[freq];
-  return rateAsAnnual / freqPerYear;
-}
 
 function computeReducingEmi(principal: number, perPeriodRate: number, installments: number): number {
   if (perPeriodRate === 0) return roundPaise(principal / installments);

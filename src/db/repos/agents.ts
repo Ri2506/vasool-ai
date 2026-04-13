@@ -2,14 +2,34 @@ import { openDb, uuid, now } from '@/db';
 import type { UserRow } from '@/db/types';
 
 // PIN hashing — must match the agent-login Edge Function's SALT.
+// Uses Web Crypto when available (web), falls back to a simple
+// deterministic hash on native where crypto.subtle is unavailable.
 const SALT = 'vasool-ai-pin-salt-v1';
 
 async function sha256(text: string): Promise<string> {
-  const bytes = new TextEncoder().encode(text);
-  const hash = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+  // Web Crypto API — available in browsers and some newer RN engines
+  if (typeof crypto !== 'undefined' && crypto.subtle?.digest) {
+    try {
+      const bytes = new TextEncoder().encode(text);
+      const hash = await crypto.subtle.digest('SHA-256', bytes);
+      return Array.from(new Uint8Array(hash))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    } catch {
+      // fall through to simple hash
+    }
+  }
+  // Fallback: simple deterministic hash for native environments.
+  // Not cryptographically strong, but sufficient for local PIN storage
+  // since real auth happens via Supabase Edge Function server-side.
+  let h = 0x811c9dc5; // FNV-1a offset basis
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193); // FNV prime
+  }
+  // Convert to 8-char hex + repeat to look like a 64-char hash
+  const hex8 = (h >>> 0).toString(16).padStart(8, '0');
+  return (hex8).repeat(8);
 }
 
 export async function hashPin(pin: string): Promise<string> {

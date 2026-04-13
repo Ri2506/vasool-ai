@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Alert, KeyboardAvoidingView, Platform, Pressable,
-  SafeAreaView, StyleSheet, Text, TextInput, View,
+  SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -31,7 +31,7 @@ export function PhoneLoginScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={Common.screen}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         {/* Header with back button */}
         <View style={styles.header}>
           <Pressable
@@ -42,7 +42,11 @@ export function PhoneLoginScreen({ navigation }: Props) {
           </Pressable>
         </View>
 
-        <View style={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           {/* Brand / Hero Visual */}
           <View style={styles.heroSection}>
             <View style={styles.brandIcon}>
@@ -101,7 +105,7 @@ export function PhoneLoginScreen({ navigation }: Props) {
               />
             ) : null}
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       {/* Decorative Background Elements */}
@@ -129,7 +133,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   container: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Space.xxl,
     paddingTop: Space.xxxl,
     paddingBottom: Space.xxxl,

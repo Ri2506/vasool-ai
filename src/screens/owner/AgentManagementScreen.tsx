@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 import {
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -58,15 +61,37 @@ export function AgentManagementScreen() {
     if (!name.trim()) return Alert.alert('Name is required');
     if (!/^\d{10}$/.test(phone)) return Alert.alert('Enter valid 10-digit phone');
     if (!/^\d{4}$/.test(pin)) return Alert.alert('PIN must be 4 digits');
-    await createMut.mutateAsync({ name, phone, pin });
-    setName(''); setPhone(''); setPin('');
-    setShowAdd(false);
+    try {
+      await createMut.mutateAsync({ name, phone, pin });
+      setName(''); setPhone(''); setPin('');
+      setShowAdd(false);
+    } catch (e: any) {
+      Alert.alert('Failed to create agent', e?.message ?? 'Unknown error');
+    }
   };
 
+  const [changePinAgent, setChangePinAgent] = useState<UserRow | null>(null);
+  const [newPin, setNewPin] = useState('');
+
   const handleChangePin = (agent: UserRow) => {
-    Alert.prompt?.('New 4-digit PIN', '', (newPin: string) => {
-      if (/^\d{4}$/.test(newPin)) pinMut.mutate({ id: agent.id, pin: newPin });
-    }) ?? Alert.alert('Change PIN', 'Use Settings on the agent\'s device');
+    setNewPin('');
+    setChangePinAgent(agent);
+  };
+
+  const confirmChangePin = async () => {
+    if (!changePinAgent) return;
+    if (!/^\d{4}$/.test(newPin)) {
+      Alert.alert('Invalid PIN', 'PIN must be exactly 4 digits');
+      return;
+    }
+    try {
+      await pinMut.mutateAsync({ id: changePinAgent.id, pin: newPin });
+      Alert.alert('Done', `PIN updated for ${changePinAgent.name}`);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Failed to update PIN');
+    }
+    setChangePinAgent(null);
+    setNewPin('');
   };
 
   const handleDelete = (agent: UserRow) => {
@@ -114,21 +139,82 @@ export function AgentManagementScreen() {
       </Pressable>
 
       <Modal visible={showAdd} animationType="slide" transparent onRequestClose={() => setShowAdd(false)}>
-        <Pressable style={[Glass.dark, styles.backdrop]} onPress={() => setShowAdd(false)}>
-          <View style={[Glass.container, styles.sheet]}>
-            <Text style={styles.sheetTitle}>Add agent</Text>
-            <Text style={styles.label}>Name</Text>
-            <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor={EL.onSurfaceMuted} placeholder="Agent name" />
-            <Text style={styles.label}>Phone (10 digits)</Text>
-            <TextInput style={styles.input} value={phone} onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))} keyboardType="number-pad" placeholderTextColor={EL.onSurfaceMuted} placeholder="9876543210" />
-            <Text style={styles.label}>4-digit PIN</Text>
-            <TextInput style={styles.input} value={pin} onChangeText={(v) => setPin(v.replace(/\D/g, '').slice(0, 4))} keyboardType="number-pad" secureTextEntry placeholderTextColor={EL.onSurfaceMuted} placeholder="\u2022\u2022\u2022\u2022" />
-            <View style={styles.btnRow}>
-              <GradientButton title="Cancel" variant="secondary" onPress={() => setShowAdd(false)} style={{ flex: 1, marginRight: Space.sm }} />
-              <GradientButton title="Create" onPress={handleAdd} loading={createMut.isPending} style={{ flex: 1, marginLeft: Space.sm }} />
-            </View>
-          </View>
-        </Pressable>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={[Glass.dark, styles.backdrop]} onPress={() => setShowAdd(false)}>
+            <Pressable style={[Glass.container, styles.sheet]} onPress={(e) => e.stopPropagation()}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={styles.sheetTitle}>Add agent</Text>
+                <Text style={styles.label}>Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={name}
+                  onChangeText={setName}
+                  placeholderTextColor={EL.onSurfaceMuted}
+                  placeholder="Agent name"
+                  returnKeyType="next"
+                />
+                <Text style={styles.label}>Phone (10 digits)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={phone}
+                  onChangeText={(v) => setPhone(v.replace(/\D/g, '').slice(0, 10))}
+                  keyboardType="number-pad"
+                  placeholderTextColor={EL.onSurfaceMuted}
+                  placeholder="9876543210"
+                  returnKeyType="next"
+                />
+                <Text style={styles.label}>4-digit PIN</Text>
+                <TextInput
+                  style={styles.input}
+                  value={pin}
+                  onChangeText={(v) => setPin(v.replace(/\D/g, '').slice(0, 4))}
+                  keyboardType="number-pad"
+                  secureTextEntry
+                  placeholderTextColor={EL.onSurfaceMuted}
+                  placeholder={'\u2022\u2022\u2022\u2022'}
+                  returnKeyType="done"
+                />
+                <View style={styles.btnRow}>
+                  <GradientButton title="Cancel" variant="secondary" onPress={() => setShowAdd(false)} style={{ flex: 1, marginRight: Space.sm }} />
+                  <GradientButton title="Create" onPress={handleAdd} loading={createMut.isPending} style={{ flex: 1, marginLeft: Space.sm }} />
+                </View>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Change PIN Modal */}
+      <Modal visible={!!changePinAgent} animationType="slide" transparent onRequestClose={() => setChangePinAgent(null)}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <Pressable style={[Glass.dark, styles.backdrop]} onPress={() => setChangePinAgent(null)}>
+            <Pressable style={[Glass.container, styles.sheet]} onPress={(e) => e.stopPropagation()}>
+              <Text style={styles.sheetTitle}>Change PIN</Text>
+              <Text style={Type.bodySm}>New 4-digit PIN for {changePinAgent?.name}</Text>
+              <Text style={styles.label}>New PIN</Text>
+              <TextInput
+                style={styles.input}
+                value={newPin}
+                onChangeText={(v) => setNewPin(v.replace(/\D/g, '').slice(0, 4))}
+                keyboardType="number-pad"
+                secureTextEntry
+                placeholderTextColor={EL.onSurfaceMuted}
+                placeholder={'\u2022\u2022\u2022\u2022'}
+                autoFocus
+              />
+              <View style={styles.btnRow}>
+                <GradientButton title="Cancel" variant="secondary" onPress={() => setChangePinAgent(null)} style={{ flex: 1, marginRight: Space.sm }} />
+                <GradientButton title="Update" onPress={confirmChangePin} loading={pinMut.isPending} style={{ flex: 1, marginLeft: Space.sm }} />
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

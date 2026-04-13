@@ -1,5 +1,5 @@
-import React from 'react';
-import { Alert, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
@@ -37,6 +37,12 @@ export function SettingsScreen() {
     queryFn: () => listAgents(orgId!),
   });
 
+  // Editable business settings
+  const [businessName, setBusinessName] = useState(user?.name ? `${user.name}'s Finance` : 'VasoolAI Business');
+  const [workingDays, setWorkingDays] = useState('Mon-Sat');
+  const [editField, setEditField] = useState<'name' | 'days' | null>(null);
+  const [editValue, setEditValue] = useState('');
+
   const handleExport = async (type: 'borrowers' | 'collections' | 'expenses') => {
     if (!orgId) return;
     const fns = { borrowers: exportBorrowers, collections: exportCollections, expenses: exportExpenses };
@@ -57,12 +63,16 @@ export function SettingsScreen() {
         <View style={styles.settingsGroup}>
           <SettingsItem
             topLabel="Business name"
-            value={user?.name ? `${user.name}'s Finance` : 'VasoolAI Business'}
+            value={businessName}
+            trailing={<MaterialCommunityIcons name="pencil-outline" size={16} color={EL.outlineVariant} />}
+            onPress={() => { setEditField('name'); setEditValue(businessName); }}
           />
           <View style={styles.separator} />
           <SettingsItem
             topLabel="Working days"
-            value="Mon-Sat"
+            value={workingDays}
+            trailing={<MaterialCommunityIcons name="pencil-outline" size={16} color={EL.outlineVariant} />}
+            onPress={() => { setEditField('days'); setEditValue(workingDays); }}
           />
           <View style={styles.separator} />
           <SettingsItem
@@ -106,6 +116,46 @@ export function SettingsScreen() {
               <Text style={{ fontSize: 13, color: EL.onSurfaceMuted }}>No agents yet. Tap + Add Agent.</Text>
             </View>
           )}
+        </View>
+
+        {/* ── TOOLS ── */}
+        <Text style={styles.sectionLabel}>TOOLS</Text>
+        <View style={styles.settingsGroup}>
+          <SettingsItem
+            value="Collection Lines"
+            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
+            onPress={() => navigation.navigate('Lines')}
+          />
+          <View style={styles.separator} />
+          <SettingsItem
+            value="Deposits"
+            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
+            onPress={() => navigation.navigate('Deposits')}
+          />
+          <View style={styles.separator} />
+          <SettingsItem
+            value="Import Borrowers"
+            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
+            onPress={() => navigation.navigate('Import')}
+          />
+          <View style={styles.separator} />
+          <SettingsItem
+            value="AI Assistant"
+            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
+            onPress={() => navigation.navigate('AIChat')}
+          />
+          <View style={styles.separator} />
+          <SettingsItem
+            value="Overdue Report"
+            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
+            onPress={() => navigation.navigate('Overdue')}
+          />
+          <View style={styles.separator} />
+          <SettingsItem
+            value="Refer & Earn"
+            trailing={<MaterialCommunityIcons name="chevron-right" size={16} color={EL.outlineVariant} />}
+            onPress={() => navigation.navigate('Referral')}
+          />
         </View>
 
         {/* ── DATA ── */}
@@ -180,6 +230,40 @@ export function SettingsScreen() {
           <Text style={styles.logoutText}>Log Out</Text>
         </Pressable>
       </ScrollView>
+
+      {/* Edit field modal */}
+      <Modal visible={editField !== null} transparent animationType="fade" onRequestClose={() => setEditField(null)}>
+        <Pressable style={styles.editBackdrop} onPress={() => setEditField(null)}>
+          <View style={styles.editSheet}>
+            <Text style={styles.editTitle}>
+              {editField === 'name' ? 'Business Name' : 'Working Days'}
+            </Text>
+            <TextInput
+              style={styles.editInput}
+              value={editValue}
+              onChangeText={setEditValue}
+              autoFocus
+              placeholder={editField === 'name' ? 'Enter business name' : 'e.g. Mon-Sat'}
+              placeholderTextColor={EL.outlineVariant}
+            />
+            <View style={styles.editBtnRow}>
+              <Pressable style={styles.editCancelBtn} onPress={() => setEditField(null)}>
+                <Text style={styles.editCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.editSaveBtn}
+                onPress={() => {
+                  if (editField === 'name') setBusinessName(editValue.trim() || businessName);
+                  else setWorkingDays(editValue.trim() || workingDays);
+                  setEditField(null);
+                }}
+              >
+                <Text style={styles.editSaveText}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -492,5 +576,62 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: EL.tertiary,
+  },
+
+  // Edit modal
+  editBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    paddingHorizontal: Space.xxl,
+  },
+  editSheet: {
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.xxl,
+    padding: Space.xxl,
+  },
+  editTitle: {
+    fontFamily: Fonts.headline,
+    fontSize: 18,
+    fontWeight: '700',
+    color: EL.onSurface,
+    marginBottom: Space.lg,
+  },
+  editInput: {
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.md,
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.md,
+    fontSize: 16,
+    fontWeight: '600',
+    color: EL.onSurface,
+    minHeight: 48,
+  },
+  editBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Space.md,
+    marginTop: Space.xl,
+  },
+  editCancelBtn: {
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.md,
+    borderRadius: Radii.md,
+  },
+  editCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: EL.onSurfaceSec,
+  },
+  editSaveBtn: {
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.md,
+    borderRadius: Radii.md,
+    backgroundColor: EL.primary,
+  },
+  editSaveText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: EL.white,
   },
 });

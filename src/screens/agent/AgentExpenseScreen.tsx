@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -93,7 +96,15 @@ export function AgentExpenseScreen() {
 
   return (
     <SafeAreaView style={Common.screen}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Dashboard Summary */}
         <View style={styles.dashGrid}>
           <View style={styles.dashMainCard}>
@@ -142,18 +153,14 @@ export function AgentExpenseScreen() {
             <Text style={{ fontSize: 13, color: EL.onSurfaceMuted, padding: Space.lg }}>No expenses logged yet</Text>
           )}
         </View>
-      </ScrollView>
 
-      {/* Bottom Sheet - Expense Entry */}
-      <View style={styles.bottomSheet}>
-        {/* Handle Bar */}
-        <View style={styles.handleRow}>
-          <View style={styles.handle} />
-        </View>
-
-        <View style={styles.sheetContent}>
+        {/* Expense Entry — inline (was absolute bottom sheet; moved in so keyboard doesn't cover it) */}
+        <View style={styles.entryCard}>
           <View style={styles.sheetHeaderRow}>
             <Text style={styles.sheetTitle}>Log Expense</Text>
+            <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
+              <MaterialCommunityIcons name="keyboard-close" size={22} color={EL.onSurfaceMuted} />
+            </Pressable>
           </View>
 
           {/* Amount Input */}
@@ -168,6 +175,8 @@ export function AgentExpenseScreen() {
                 keyboardType="number-pad"
                 placeholder="0"
                 placeholderTextColor="rgba(19, 30, 25, 0.2)"
+                returnKeyType="done"
+                onSubmitEditing={() => Keyboard.dismiss()}
               />
             </View>
           </View>
@@ -187,7 +196,7 @@ export function AgentExpenseScreen() {
                 return (
                   <Pressable
                     key={c.value}
-                    onPress={() => setCategory(c.value)}
+                    onPress={() => { Keyboard.dismiss(); setCategory(c.value); }}
                     style={[styles.categoryChip, active ? styles.categoryChipActive : styles.categoryChipInactive]}
                   >
                     {c.emoji ? <Text style={styles.chipEmoji}>{c.emoji}</Text> : null}
@@ -209,7 +218,7 @@ export function AgentExpenseScreen() {
                 return (
                   <Pressable
                     key={v}
-                    onPress={() => setAmount(String(v))}
+                    onPress={() => { Keyboard.dismiss(); setAmount(String(v)); }}
                     style={[styles.quickAmountBtn, active && styles.quickAmountBtnActive]}
                   >
                     <Text style={[styles.quickAmountText, active && styles.quickAmountTextActive]}>
@@ -224,7 +233,7 @@ export function AgentExpenseScreen() {
           {/* Confirm Button */}
           <Pressable
             style={({ pressed }) => [styles.confirmBtn, pressed && { opacity: 0.95, transform: [{ scale: 0.98 }] }]}
-            onPress={handleAdd}
+            onPress={() => { Keyboard.dismiss(); handleAdd(); }}
             disabled={addMut.isPending}
           >
             <Text style={styles.confirmBtnText}>
@@ -233,7 +242,8 @@ export function AgentExpenseScreen() {
             <MaterialCommunityIcons name="check" size={20} color={EL.white} />
           </Pressable>
         </View>
-      </View>
+      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -242,7 +252,16 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Space.lg,
     paddingTop: Space.lg,
-    paddingBottom: 500,
+    paddingBottom: Space.xxxl + 40,
+  },
+
+  // New inline entry card (replaces the absolute bottom sheet)
+  entryCard: {
+    backgroundColor: EL.surfaceCard,
+    borderRadius: Radii.xxl,
+    padding: Space.xl,
+    marginTop: Space.xl,
+    ...Shadows.card,
   },
 
   // Dashboard

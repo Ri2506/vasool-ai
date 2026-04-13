@@ -96,9 +96,12 @@ export function HomeScreen() {
             {/* Sticky Top Bar */}
             <View style={styles.topBar}>
               <View style={styles.topBarLeft}>
-                <View style={styles.avatarCircle}>
+                <Pressable
+                  style={styles.avatarCircle}
+                  onPress={() => navigation.navigate('Tabs', { screen: 'Settings' })}
+                >
                   <Avatar name={user?.name ?? 'U'} size={40} />
-                </View>
+                </Pressable>
                 <Text style={styles.logoText}>VasoolAI</Text>
               </View>
               <Pressable
@@ -113,28 +116,30 @@ export function HomeScreen() {
             {smart ? (
               <>
                 <View style={styles.metricsRow}>
-                  <ELCard style={styles.metricCard}>
-                    <Text style={styles.metricLabel}>This month profit</Text>
-                    <Text style={[
-                      styles.metricValue,
-                      { color: smart.monthProfit >= 0 ? EL.primary : EL.nippu },
-                    ]}>
-                      {formatRupees(smart.monthProfit)}
-                    </Text>
-                    <View style={styles.trendRow}>
-                      <MaterialCommunityIcons
-                        name={smart.monthProfit >= 0 ? 'trending-up' : 'trending-down'}
-                        size={14}
-                        color={smart.monthProfit >= 0 ? EL.primary : EL.nippu}
-                      />
-                      <Text style={[styles.trendText, { color: smart.monthProfit >= 0 ? EL.primary : EL.nippu }]}>
-                        Interest - expenses
+                  <View style={styles.metricCardWrap}>
+                    <ELCard style={styles.metricCard}>
+                      <Text style={styles.metricLabel}>This month profit</Text>
+                      <Text style={[
+                        styles.metricValue,
+                        { color: smart.monthProfit >= 0 ? EL.primary : EL.nippu },
+                      ]}>
+                        {formatRupees(smart.monthProfit)}
                       </Text>
-                    </View>
-                  </ELCard>
+                      <View style={styles.trendRow}>
+                        <MaterialCommunityIcons
+                          name={smart.monthProfit >= 0 ? 'trending-up' : 'trending-down'}
+                          size={14}
+                          color={smart.monthProfit >= 0 ? EL.primary : EL.nippu}
+                        />
+                        <Text style={[styles.trendText, { color: smart.monthProfit >= 0 ? EL.primary : EL.nippu }]}>
+                          Interest - expenses
+                        </Text>
+                      </View>
+                    </ELCard>
+                  </View>
 
-                  <Pressable onPress={() => setShowBreakdown(true)} style={{ flex: 1 }}>
-                    <ELCard style={[styles.metricCard, { flex: undefined }]}>
+                  <Pressable onPress={() => setShowBreakdown(true)} style={styles.metricCardWrap}>
+                    <ELCard style={styles.metricCard}>
                       <Text style={styles.metricLabel}>Available to lend</Text>
                       <Text style={styles.metricValueDark}>
                         {formatRupees(smart.availableToLend)}
@@ -146,21 +151,25 @@ export function HomeScreen() {
 
                 {/* Principal vs Interest split */}
                 <View style={styles.metricsRow}>
-                  <ELCard style={styles.metricCard}>
-                    <Text style={styles.metricLabel}>Interest earned</Text>
-                    <Text style={[styles.metricValue, { color: EL.primary }]}>
-                      {formatRupees(smart.monthInterestEarned)}
-                    </Text>
-                    <Text style={styles.metricHint}>This month</Text>
-                  </ELCard>
+                  <View style={styles.metricCardWrap}>
+                    <ELCard style={styles.metricCard}>
+                      <Text style={styles.metricLabel}>Interest earned</Text>
+                      <Text style={[styles.metricValue, { color: EL.primary }]}>
+                        {formatRupees(smart.monthInterestEarned)}
+                      </Text>
+                      <Text style={styles.metricHint}>This month</Text>
+                    </ELCard>
+                  </View>
 
-                  <ELCard style={styles.metricCard}>
-                    <Text style={styles.metricLabel}>Principal recovered</Text>
-                    <Text style={styles.metricValueDark}>
-                      {formatRupees(smart.monthPrincipalRecovered)}
-                    </Text>
-                    <Text style={styles.metricHint}>Capital returning</Text>
-                  </ELCard>
+                  <View style={styles.metricCardWrap}>
+                    <ELCard style={styles.metricCard}>
+                      <Text style={styles.metricLabel}>Principal recovered</Text>
+                      <Text style={styles.metricValueDark}>
+                        {formatRupees(smart.monthPrincipalRecovered)}
+                      </Text>
+                      <Text style={styles.metricHint}>Capital returning</Text>
+                    </ELCard>
+                  </View>
                 </View>
 
                 {/* Capital at Risk — only show if > 0 (interest-only loans outstanding) */}
@@ -216,7 +225,7 @@ export function HomeScreen() {
                 </Pressable>
               </View>
             ) : (
-              <ELCard style={{ marginHorizontal: Space.lg, marginBottom: Space.lg }}>
+              <ELCard style={{ marginHorizontal: Space.lg, marginTop: Space.lg, marginBottom: Space.lg }}>
                 <Text style={Type.titleMd}>No collections due</Text>
                 <Text style={[Type.bodySm, { marginTop: Space.xs }]}>
                   Create borrowers and loans to see today's collection list here.
@@ -237,8 +246,8 @@ export function HomeScreen() {
 
       {/* Cash Position Breakdown Modal */}
       <Modal visible={showBreakdown} transparent animationType="slide" onRequestClose={() => setShowBreakdown(false)}>
-        <Pressable style={[Glass.dark, { flex: 1, justifyContent: 'flex-end' }]} onPress={() => setShowBreakdown(false)}>
-          <View style={[Glass.container, styles.sheet]}>
+        <Pressable style={styles.breakdownBackdrop} onPress={() => setShowBreakdown(false)}>
+          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <Text style={Type.displaySm}>Cash Position</Text>
             {smart ? (
               <>
@@ -259,7 +268,7 @@ export function HomeScreen() {
               </>
             ) : null}
             <GradientButton title="Close" variant="secondary" onPress={() => setShowBreakdown(false)} style={{ marginTop: Space.xl }} />
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </SafeAreaView>
@@ -320,11 +329,13 @@ const styles = StyleSheet.create({
   metricsRow: {
     flexDirection: 'row',
     paddingHorizontal: Space.lg,
-    gap: Space.lg,
+    gap: Space.md,
     marginTop: Space.sm,
   },
-  metricCard: {
+  metricCardWrap: {
     flex: 1,
+  },
+  metricCard: {
     padding: Space.lg,
   },
   metricLabel: {
@@ -569,11 +580,18 @@ const styles = StyleSheet.create({
   },
 
   /* ── Modal Sheet ── */
+  breakdownBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'flex-end',
+  },
   sheet: {
+    backgroundColor: EL.surfaceCard,
     borderTopLeftRadius: Radii.xxl,
     borderTopRightRadius: Radii.xxl,
-    padding: Space.xl,
-    paddingBottom: Space.xxxl,
+    padding: Space.xxl,
+    paddingBottom: Space.xxxl + 16,
+    ...Shadows.float,
   },
   divider: {
     height: 1,

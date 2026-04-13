@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -74,13 +74,27 @@ export function BatchCollectScreen() {
     </View>
   );
 
+  // Route differs by role: owner has 'Collect' as a stack route with params,
+  // agent has 'Collect' as a tab name (no params). Dispatch a CommonAction
+  // that works for both — when navigated without params we just return to
+  // the collect tab; with params we open the CollectScreen for that item.
+  const openCollect = (item: DueTodayItem) => {
+    try {
+      // Owner path: 'Collect' is a stack route that expects { item } params
+      navigation.dispatch(CommonActions.navigate({ name: 'Collect', params: { item } }));
+    } catch {
+      // Agent path: 'Collect' is a tab name (no params)
+      navigation.dispatch(CommonActions.navigate({ name: 'Collect' }));
+    }
+  };
+
   const renderItem = ({ item }: { item: DueTodayItem }) => (
     <Pressable
       style={({ pressed }) => [
         styles.remainingRow,
         pressed && { transform: [{ scale: 0.98 }] },
       ]}
-      onPress={() => navigation.navigate('Collect', { item })}
+      onPress={() => openCollect(item)}
     >
       <View style={styles.remainingLeft}>
         <Avatar name={item.borrower_name} size={36} />

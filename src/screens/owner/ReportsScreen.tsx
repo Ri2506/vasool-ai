@@ -74,20 +74,11 @@ export function ReportsScreen() {
     if (html) await sharePdf(html, `VasoolAI-${tab}-report`);
   };
 
-  const handleCardPress = async (key: string) => {
+  const handleCardPress = (key: string) => {
     switch (key) {
-      case 'daily':
-        setTab('daily');
-        await handleSharePdf();
-        break;
-      case 'patti':
-        setTab('lines');
-        setTimeout(() => handleSharePdf(), 50);
-        break;
-      case 'outstanding':
-        setTab('outstanding');
-        setTimeout(() => handleSharePdf(), 50);
-        break;
+      case 'daily': navigation.navigate('DailySummary'); break;
+      case 'patti': navigation.navigate('PattiNote'); break;
+      case 'outstanding': navigation.navigate('OutstandingReport'); break;
       case 'expenses': navigation.navigate('Expenses'); break;
       case 'investment': navigation.navigate('Investments'); break;
       case 'nippu': navigation.navigate('NippuReport'); break;

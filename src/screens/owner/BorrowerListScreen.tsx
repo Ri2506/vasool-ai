@@ -19,7 +19,6 @@ import { Avatar } from '@/components/common/Avatar';
 import { SkeletonRow } from '@/components/common/Skeleton';
 import { StarRating } from '@/components/common/StarRating';
 import { StatusBadge, type BorrowerStatusType } from '@/components/common/StatusBadge';
-import { VoiceButton } from '@/components/common/VoiceButton';
 import { ELCard } from '@/components/common/ELCard';
 import { EL, Common, Radii, Shadows, Space, Type, Fonts } from '@/theme/emeraldLedger';
 import { formatRupees } from '@/utils/format';
@@ -93,7 +92,7 @@ export function BorrowerListScreen() {
   const filters: { key: FilterKey; label: string }[] = [
     { key: 'all', label: `All (${counts.all})` },
     { key: 'due_today', label: `Due Today (${counts.due_today})` },
-    { key: 'nippu', label: `\u0BA8\u0BBF\u0BAA\u0BCD\u0BAA\u0BC1 (${counts.nippu})` },
+    { key: 'nippu', label: `Overdue (${counts.nippu})` },
     { key: 'completed', label: 'Completed' },
   ];
 
@@ -151,35 +150,49 @@ export function BorrowerListScreen() {
         }
         ListHeaderComponent={
           <>
-            {/* Top App Bar */}
+            {/* Top App Bar — clean title only, menu + duplicate search removed */}
             <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <Pressable style={styles.menuBtn}>
-                  <MaterialCommunityIcons name="menu" size={24} color={EL.onSurface} />
-                </Pressable>
-                <Text style={styles.headerTitle}>Borrowers</Text>
-              </View>
-              <Pressable style={styles.menuBtn}>
-                <MaterialCommunityIcons name="magnify" size={24} color={EL.onSurface} />
-              </Pressable>
+              <Text style={styles.headerTitle}>Borrowers</Text>
+              <Text style={styles.headerSub}>
+                {filtered.length} {filtered.length === 1 ? 'borrower' : 'borrowers'}
+              </Text>
             </View>
 
             {/* Search Bar */}
             <View style={styles.searchSection}>
               <View style={styles.searchBar}>
-                <MaterialCommunityIcons name="magnify" size={22} color={EL.onSurfaceMuted} />
+                <MaterialCommunityIcons name="magnify" size={20} color={EL.onSurfaceMuted} />
                 <TextInput
                   style={styles.searchInput}
                   placeholder={t('borrowers.search_placeholder') ?? 'Search borrowers...'}
                   placeholderTextColor={EL.outlineVariant}
                   value={query}
                   onChangeText={setQuery}
+                  returnKeyType="search"
+                  autoCorrect={false}
+                  autoCapitalize="none"
                 />
-                <VoiceButton
-                  isListening={voice.isListening}
-                  onPress={voice.isListening ? voice.stopListening : voice.startListening}
-                  lastText={null}
-                />
+                {query.length > 0 ? (
+                  <Pressable onPress={() => setQuery('')} hitSlop={8} style={styles.searchAction}>
+                    <MaterialCommunityIcons name="close-circle" size={18} color={EL.onSurfaceMuted} />
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={voice.isListening ? voice.stopListening : voice.startListening}
+                    hitSlop={8}
+                    style={[
+                      styles.searchAction,
+                      styles.micBtn,
+                      voice.isListening && styles.micBtnActive,
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={voice.isListening ? 'microphone' : 'microphone-outline'}
+                      size={18}
+                      color={voice.isListening ? EL.white : EL.primary}
+                    />
+                  </Pressable>
+                )}
               </View>
             </View>
 
@@ -247,31 +260,22 @@ export function BorrowerListScreen() {
 const styles = StyleSheet.create({
   /* ── Header ── */
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     paddingHorizontal: Space.xxl,
     paddingTop: Space.lg,
-    paddingBottom: Space.lg,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Space.lg,
-  },
-  menuBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
+    paddingBottom: Space.md,
   },
   headerTitle: {
     fontFamily: Fonts.headline,
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     color: EL.onSurface,
-    letterSpacing: -0.48,
+    letterSpacing: -0.5,
+  },
+  headerSub: {
+    fontFamily: Fonts.body,
+    fontSize: 13,
+    color: EL.onSurfaceSec,
+    marginTop: 2,
   },
 
   /* ── Search ── */
@@ -283,19 +287,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: EL.surfaceCard,
-    borderRadius: Radii.lg,
-    paddingHorizontal: Space.lg,
-    paddingVertical: Space.lg,
+    borderRadius: Radii.pill,
+    paddingLeft: Space.lg,
+    paddingRight: Space.sm,
+    height: 48,
+    gap: Space.sm,
     ...Shadows.card,
   },
   searchInput: {
     flex: 1,
     fontFamily: Fonts.body,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
     color: EL.onSurface,
-    marginLeft: Space.md,
     paddingVertical: 0,
+    height: '100%',
+  },
+  searchAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  micBtn: {
+    backgroundColor: 'rgba(0, 105, 72, 0.08)',
+  },
+  micBtnActive: {
+    backgroundColor: EL.primary,
   },
 
   /* ── Filter Chips ── */

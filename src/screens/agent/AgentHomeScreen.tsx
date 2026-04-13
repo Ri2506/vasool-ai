@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   SafeAreaView,
@@ -11,10 +12,10 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { useNavigation } from '@react-navigation/native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { EL, Common, Radii, Shadows, Space, Fonts } from '@/theme/emeraldLedger';
+import { EL, Common, Glass, Radii, Shadows, Space, Fonts } from '@/theme/emeraldLedger';
 import { useDueToday, useRecordCollection, useTodaySummary } from '@/hooks/useCollections';
 import { useAuthStore } from '@/store/authStore';
 import { formatRupees } from '@/utils/format';
@@ -27,10 +28,12 @@ export function AgentHomeScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
   const user = useAuthStore((s) => s.user);
+  const signOut = useAuthStore((s) => s.signOut);
   const { data: items = [], refetch } = useDueToday();
   const { data: summary } = useTodaySummary();
   const recordMut = useRecordCollection();
   const [pendingIds, setPendingIds] = React.useState<Set<string>>(new Set());
+  const [showProfile, setShowProfile] = useState(false);
 
   const total = items.length + (summary?.collectionCount ?? 0);
   const done = summary?.collectionCount ?? 0;
@@ -131,14 +134,20 @@ export function AgentHomeScreen() {
                 <Text style={styles.greetingSub}>Ready for today's collections?</Text>
               </View>
               <View style={styles.headerRight}>
-                <Pressable style={styles.headerIconBtn}>
+                <Pressable
+                  style={styles.headerIconBtn}
+                  onPress={() => Alert.alert('Notifications', 'No new notifications')}
+                >
                   <MaterialCommunityIcons name="bell-outline" size={24} color={EL.onSurface} />
                 </Pressable>
-                <View style={styles.profileCircle}>
+                <Pressable
+                  style={styles.profileCircle}
+                  onPress={() => setShowProfile(true)}
+                >
                   <Text style={styles.profileInitial}>
                     {(user?.name ?? 'A')[0].toUpperCase()}
                   </Text>
-                </View>
+                </Pressable>
               </View>
             </View>
 
@@ -201,14 +210,63 @@ export function AgentHomeScreen() {
         }
       />
 
-      {/* FAB — navigate to Expenses tab within the tab navigator parent */}
+      {/* Agent Profile / Logout Modal */}
+      <Modal visible={showProfile} transparent animationType="slide" onRequestClose={() => setShowProfile(false)}>
+        <Pressable style={styles.profileBackdrop} onPress={() => setShowProfile(false)}>
+          <Pressable style={styles.profileSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.profileSheetHandle} />
+
+            {/* Avatar + Name */}
+            <View style={styles.profileHeader}>
+              <View style={styles.profileAvatarLg}>
+                <Text style={styles.profileInitialLg}>
+                  {(user?.name ?? 'A')[0].toUpperCase()}
+                </Text>
+              </View>
+              <Text style={styles.profileNameLg}>{user?.name ?? 'Agent'}</Text>
+              <Text style={styles.profilePhoneLg}>{user?.phone ? `+91 ${user.phone}` : 'No phone'}</Text>
+            </View>
+
+            {/* Info rows */}
+            <View style={styles.profileInfoSection}>
+              <View style={styles.profileInfoRow}>
+                <MaterialCommunityIcons name="account-outline" size={20} color={EL.onSurfaceSec} />
+                <Text style={styles.profileInfoLabel}>Role</Text>
+                <Text style={styles.profileInfoValue}>Collection Agent</Text>
+              </View>
+              <View style={styles.profileInfoRow}>
+                <MaterialCommunityIcons name="domain" size={20} color={EL.onSurfaceSec} />
+                <Text style={styles.profileInfoLabel}>Org</Text>
+                <Text style={styles.profileInfoValue}>{user?.orgId ?? '-'}</Text>
+              </View>
+            </View>
+
+            {/* Logout button */}
+            <Pressable
+              style={styles.logoutBtn}
+              onPress={() => {
+                setShowProfile(false);
+                Alert.alert('Logout', 'Are you sure you want to logout?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Logout', style: 'destructive', onPress: signOut },
+                ]);
+              }}
+            >
+              <MaterialCommunityIcons name="logout" size={20} color={EL.tertiary} />
+              <Text style={styles.logoutText}>Log Out</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* FAB — switch to Expenses tab */}
       <Pressable
         style={styles.fab}
         onPress={() => {
-          const parent = navigation.getParent();
-          if (parent) {
-            parent.navigate('Expenses' as never);
-          }
+          // Dispatch a navigate action that targets the Expenses tab by name.
+          // Works regardless of whether `navigation` is the tab or the stack
+          // because React Navigation searches upward for a matching route.
+          navigation.dispatch(CommonActions.navigate({ name: 'Expenses' }));
         }}
       >
         <MaterialCommunityIcons name="plus" size={28} color={EL.white} />
@@ -495,5 +553,100 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Shadows.float,
+  },
+
+  // Profile modal
+  profileBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+  },
+  profileSheet: {
+    backgroundColor: EL.surfaceCard,
+    borderTopLeftRadius: Radii.xxl,
+    borderTopRightRadius: Radii.xxl,
+    paddingHorizontal: Space.xxl,
+    paddingBottom: Space.xxxl + 16,
+    paddingTop: Space.md,
+    ...Shadows.float,
+  },
+  profileSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: EL.outlineVariant,
+    alignSelf: 'center',
+    marginBottom: Space.xxl,
+  },
+  profileHeader: {
+    alignItems: 'center',
+    marginBottom: Space.xxl,
+  },
+  profileAvatarLg: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: EL.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Space.md,
+  },
+  profileInitialLg: {
+    fontFamily: Fonts.headline,
+    fontSize: 28,
+    fontWeight: '800',
+    color: EL.white,
+  },
+  profileNameLg: {
+    fontFamily: Fonts.headline,
+    fontSize: 22,
+    fontWeight: '700',
+    color: EL.onSurface,
+  },
+  profilePhoneLg: {
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: EL.onSurfaceSec,
+    marginTop: 2,
+  },
+  profileInfoSection: {
+    backgroundColor: EL.surfaceLow,
+    borderRadius: Radii.lg,
+    padding: Space.lg,
+    gap: Space.lg,
+    marginBottom: Space.xxl,
+  },
+  profileInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.md,
+  },
+  profileInfoLabel: {
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    color: EL.onSurfaceSec,
+    flex: 1,
+  },
+  profileInfoValue: {
+    fontFamily: Fonts.body,
+    fontSize: 14,
+    fontWeight: '600',
+    color: EL.onSurface,
+  },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Space.sm,
+    paddingVertical: Space.lg,
+    borderRadius: Radii.md,
+    borderWidth: 2,
+    borderColor: 'rgba(155, 62, 59, 0.2)',
+  },
+  logoutText: {
+    fontFamily: Fonts.headline,
+    fontSize: 15,
+    fontWeight: '700',
+    color: EL.tertiary,
   },
 });

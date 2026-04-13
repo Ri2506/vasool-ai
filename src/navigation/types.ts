@@ -38,6 +38,9 @@ export type OwnerStackParamList = {
   Documents: { borrowerId: string };
   Referral: undefined;
   NippuReport: undefined;
+  DailySummary: undefined;
+  PattiNote: undefined;
+  OutstandingReport: undefined;
   SuccessReceipt: SuccessReceiptParams;
   BorrowerRating: { id: string };
   Deposits: undefined;

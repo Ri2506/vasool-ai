@@ -145,7 +145,7 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
                 ) : null}
               </View>
             </View>
-            {/* Call / Chat actions */}
+            {/* Call / SMS / WhatsApp actions */}
             <View style={styles.profileActions}>
               {borrower.phone ? (
                 <>
@@ -153,18 +153,50 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
                     style={styles.actionCircle}
                     onPress={() => Linking.openURL(`tel:${borrower.phone}`)}
                   >
-                    <MaterialCommunityIcons name="phone" size={22} color={EL.primary} />
+                    <MaterialCommunityIcons name="phone" size={20} color={EL.primary} />
+                  </Pressable>
+                  <Pressable
+                    style={styles.actionCircle}
+                    onPress={() => Linking.openURL(`sms:${borrower.phone}`)}
+                  >
+                    <MaterialCommunityIcons name="message-text-outline" size={20} color={EL.primary} />
                   </Pressable>
                   <Pressable
                     style={styles.actionCircle}
                     onPress={() => Linking.openURL(`https://wa.me/91${borrower.phone}`)}
                   >
-                    <MaterialCommunityIcons name="whatsapp" size={22} color="#25D366" />
+                    <MaterialCommunityIcons name="whatsapp" size={20} color="#25D366" />
                   </Pressable>
                 </>
               ) : null}
             </View>
           </View>
+
+          {/* Meta info: address + notes + joined date */}
+          {(borrower.address || borrower.notes || borrower.created_at) ? (
+            <View style={styles.metaSection}>
+              {borrower.address ? (
+                <View style={styles.metaRow}>
+                  <MaterialCommunityIcons name="map-marker-outline" size={16} color={EL.onSurfaceMuted} />
+                  <Text style={styles.metaText} numberOfLines={2}>{borrower.address}</Text>
+                </View>
+              ) : null}
+              {borrower.notes ? (
+                <View style={styles.metaRow}>
+                  <MaterialCommunityIcons name="note-text-outline" size={16} color={EL.onSurfaceMuted} />
+                  <Text style={styles.metaText}>{borrower.notes}</Text>
+                </View>
+              ) : null}
+              {borrower.created_at ? (
+                <View style={styles.metaRow}>
+                  <MaterialCommunityIcons name="calendar-outline" size={16} color={EL.onSurfaceMuted} />
+                  <Text style={styles.metaText}>
+                    Joined {new Date(borrower.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
 
           {/* Status pill */}
           {borrowerStatus !== 'none' ? (
@@ -379,6 +411,16 @@ export function BorrowerDetailScreen({ route, navigation }: Props) {
             <MaterialCommunityIcons name="receipt" size={18} color={EL.primary} />
             <Text style={styles.newLoanLabel}>New Loan</Text>
           </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.newLoanBtn,
+              pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] },
+            ]}
+            onPress={() => navigation.navigate('Documents', { borrowerId: borrower.id })}
+          >
+            <MaterialCommunityIcons name="file-document-outline" size={18} color={EL.primary} />
+            <Text style={styles.newLoanLabel}>Docs</Text>
+          </Pressable>
         </View>
       </View>
     </SafeAreaView>
@@ -484,6 +526,25 @@ const styles = StyleSheet.create({
   },
   statusRow: {
     marginTop: Space.xl,
+  },
+  metaSection: {
+    marginTop: Space.lg,
+    paddingTop: Space.lg,
+    borderTopWidth: 1,
+    borderTopColor: EL.surfaceHighest,
+    gap: Space.sm,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Space.sm,
+  },
+  metaText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: EL.onSurfaceSec,
+    flex: 1,
+    lineHeight: 18,
   },
   statusPill: {
     flexDirection: 'row',

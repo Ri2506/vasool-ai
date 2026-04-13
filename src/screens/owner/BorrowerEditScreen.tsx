@@ -111,15 +111,30 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={Common.screen}>
+      {/* Top App Bar */}
+      <View style={styles.appBar}>
+        <Pressable
+          style={styles.appBarBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={8}
+        >
+          <MaterialCommunityIcons name="arrow-left" size={24} color={EL.onSurface} />
+        </Pressable>
+        <Text style={styles.appBarTitle}>
+          {isEditing ? t('borrowers.edit') : 'New Borrower'}
+        </Text>
+        <View style={{ width: 40 }} />
+      </View>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView contentContainerStyle={styles.content}>
-          {/* Header */}
-          <Text style={styles.screenTitle}>
-            {isEditing ? t('borrowers.edit') : 'New Borrower'}
-          </Text>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
 
           {/* Photo Section */}
           <View style={styles.photoSection}>
@@ -245,15 +260,33 @@ export function BorrowerEditScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  // Top app bar
+  appBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Space.xl,
+    paddingVertical: Space.lg,
+    backgroundColor: EL.surface,
+  },
+  appBarBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  appBarTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: EL.onSurface,
+    letterSpacing: -0.2,
+  },
+
   content: {
     paddingHorizontal: Space.xl,
-    paddingTop: Space.xxl,
-  },
-  screenTitle: {
-    ...Type.displaySm,
-    fontWeight: '700',
-    fontSize: 20,
-    marginBottom: Space.lg,
+    paddingTop: Space.lg,
+    paddingBottom: 120,
   },
 
   // Photo

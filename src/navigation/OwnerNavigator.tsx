@@ -31,6 +31,9 @@ import { GuarantorScreen } from '@/screens/owner/GuarantorScreen';
 import { DocumentScreen } from '@/screens/owner/DocumentScreen';
 import { DepositScreen } from '@/screens/owner/DepositScreen';
 import { LoanCelebrationScreen } from '@/screens/owner/LoanCelebrationScreen';
+import { DailySummaryScreen } from '@/screens/owner/DailySummaryScreen';
+import { PattiNoteScreen } from '@/screens/owner/PattiNoteScreen';
+import { OutstandingReportScreen } from '@/screens/owner/OutstandingReportScreen';
 import { TabIcon } from '@/components/common/TabIcon';
 import type { OwnerStackParamList, OwnerTabParamList } from './types';
 
@@ -109,6 +112,9 @@ export function OwnerNavigator() {
       <Stack.Screen name="Guarantor" component={GuarantorScreen} options={{ title: 'Guarantor' }} />
       <Stack.Screen name="LoanCelebration" component={LoanCelebrationScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Documents" component={DocumentScreen} options={{ title: 'Documents' }} />
+      <Stack.Screen name="DailySummary" component={DailySummaryScreen} options={{ title: 'Daily Summary' }} />
+      <Stack.Screen name="PattiNote" component={PattiNoteScreen} options={{ title: 'Patti Note' }} />
+      <Stack.Screen name="OutstandingReport" component={OutstandingReportScreen} options={{ title: 'Outstanding' }} />
     </Stack.Navigator>
   );
 }
